@@ -26,14 +26,11 @@ git checkout 001-rayan-memory-palace
 ### Create Project
 
 ```bash
-# Create new project
-gcloud projects create rayan-palace-demo --name="Rayan Memory Palace"
-
-# Set as default
-gcloud config set project rayan-palace-demo
+# Set existing project as default (project already created)
+gcloud config set project rayan-memory
 
 # Enable billing (replace with your billing account ID)
-gcloud billing projects link rayan-palace-demo --billing-account=YOUR_BILLING_ACCOUNT
+gcloud billing projects link rayan-memory --billing-account=YOUR_BILLING_ACCOUNT
 
 # Enable required APIs
 gcloud services enable \
@@ -99,14 +96,14 @@ Edit `backend/.env`:
 
 ```env
 # Google Cloud
-GOOGLE_CLOUD_PROJECT=rayan-palace-demo
+GOOGLE_CLOUD_PROJECT=rayan-memory
 GOOGLE_APPLICATION_CREDENTIALS=path/to/service-account.json
 
 # Gemini API
 GEMINI_API_KEY=your_gemini_api_key
 
 # Firebase (for token verification)
-FIREBASE_PROJECT_ID=rayan-palace-demo
+FIREBASE_PROJECT_ID=rayan-memory
 
 # Server
 HOST=0.0.0.0
@@ -179,9 +176,9 @@ VITE_WS_URL=ws://localhost:8000
 
 # Firebase Config
 VITE_FIREBASE_API_KEY=your_firebase_api_key
-VITE_FIREBASE_AUTH_DOMAIN=rayan-palace-demo.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=rayan-palace-demo
-VITE_FIREBASE_STORAGE_BUCKET=rayan-palace-demo.appspot.com
+VITE_FIREBASE_AUTH_DOMAIN=rayan-memory.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=rayan-memory
+VITE_FIREBASE_STORAGE_BUCKET=rayan-memory.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
 ```
