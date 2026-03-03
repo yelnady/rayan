@@ -184,39 +184,39 @@
 
 ### Backend Implementation for US3
 
-- [ ] T089 [US3] Create backend/app/agents/recall_agent.py with memory Q&A using Gemini
-- [ ] T090 [US3] Create backend/app/agents/narrator_agent.py for artifact narration
-- [ ] T091 [US3] Create backend/app/services/search_service.py with semantic vector search
-- [ ] T092 [US3] Implement voice_query WebSocket handler in backend/app/websocket/handlers.py
-- [ ] T093 [US3] Implement text_query WebSocket handler as fallback
-- [ ] T094 [US3] Implement artifact_click WebSocket handler for recall
-- [ ] T095 [US3] Implement interrupt WebSocket handler for barge-in
-- [ ] T096 [US3] Add response_chunk streaming with interleaved audio/image per websocket.md
-- [ ] T097 [US3] Add artifact_recall WebSocket response with narration and diagrams
-- [ ] T098 [US3] Create backend/app/services/diagram_service.py for Gemini image generation
-- [ ] T099 [US3] Create backend/app/routers/search.py with POST /search endpoint
-- [ ] T100 [US3] Register search router in backend/app/main.py
+- [x] T089 [US3] Create backend/app/agents/recall_agent.py with memory Q&A using Gemini
+- [x] T090 [US3] Create backend/app/agents/narrator_agent.py for artifact narration
+- [x] T091 [US3] Create backend/app/services/search_service.py with semantic vector search
+- [x] T092 [US3] Implement voice_query WebSocket handler in backend/app/websocket/handlers.py
+- [x] T093 [US3] Implement text_query WebSocket handler as fallback
+- [x] T094 [US3] Implement artifact_click WebSocket handler for recall
+- [x] T095 [US3] Implement interrupt WebSocket handler for barge-in
+- [x] T096 [US3] Add response_chunk streaming with interleaved audio/image per websocket.md
+- [x] T097 [US3] Add artifact_recall WebSocket response with narration and diagrams
+- [x] T098 [US3] Create backend/app/services/diagram_service.py for Gemini image generation
+- [x] T099 [US3] Create backend/app/routers/search.py with POST /search endpoint
+- [x] T100 [US3] Register search router in backend/app/main.py
 
 ### Frontend Voice Implementation for US3
 
-- [ ] T101 [P] [US3] Create frontend/src/stores/voiceStore.ts with conversation state
-- [ ] T102 [US3] Create frontend/src/services/audioCapture.ts with microphone MediaRecorder
-- [ ] T103 [US3] Create frontend/src/services/audioPlayback.ts for streaming audio chunks
-- [ ] T104 [US3] Create frontend/src/hooks/useVoice.ts for voice query lifecycle
-- [ ] T105 [US3] Create frontend/src/components/voice/VoiceButton.tsx with push-to-talk
-- [ ] T106 [US3] Create frontend/src/components/voice/VoiceIndicator.tsx for recording state
-- [ ] T107 [US3] Create frontend/src/components/voice/ResponsePanel.tsx for text transcript
-- [ ] T108 [US3] Create frontend/src/components/voice/GeneratedDiagram.tsx for inline images
-- [ ] T109 [US3] Handle response_chunk WebSocket messages with audio/image routing
-- [ ] T110 [US3] Implement interrupt on voice activity detection in frontend/src/hooks/useVoice.ts
+- [x] T101 [P] [US3] Create frontend/src/stores/voiceStore.ts with conversation state
+- [x] T102 [US3] Create frontend/src/services/audioCapture.ts with microphone MediaRecorder
+- [x] T103 [US3] Create frontend/src/services/audioPlayback.ts for streaming audio chunks
+- [x] T104 [US3] Create frontend/src/hooks/useVoice.ts for voice query lifecycle
+- [x] T105 [US3] Create frontend/src/components/voice/VoiceButton.tsx with push-to-talk
+- [x] T106 [US3] Create frontend/src/components/voice/VoiceIndicator.tsx for recording state
+- [x] T107 [US3] Create frontend/src/components/voice/ResponsePanel.tsx for text transcript
+- [x] T108 [US3] Create frontend/src/components/voice/GeneratedDiagram.tsx for inline images
+- [x] T109 [US3] Handle response_chunk WebSocket messages with audio/image routing
+- [x] T110 [US3] Implement interrupt on voice activity detection in frontend/src/hooks/useVoice.ts
 
 ### Artifact Detail View for US3
 
-- [ ] T111 [US3] Create backend/app/routers/artifacts.py with GET /artifacts/{artifactId}, DELETE
-- [ ] T112 [US3] Register artifacts router in backend/app/main.py
-- [ ] T113 [US3] Create frontend/src/components/artifacts/ArtifactDetailModal.tsx full content view
-- [ ] T114 [US3] Create frontend/src/components/artifacts/RelatedArtifacts.tsx for connections
-- [ ] T115 [US3] Add click handler to Artifact.tsx to trigger artifact_click WebSocket message
+- [x] T111 [US3] Create backend/app/routers/artifacts.py with GET /artifacts/{artifactId}, DELETE
+- [x] T112 [US3] Register artifacts router in backend/app/main.py
+- [x] T113 [US3] Create frontend/src/components/artifacts/ArtifactDetailModal.tsx full content view
+- [x] T114 [US3] Create frontend/src/components/artifacts/RelatedArtifacts.tsx for connections
+- [x] T115 [US3] Add click handler to Artifact.tsx to trigger artifact_click WebSocket message
 
 **Checkpoint**: Voice conversation complete - Can ask questions, hear answers, see diagrams
 
