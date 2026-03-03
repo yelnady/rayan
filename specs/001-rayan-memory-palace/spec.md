@@ -173,7 +173,7 @@ As a user, I want my memory palace to be saved and accessible across sessions so
 **Hackathon Requirements**
 - **FR-025**: System MUST use Gemini models for all AI processing
 - **FR-026**: System MUST use Google GenAI SDK or ADK for agent orchestration
-- **FR-027**: System MUST be hosted on Google Cloud
+- **FR-027**: System MUST be hosted on Google Cloud; all service-to-service authentication MUST use Application Default Credentials (ADC), not API keys
 - **FR-028**: System MUST use Gemini Live API for real-time audio/video capture
 - **FR-029**: System MUST use Gemini's interleaved output for mixed voice/visual responses
 
@@ -215,12 +215,21 @@ As a user, I want my memory palace to be saved and accessible across sessions so
 
 - **SC-010**: Enrichment agent successfully adds relevant external information to at least 3 out of 5 eligible memories within 60 seconds
 
+## Clarifications
+
+### Session 2026-03-03
+
+- Q: How is Gemini API access authenticated? → A: Application Default Credentials (ADC) everywhere — no API key. Locally via `gcloud auth application-default login` or `GOOGLE_APPLICATION_CREDENTIALS`; on Cloud Run via the attached service account. `genai.Client(vertexai=True, project=..., location=...)` is the canonical init pattern.
+
+---
+
 ## Assumptions
 
 - Users have modern browsers (Chrome, Firefox, Safari, Edge from 2022+) with WebGL support
 - Users have webcam and microphone hardware available
 - Users have stable internet connectivity (minimum 5 Mbps for real-time streaming)
-- Google Cloud services (Gemini API, Vertex AI, Firestore, Cloud Storage, Cloud Run) are available and within hackathon budget
+- Google Cloud services (Vertex AI / Gemini on Vertex, Firestore, Cloud Storage, Cloud Run) are available and within hackathon budget
+- All Gemini API calls use Application Default Credentials (ADC) via the Vertex AI endpoint (`vertexai=True`); no standalone Gemini API key is used
 - 3D palace can be rendered with procedural geometry and basic textures (no custom 3D modeling required)
 - Authentication can use Firebase Auth or similar managed service
 - Social login will support Google account at minimum (consistent with Google ecosystem)

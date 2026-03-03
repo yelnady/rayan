@@ -215,17 +215,8 @@ cd frontend
 # Build production bundle
 npm run build
 
-# Create hosting bucket
-gsutil mb -l us-central1 gs://rayan-frontend-$(gcloud config get-value project)
-
-# Configure for static hosting
-gsutil web set -m index.html -e index.html gs://rayan-frontend-$(gcloud config get-value project)
-
-# Upload files
-gsutil -m cp -r dist/* gs://rayan-frontend-$(gcloud config get-value project)/
-
-# Make public
-gsutil iam ch allUsers:objectViewer gs://rayan-frontend-$(gcloud config get-value project)
+# Deploy to Firebase Hosting
+firebase deploy --only hosting
 ```
 
 ### Update Frontend Config
@@ -253,9 +244,7 @@ wscat -c wss://rayan-backend-xxx-uc.a.run.app/ws/test-user
 
 ### Access Frontend
 
-Visit: `https://storage.googleapis.com/rayan-frontend-[project-id]/index.html`
-
-Or set up Cloud CDN for a custom domain.
+Visit: `https://rayan-memory.web.app` (or your custom Firebase Hosting domain)
 
 ## 7. Development Workflow
 

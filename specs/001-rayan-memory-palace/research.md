@@ -370,11 +370,11 @@ steps:
     env:
       - 'VITE_API_URL=https://rayan-backend-xxx-uc.a.run.app'
 
-  # Deploy frontend to Cloud Storage + CDN
+  # Deploy frontend to Firebase Hosting
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     dir: 'frontend'
-    entrypoint: gsutil
-    args: ['-m', 'cp', '-r', 'dist/*', 'gs://rayan-frontend-$PROJECT_ID/']
+    entrypoint: firebase
+    args: ['deploy', '--only', 'hosting', '--token', '$_FIREBASE_TOKEN']
 ```
 
 ---
@@ -487,6 +487,7 @@ def verify_token(id_token: str) -> dict:
 | Database | Firestore | Real-time sync, hierarchical |
 | Vector Search | Vertex AI | Semantic retrieval |
 | Storage | Cloud Storage | Media artifacts |
+| Frontend Hosting | Firebase Hosting | CDN, SSL, free tier |
 | Auth | Firebase Auth | Google sign-in, security rules |
 | IaC | Terraform | Bonus points for automation |
 | CI/CD | Cloud Build | Integrated deployment |

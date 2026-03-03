@@ -24,6 +24,7 @@ Rayan is an AI agent that builds and maintains a personalized 3D memory palace f
 - Firestore (knowledge graph, palace layout, user sessions)
 - Cloud Storage (media artifacts - video clips, images)
 - Vertex AI Vector Search (semantic embeddings for memory retrieval)
+- Firebase Hosting (frontend static site - CDN, SSL, free tier)
 
 **Testing**: Vitest (frontend), pytest (backend)
 **Target Platform**: Modern browsers (Chrome, Firefox, Safari, Edge 2022+) with WebGL 2.0

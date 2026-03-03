@@ -11,7 +11,7 @@ Auto-generated from feature plans. Last updated: 2026-03-02
   - All other APIs: `gemini-2.5-flash`
 - **Database**: Firestore, Vertex AI Vector Search
 - **Storage**: Cloud Storage
-- **Deployment**: Cloud Run, Terraform
+- **Deployment**: Cloud Run (backend), Firebase Hosting (frontend), Terraform
 
 ## Project Structure
 
@@ -69,9 +69,8 @@ npm run build    # Production build
 gcloud builds submit --tag gcr.io/$PROJECT_ID/rayan-backend ./backend
 gcloud run deploy rayan-backend --image gcr.io/$PROJECT_ID/rayan-backend --region us-central1
 
-# Deploy frontend
-cd frontend && npm run build
-gsutil -m cp -r dist/* gs://rayan-frontend-$PROJECT_ID/
+# Deploy frontend to Firebase Hosting
+cd frontend && npm run build && firebase deploy --only hosting
 ```
 
 ## Code Style

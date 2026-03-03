@@ -59,16 +59,16 @@
 
 ### Frontend Foundation
 
-- [ ] T023 Create frontend/src/config/firebase.ts with Firebase initialization
-- [ ] T024 Create frontend/src/config/api.ts with API and WebSocket base URLs
-- [ ] T025 [P] Create frontend/src/stores/authStore.ts with Zustand auth state
-- [ ] T026 [P] Create frontend/src/stores/palaceStore.ts with palace state management
-- [ ] T027 Create frontend/src/services/api.ts with authenticated fetch wrapper
-- [ ] T028 Create frontend/src/hooks/useAuth.ts with Firebase auth hook
-- [ ] T029 Create frontend/src/components/auth/GoogleSignIn.tsx component
-- [ ] T030 Create frontend/src/App.tsx with router and auth provider setup
-- [ ] T031 [P] Create frontend/src/types/palace.ts with TypeScript interfaces per data-model.md
-- [ ] T032 [P] Create frontend/src/types/api.ts with API request/response types per rest-api.md
+- [x] T023 Create frontend/src/config/firebase.ts with Firebase initialization
+- [x] T024 Create frontend/src/config/api.ts with API and WebSocket base URLs
+- [x] T025 [P] Create frontend/src/stores/authStore.ts with Zustand auth state
+- [x] T026 [P] Create frontend/src/stores/palaceStore.ts with palace state management
+- [x] T027 Create frontend/src/services/api.ts with authenticated fetch wrapper
+- [x] T028 Create frontend/src/hooks/useAuth.ts with Firebase auth hook
+- [x] T029 Create frontend/src/components/auth/GoogleSignIn.tsx component
+- [x] T030 Create frontend/src/App.tsx with router and auth provider setup
+- [x] T031 [P] Create frontend/src/types/palace.ts with TypeScript interfaces per data-model.md
+- [x] T032 [P] Create frontend/src/types/api.ts with API request/response types per rest-api.md
 
 ### WebSocket Infrastructure
 
@@ -105,21 +105,21 @@
 
 ### Frontend Implementation for US1
 
-- [ ] T050 [P] [US1] Create frontend/src/stores/captureStore.ts with capture session state
-- [ ] T051 [US1] Create frontend/src/services/mediaCapture.ts with MediaRecorder setup (webcam/screen)
-- [ ] T052 [US1] Create frontend/src/hooks/useCapture.ts with capture session lifecycle
-- [ ] T053 [US1] Create frontend/src/components/capture/CaptureButton.tsx with start/stop toggle
-- [ ] T054 [US1] Create frontend/src/components/capture/CaptureOverlay.tsx with status display
-- [ ] T055 [US1] Create frontend/src/components/capture/ConceptToast.tsx for capture_ack notifications
-- [ ] T056 [US1] Implement media chunk streaming to WebSocket in frontend/src/services/websocket.ts
-- [ ] T057 [US1] Create frontend/src/components/capture/CaptureComplete.tsx summary modal
-- [ ] T057b [US1] Create frontend/src/components/capture/RoomSuggestionModal.tsx with accept/reject/edit flow per agent-prompts.md room confirmation flow
-- [ ] T057c [US1] Handle room_suggestion WebSocket message in frontend/src/stores/captureStore.ts (show modal, resolve with user choice)
+- [x] T050 [P] [US1] Create frontend/src/stores/captureStore.ts with capture session state
+- [x] T051 [US1] Create frontend/src/services/mediaCapture.ts with MediaRecorder setup (webcam/screen)
+- [x] T052 [US1] Create frontend/src/hooks/useCapture.ts with capture session lifecycle
+- [x] T053 [US1] Create frontend/src/components/capture/CaptureButton.tsx with start/stop toggle
+- [x] T054 [US1] Create frontend/src/components/capture/CaptureOverlay.tsx with status display
+- [x] T055 [US1] Create frontend/src/components/capture/ConceptToast.tsx for capture_ack notifications
+- [x] T056 [US1] Implement media chunk streaming to WebSocket in frontend/src/services/websocket.ts
+- [x] T057 [US1] Create frontend/src/components/capture/CaptureComplete.tsx summary modal
+- [x] T057b [US1] Create frontend/src/components/capture/RoomSuggestionModal.tsx with accept/reject/edit flow per agent-prompts.md room confirmation flow
+- [x] T057c [US1] Handle room_suggestion WebSocket message in frontend/src/stores/captureStore.ts (show modal, resolve with user choice)
 
 ### REST Endpoints for US1
 
-- [ ] T058 [US1] Create backend/app/routers/sessions.py with GET /sessions and GET /sessions/{sessionId}
-- [ ] T059 [US1] Register sessions router in backend/app/main.py
+- [x] T058 [US1] Create backend/app/routers/sessions.py with GET /sessions and GET /sessions/{sessionId}
+- [x] T059 [US1] Register sessions router in backend/app/main.py
 
 **Checkpoint**: Capture flow complete - Can capture webcam, extract concepts, create artifacts in Firestore; room suggestion modal appears when similarity < 0.75
 
@@ -133,44 +133,44 @@
 
 ### Backend Implementation for US2
 
-- [ ] T060 [US2] Create backend/app/routers/palace.py with GET /palace, POST /palace, PATCH /palace/layout
-- [ ] T061 [US2] Create backend/app/routers/rooms.py with GET /rooms/{roomId}, POST /rooms/{roomId}/access
-- [ ] T062 [US2] Register palace and rooms routers in backend/app/main.py
+- [x] T060 [US2] Create backend/app/routers/palace.py with GET /palace, POST /palace, PATCH /palace/layout
+- [x] T061 [US2] Create backend/app/routers/rooms.py with GET /rooms/{roomId}, POST /rooms/{roomId}/access
+- [x] T062 [US2] Register palace and rooms routers in backend/app/main.py
 
 ### Frontend 3D Implementation for US2
 
-- [ ] T063 [P] [US2] Install Three.js dependencies: three, @react-three/fiber, @react-three/drei, gsap
-- [ ] T064 [P] [US2] Create frontend/src/config/themes.ts with 5 room themes per research.md
-- [ ] T065 [P] [US2] Create frontend/src/types/three.ts with 3D position/dimension types
-- [ ] T066 [US2] Create frontend/src/components/palace/PalaceCanvas.tsx with Canvas and scene setup
-- [ ] T067 [US2] Create frontend/src/components/palace/Lobby.tsx with central hub rendering
-- [ ] T068 [US2] Create frontend/src/components/palace/Room.tsx with procedural geometry generation
-- [ ] T069 [US2] Create frontend/src/components/palace/WallsWithDoors.tsx with door cutouts
-- [ ] T070 [US2] Create frontend/src/components/palace/Door.tsx with animated door component
-- [ ] T071 [US2] Create frontend/src/components/palace/Corridor.tsx for room-to-room connections
-- [ ] T072 [US2] Create frontend/src/components/navigation/FirstPersonControls.tsx with PointerLockControls
-- [ ] T073 [US2] Create frontend/src/hooks/useNavigation.ts for movement and collision detection
-- [ ] T074 [US2] Create frontend/src/components/palace/Lighting.tsx with theme-aware lighting
+- [x] T063 [P] [US2] Install Three.js dependencies: three, @react-three/fiber, @react-three/drei, gsap
+- [x] T064 [P] [US2] Create frontend/src/config/themes.ts with 5 room themes per research.md
+- [x] T065 [P] [US2] Create frontend/src/types/three.ts with 3D position/dimension types
+- [x] T066 [US2] Create frontend/src/components/palace/PalaceCanvas.tsx with Canvas and scene setup
+- [x] T067 [US2] Create frontend/src/components/palace/Lobby.tsx with central hub rendering
+- [x] T068 [US2] Create frontend/src/components/palace/Room.tsx with procedural geometry generation
+- [x] T069 [US2] Create frontend/src/components/palace/WallsWithDoors.tsx with door cutouts
+- [x] T070 [US2] Create frontend/src/components/palace/Door.tsx with animated door component
+- [x] T071 [US2] Create frontend/src/components/palace/Corridor.tsx for room-to-room connections
+- [x] T072 [US2] Create frontend/src/components/navigation/FirstPersonControls.tsx with PointerLockControls
+- [x] T073 [US2] Create frontend/src/hooks/useNavigation.ts for movement and collision detection
+- [x] T074 [US2] Create frontend/src/components/palace/Lighting.tsx with theme-aware lighting
 
 ### Artifact Visualization for US2
 
-- [ ] T075 [P] [US2] Create frontend/src/components/artifacts/FloatingBook.tsx visual
-- [ ] T076 [P] [US2] Create frontend/src/components/artifacts/HologramFrame.tsx visual
-- [ ] T077 [P] [US2] Create frontend/src/components/artifacts/FramedImage.tsx visual
-- [ ] T078 [P] [US2] Create frontend/src/components/artifacts/SpeechBubble.tsx visual
-- [ ] T079 [P] [US2] Create frontend/src/components/artifacts/CrystalOrb.tsx visual
-- [ ] T080 [US2] Create frontend/src/components/artifacts/Artifact.tsx with visual type switch
-- [ ] T081 [US2] Create frontend/src/hooks/useArtifactInteraction.ts with click/hover handlers
-- [ ] T082 [US2] Create frontend/src/components/artifacts/ArtifactTooltip.tsx for hover preview
-- [ ] T083 [US2] Add GSAP animations for artifact floating/pulsing in artifact components
+- [x] T075 [P] [US2] Create frontend/src/components/artifacts/FloatingBook.tsx visual
+- [x] T076 [P] [US2] Create frontend/src/components/artifacts/HologramFrame.tsx visual
+- [x] T077 [P] [US2] Create frontend/src/components/artifacts/FramedImage.tsx visual
+- [x] T078 [P] [US2] Create frontend/src/components/artifacts/SpeechBubble.tsx visual
+- [x] T079 [P] [US2] Create frontend/src/components/artifacts/CrystalOrb.tsx visual
+- [x] T080 [US2] Create frontend/src/components/artifacts/Artifact.tsx with visual type switch
+- [x] T081 [US2] Create frontend/src/hooks/useArtifactInteraction.ts with click/hover handlers
+- [x] T082 [US2] Create frontend/src/components/artifacts/ArtifactTooltip.tsx for hover preview
+- [x] T083 [US2] Add GSAP animations for artifact floating/pulsing in artifact components
 
 ### Palace Data Loading for US2
 
-- [ ] T084 [US2] Create frontend/src/services/palaceApi.ts with palace REST endpoints
-- [ ] T085 [US2] Create frontend/src/hooks/usePalace.ts for loading palace state
-- [ ] T086 [US2] Create frontend/src/hooks/useRoom.ts for loading room with artifacts
-- [ ] T087 [US2] Create frontend/src/pages/PalacePage.tsx main 3D view page
-- [ ] T088 [US2] Handle palace_update WebSocket messages to add rooms/artifacts in real-time
+- [x] T084 [US2] Create frontend/src/services/palaceApi.ts with palace REST endpoints
+- [x] T085 [US2] Create frontend/src/hooks/usePalace.ts for loading palace state
+- [x] T086 [US2] Create frontend/src/hooks/useRoom.ts for loading room with artifacts
+- [x] T087 [US2] Create frontend/src/pages/PalacePage.tsx main 3D view page
+- [x] T088 [US2] Handle palace_update WebSocket messages to add rooms/artifacts in real-time
 
 **Checkpoint**: 3D navigation complete - Can explore palace, enter rooms, see artifacts
 
@@ -296,7 +296,7 @@
 - [ ] T149 Create infrastructure/terraform.tfvars.example with required variables
 - [ ] T150 Deploy Firestore rules using `gcloud firestore deploy`
 - [ ] T151 Deploy backend to Cloud Run per quickstart.md
-- [ ] T152 Deploy frontend to Cloud Storage with CDN per quickstart.md
+- [ ] T152 Deploy frontend to Firebase Hosting per quickstart.md
 
 ### Performance Optimization
 
