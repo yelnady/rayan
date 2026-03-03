@@ -1,0 +1,26 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { useRef, useState } from 'react';
+import { useFrame } from '@react-three/fiber';
+import { Text } from '@react-three/drei';
+const DOOR_WIDTH = 1.5;
+const DOOR_HEIGHT = 2.5;
+const OPEN_ANGLE = -Math.PI / 2;
+export function Door({ position, targetRoomName, onEnter }) {
+    const groupRef = useRef(null);
+    const [isOpen, setIsOpen] = useState(false);
+    const [hovered, setHovered] = useState(false);
+    // Smoothly animate door open/close
+    useFrame((_, delta) => {
+        if (!groupRef.current)
+            return;
+        const target = isOpen ? OPEN_ANGLE : 0;
+        groupRef.current.rotation.y +=
+            (target - groupRef.current.rotation.y) * Math.min(1, delta * 6);
+    });
+    function handleClick() {
+        setIsOpen((prev) => !prev);
+        if (!isOpen)
+            onEnter?.();
+    }
+    return (_jsxs("group", { position: position, children: [_jsx("group", { ref: groupRef, children: _jsxs("mesh", { position: [DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0], onClick: handleClick, onPointerOver: () => setHovered(true), onPointerOut: () => setHovered(false), children: [_jsx("boxGeometry", { args: [DOOR_WIDTH, DOOR_HEIGHT, 0.06] }), _jsx("meshStandardMaterial", { color: hovered ? '#c8a97a' : '#8b6914' })] }) }), _jsxs("mesh", { position: [DOOR_WIDTH / 2, DOOR_HEIGHT / 2, -0.04], children: [_jsx("boxGeometry", { args: [DOOR_WIDTH + 0.1, DOOR_HEIGHT + 0.1, 0.04] }), _jsx("meshStandardMaterial", { color: "#5a3d1e" })] }), targetRoomName && (_jsx(Text, { position: [DOOR_WIDTH / 2, DOOR_HEIGHT + 0.25, 0], fontSize: 0.18, color: "#ffffff", anchorX: "center", anchorY: "bottom", children: targetRoomName }))] }));
+}
