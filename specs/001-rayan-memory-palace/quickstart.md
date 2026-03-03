@@ -40,11 +40,6 @@ gcloud services enable \
   cloudbuild.googleapis.com
 ```
 
-### Create Firestore Database
-
-```bash
-gcloud firestore databases create --location=us-central1
-```
 
 ### Create Cloud Storage Bucket
 

@@ -2,7 +2,7 @@
 
 **Feature**: 001-rayan-memory-palace
 **Input**: Design documents from `/specs/001-rayan-memory-palace/`
-**Prerequisites**: plan.md ✓, spec.md ✓, research.md ✓, data-model.md ✓, contracts/ ✓
+**Prerequisites**: plan.md ✓, spec.md ✓, research.md ✓, data-model.md ✓, contracts/ ✓ (websocket.md, rest-api.md, firestore.md, agent-prompts.md)
 
 **Organization**: Tasks grouped by user story (P1-P5) to enable independent implementation and testing.
 
@@ -113,13 +113,15 @@
 - [ ] T055 [US1] Create frontend/src/components/capture/ConceptToast.tsx for capture_ack notifications
 - [ ] T056 [US1] Implement media chunk streaming to WebSocket in frontend/src/services/websocket.ts
 - [ ] T057 [US1] Create frontend/src/components/capture/CaptureComplete.tsx summary modal
+- [ ] T057b [US1] Create frontend/src/components/capture/RoomSuggestionModal.tsx with accept/reject/edit flow per agent-prompts.md room confirmation flow
+- [ ] T057c [US1] Handle room_suggestion WebSocket message in frontend/src/stores/captureStore.ts (show modal, resolve with user choice)
 
 ### REST Endpoints for US1
 
 - [ ] T058 [US1] Create backend/app/routers/sessions.py with GET /sessions and GET /sessions/{sessionId}
 - [ ] T059 [US1] Register sessions router in backend/app/main.py
 
-**Checkpoint**: Capture flow complete - Can capture webcam, extract concepts, create artifacts in Firestore
+**Checkpoint**: Capture flow complete - Can capture webcam, extract concepts, create artifacts in Firestore; room suggestion modal appears when similarity < 0.75
 
 ---
 

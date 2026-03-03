@@ -11,7 +11,7 @@ This document consolidates research findings for the Rayan Memory Palace impleme
 
 ## 1. Gemini Live API & Real-Time AI
 
-### Decision: Use Gemini 2.0 Flash with Live API
+### Decision: Use Gemini 2.5 Flash with Live API
 
 **Rationale**:
 - Gemini Live API provides real-time bidirectional streaming for audio/video
@@ -29,7 +29,7 @@ client = genai.Client()
 
 # Real-time streaming with multimodal input
 async with client.aio.live.connect(
-    model="gemini-2.0-flash-exp",
+    model="gemini-live-2.5-flash-native-audio",
     config=types.LiveConnectConfig(
         response_modalities=["AUDIO", "IMAGE"],  # Interleaved output
         speech_config=types.SpeechConfig(
@@ -98,14 +98,14 @@ def extract_page_content(url: str) -> dict:
 
 # Create specialized agents
 capture_agent = Agent(
-    model="gemini-2.0-flash-exp",
+    model="gemini-live-2.5-flash-native-audio",
     system_instruction="""You are a memory capture assistant.
     Extract key concepts, entities, and relationships from streaming input.
     Acknowledge extractions concisely."""
 )
 
 enrichment_agent = Agent(
-    model="gemini-2.0-flash",
+    model="gemini-2.5-flash",
     tools=[web_search, extract_page_content],
     system_instruction="""You are a research assistant.
     Find relevant information to enrich user memories.
@@ -113,7 +113,7 @@ enrichment_agent = Agent(
 )
 
 recall_agent = Agent(
-    model="gemini-2.0-flash",
+    model="gemini-live-2.5-flash-native-audio",
     system_instruction="""You are a memory recall assistant.
     Answer questions based on stored memories.
     Generate diagrams when helpful.
@@ -477,7 +477,9 @@ def verify_token(id_token: str) -> dict:
 
 | Component | Decision | Rationale |
 |-----------|----------|-----------|
-| AI Model | Gemini 2.0 Flash | Live API + interleaved output |
+| AI Model (Live API) | `gemini-live-2.5-flash-native-audio` | Real-time audio/voice streaming |
+| AI Model (Standard) | `gemini-2.5-flash` | Batch inference, enrichment |
+| AI Model (Image gen) | `gemini-2.5-flash-image` | Diagram + thumbnail generation |
 | Agent Framework | ADK | Multi-agent orchestration |
 | 3D Rendering | Three.js + R3F | Browser-native, React integration |
 | Animation | GSAP | Smooth transitions |

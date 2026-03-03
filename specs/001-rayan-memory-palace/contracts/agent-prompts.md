@@ -10,6 +10,14 @@
 
 This document defines the system prompts, decision logic, and action triggers for each ADK agent in the Rayan Memory Palace system.
 
+### Model Reference
+
+| Use Case | Model |
+|---|---|
+| Live API (audio/voice streaming) | `gemini-live-2.5-flash-native-audio` |
+| Standard inference | `gemini-2.5-flash` |
+| Image generation (diagrams, thumbnails) | `gemini-2.5-flash-image` |
+
 ---
 
 ## 1. Capture Agent
@@ -145,7 +153,7 @@ class CaptureDecision:
 | Action | Trigger | Storage |
 |--------|---------|---------|
 | Extract concept | Content trigger + interval passed | Firestore: `artifacts/{id}` |
-| Generate image | Visual content detected | Cloud Storage → `artifacts/{id}.thumbnailUrl` |
+| Generate image (`gemini-2.5-flash-image`) | Visual content detected | Cloud Storage → `artifacts/{id}.thumbnailUrl` |
 | Create embedding | After every extraction | Firestore: `artifacts/{id}.embedding` |
 | Voice acknowledgment | After every extraction | WebSocket: `capture_ack` message |
 
@@ -410,7 +418,7 @@ class RecallDecision:
 | Action | Trigger | Storage |
 |--------|---------|---------|
 | Retrieve memories | Every query | Read from Firestore via vector search |
-| Generate diagram | Complex topic or explicit request | Cloud Storage → temporary URL |
+| Generate diagram (`gemini-2.5-flash-image`) | Complex topic or explicit request | Cloud Storage → temporary URL |
 | Navigate to room | Relevant artifact found | WebSocket: `response_chunk.navigation` |
 | Highlight artifacts | Multiple relevant artifacts | WebSocket: `response_chunk.navigation.highlightArtifacts` |
 
@@ -650,8 +658,8 @@ Session End Trigger
 | Content Type | Path Pattern | Trigger |
 |--------------|--------------|---------|
 | Raw capture media | `captures/{sessionId}/raw.webm` | Capture session end |
-| Generated diagrams | `diagrams/{artifactId}/{uuid}.png` | Capture or Recall agent |
-| Artifact thumbnails | `thumbnails/{artifactId}.jpg` | Visual content capture |
+| Generated diagrams (`gemini-2.5-flash-image`) | `diagrams/{artifactId}/{uuid}.png` | Capture or Recall agent |
+| Artifact thumbnails (`gemini-2.5-flash-image`) | `thumbnails/{artifactId}.jpg` | Visual content capture |
 | Enrichment images | `enrichments/{enrichmentId}/{uuid}.jpg` | Enrichment agent |
 
 ### Firestore (`projects/rayan-memory/databases/(default)`)

@@ -18,7 +18,7 @@ Rayan is an AI agent that builds and maintains a personalized 3D memory palace f
 **Primary Dependencies**:
 - Frontend: React 18, Three.js, @react-three/fiber, @react-three/drei, GSAP
 - Backend: FastAPI, Google GenAI SDK, ADK (Agent Development Kit)
-- AI: Gemini Live API, Gemini 2.0 Flash (interleaved output)
+- AI: Gemini Live API (`gemini-live-2.5-flash-native-audio`), Gemini 2.5 Flash (`gemini-2.5-flash`), Image generation (`gemini-2.5-flash-image`)
 
 **Storage**:
 - Firestore (knowledge graph, palace layout, user sessions)
