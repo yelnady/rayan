@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
@@ -6,22 +7,31 @@ import { CaptureOverlay } from '../components/capture/CaptureOverlay';
 import { ConceptToast } from '../components/capture/ConceptToast';
 import { CaptureComplete } from '../components/capture/CaptureComplete';
 import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
+import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
+import { VoiceButton } from '../components/voice/VoiceButton';
+import { VoiceIndicator } from '../components/voice/VoiceIndicator';
+import { ResponsePanel } from '../components/voice/ResponsePanel';
 import { usePalaceStore } from '../stores/palaceStore';
+import { useCaptureStore } from '../stores/captureStore';
 import type { Artifact } from '../types/palace';
 
 export function PalacePage() {
-  // Start WebSocket connection and wire palace_update messages into palaceStore
-  useWS();
+  // Start WebSocket connection and wire all server → store listeners
+  const ws = useWS();
 
   // Load palace data into palaceStore on mount
   const { loading, error, reload } = usePalace();
 
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
 
+  // ── T115: Artifact detail modal state ──────────────────────────────────────
+  const [selectedArtifact, setSelectedArtifact] = useState<{ id: string; roomId: string } | null>(null);
+
+  /** T115 — send artifact_click WS message and open the detail modal. */
   function handleArtifactClick(artifact: Artifact) {
-    // WS artifact_click is sent by useArtifactInteraction inside Artifact components.
-    // Here we could open an artifact detail modal in a future task (T113).
-    console.info('[Palace] Artifact clicked:', artifact.id);
+    const roomId = artifact.roomId ?? currentRoomId ?? '';
+    ws.sendArtifactClick(artifact.id, roomId);
+    setSelectedArtifact({ id: artifact.id, roomId });
   }
 
   if (error) {
@@ -56,6 +66,11 @@ export function PalacePage() {
     );
   }
 
+  const voiceContext = {
+    currentRoomId: currentRoomId ?? null,
+    focusedArtifactId: selectedArtifact?.id ?? null,
+  };
+
   return (
     <>
       {/* 3D palace scene */}
@@ -80,7 +95,7 @@ export function PalacePage() {
         </div>
       )}
 
-      {/* HUD — bottom-center capture button */}
+      {/* HUD — bottom-center: capture + voice buttons */}
       <div
         style={{
           position: 'fixed',
@@ -94,6 +109,7 @@ export function PalacePage() {
         }}
       >
         <CaptureButton source="webcam" />
+        <VoiceButton context={voiceContext} />
       </div>
 
       {/* Room label — top-center */}
@@ -118,8 +134,20 @@ export function PalacePage() {
       {/* Capture status overlays */}
       <CaptureOverlay />
       <ConceptToast />
-      <CaptureComplete />
+      <CaptureComplete onClose={() => useCaptureStore.getState().reset()} />
       <RoomSuggestionModal />
+
+      {/* Voice UI (T105, T106, T107) */}
+      <VoiceIndicator />
+      <ResponsePanel />
+
+      {/* Artifact detail modal (T113) */}
+      {selectedArtifact && (
+        <ArtifactDetailModal
+          artifactId={selectedArtifact.id}
+          onClose={() => setSelectedArtifact(null)}
+        />
+      )}
     </>
   );
 }
