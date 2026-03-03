@@ -19,10 +19,6 @@ This document consolidates research findings for the Rayan Memory Palace impleme
 - Interleaved output mode allows mixing voice + generated images in single response stream
 - Mandatory for "Live Agents" category
 
-**Alternatives Considered**:
-- Gemini 1.5 Pro: Better for complex reasoning but no Live API support
-- Whisper + GPT-4: Not Google ecosystem (violates hackathon rules)
-
 ### Implementation Pattern
 
 ```python

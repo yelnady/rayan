@@ -14,11 +14,9 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/[your-username]/rayan.git
+git clone https://github.com/yelnady/rayan.git
 cd rayan
 
-# Checkout feature branch
-git checkout 001-rayan-memory-palace
 ```
 
 ## 2. Google Cloud Setup

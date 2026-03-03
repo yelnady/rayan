@@ -6,7 +6,9 @@ Auto-generated from feature plans. Last updated: 2026-03-02
 
 - **Frontend**: TypeScript 5.x, React 18, Three.js, @react-three/fiber
 - **Backend**: Python 3.11, FastAPI, Google GenAI SDK, ADK
-- **AI**: Gemini 2.0 Flash, Gemini Live API, Vertex AI
+- **AI**: Gemini 2.5 Flash, Gemini Live API, Vertex AI
+  - Live API: `gemini-live-2.5-flash-native-audio`
+  - All other APIs: `gemini-2.5-flash`
 - **Database**: Firestore, Vertex AI Vector Search
 - **Storage**: Cloud Storage
 - **Deployment**: Cloud Run, Terraform

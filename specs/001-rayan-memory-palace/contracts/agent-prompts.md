@@ -14,7 +14,7 @@ This document defines the system prompts, decision logic, and action triggers fo
 
 ## 1. Capture Agent
 
-**Model**: `gemini-2.0-flash-exp` (Live API)
+**Model**: `gemini-live-2.5-flash-native-audio` (Live API)
 **Mode**: Real-time streaming with interleaved output
 
 ### System Prompt
@@ -153,7 +153,7 @@ class CaptureDecision:
 
 ## 2. Memory Architect Agent
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-2.5-flash`
 **Mode**: Batch processing (called after extraction)
 
 ### System Prompt
@@ -287,7 +287,7 @@ class ArchitectDecision:
 
 ## 3. Recall Agent
 
-**Model**: `gemini-2.0-flash` (with Live API for voice)
+**Model**: `gemini-live-2.5-flash-native-audio` (with Live API for voice)
 **Mode**: Query-response with streaming
 
 ### System Prompt
@@ -418,7 +418,7 @@ class RecallDecision:
 
 ## 4. Narrator Agent
 
-**Model**: `gemini-2.0-flash` (with voice output)
+**Model**: `gemini-live-2.5-flash-native-audio` (with voice output)
 **Mode**: Single-shot narration
 
 ### System Prompt
@@ -467,7 +467,7 @@ If the artifact has enrichments, naturally incorporate them:
 
 ## 5. Enrichment Agent
 
-**Model**: `gemini-2.0-flash`
+**Model**: `gemini-2.5-flash`
 **Mode**: Batch processing (end of capture session)
 **Tools**: `web_search`, `extract_page_content`
 
