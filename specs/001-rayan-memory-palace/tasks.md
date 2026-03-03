@@ -72,11 +72,11 @@
 
 ### WebSocket Infrastructure
 
-- [ ] T033 Create backend/app/websocket/manager.py with WebSocket connection manager
-- [ ] T034 Create backend/app/websocket/handlers.py with message type router
-- [ ] T035 Create backend/app/websocket/auth.py with WebSocket authentication handler
-- [ ] T036 Add WebSocket endpoint to backend/app/main.py at /ws/{userId}
-- [ ] T037 Create frontend/src/services/websocket.ts with WebSocket client class per websocket.md
+- [x] T033 Create backend/app/websocket/manager.py with WebSocket connection manager
+- [x] T034 Create backend/app/websocket/handlers.py with message type router
+- [x] T035 Create backend/app/websocket/auth.py with WebSocket authentication handler
+- [x] T036 Add WebSocket endpoint to backend/app/main.py at /ws/{userId}
+- [x] T037 Create frontend/src/services/websocket.ts with WebSocket client class per websocket.md
 
 **Checkpoint**: Foundation ready - All services initialized, auth working, WebSocket connected
 
