@@ -1,6 +1,9 @@
 /**
  * Returns the singleton RayanWebSocket instance for the current user.
  * Creates and connects it on first call; tears it down on sign-out.
+ *
+ * T109: Also wires response_chunk, response_complete, and artifact_recall
+ * messages into voiceStore and AudioPlayback.
  */
 import { useEffect, useRef } from 'react';
 import { RayanWebSocket } from '../services/websocket';
@@ -8,8 +11,12 @@ import { WS_BASE_URL } from '../config/api';
 import { useAuthStore } from '../stores/authStore';
 import { useCaptureStore } from '../stores/captureStore';
 import { usePalaceStore } from '../stores/palaceStore';
+import { useVoiceStore } from '../stores/voiceStore';
+import { AudioPlayback } from '../services/audioPlayback';
 
 let _instance: RayanWebSocket | null = null;
+/** Singleton AudioPlayback shared across listeners (reset on disconnect). */
+let _playback: AudioPlayback | null = null;
 
 function getInstance(userId: string, getToken: () => Promise<string>): RayanWebSocket {
   if (!_instance) {
@@ -34,6 +41,9 @@ export function useWS(): RayanWebSocket {
     const ws = getInstance(user.uid, getToken);
     wsRef.current = ws;
     ws.connect();
+
+    // Ensure a fresh AudioPlayback instance for this session
+    _playback = new AudioPlayback();
 
     // Wire server → client messages into Zustand stores
     const unsubs = [
@@ -77,10 +87,47 @@ export function useWS(): RayanWebSocket {
       ws.on('error', (msg) => {
         console.error('[WS error]', msg.code, msg.message);
       }),
+
+      // ── T109: Voice response wiring ─────────────────────────────────────
+      ws.on('response_chunk', (msg) => {
+        const voiceStore = useVoiceStore.getState();
+        voiceStore.setStatus('responding');
+
+        if (msg.content.text) {
+          voiceStore.appendTranscript(msg.content.text);
+        }
+        if (msg.content.audioChunk && _playback) {
+          void _playback.enqueue(msg.content.audioChunk);
+        }
+        if (msg.content.generatedImage) {
+          voiceStore.addDiagram(msg.content.generatedImage);
+        }
+      }),
+      ws.on('response_complete', (_msg) => {
+        // Mark responding → idle after a short delay so the panel stays
+        // visible just long enough for the user to read the last chunk.
+        setTimeout(() => {
+          const voiceStore = useVoiceStore.getState();
+          if (voiceStore.status === 'responding') {
+            voiceStore.setStatus('idle');
+          }
+        }, 2500);
+      }),
+      ws.on('artifact_recall', (msg) => {
+        const voiceStore = useVoiceStore.getState();
+        voiceStore.setNarration(msg.content);
+        voiceStore.setStatus('responding');
+        // Play narration audio if present
+        if (msg.content.voiceNarration && _playback) {
+          void _playback.enqueue(msg.content.voiceNarration);
+        }
+      }),
     ];
 
     return () => {
       unsubs.forEach((fn) => fn());
+      _playback?.stop();
+      _playback = null;
     };
   }, [user]);
 
