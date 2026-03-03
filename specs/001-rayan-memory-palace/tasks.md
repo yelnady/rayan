@@ -90,18 +90,18 @@
 
 ### Backend Implementation for US1
 
-- [ ] T038 [US1] Create backend/app/models/capture_session.py with CaptureSession model
-- [ ] T039 [US1] Create backend/app/services/capture_service.py with session management
-- [ ] T040 [US1] Create backend/app/agents/capture_agent.py with Gemini Live API integration
-- [ ] T041 [US1] Implement capture_start handler in backend/app/websocket/handlers.py
-- [ ] T042 [US1] Implement media_chunk handler with base64 decoding and streaming to Gemini
-- [ ] T043 [US1] Implement capture_end handler with session finalization
-- [ ] T044 [US1] Create backend/app/agents/memory_architect.py for artifact categorization
-- [ ] T045 [US1] Create backend/app/services/embedding_service.py with Gemini text-embedding-004
-- [ ] T046 [US1] Create backend/app/services/artifact_service.py with artifact CRUD and embedding storage
-- [ ] T047 [US1] Create backend/app/services/room_service.py with room creation and topic matching
-- [ ] T048 [US1] Add capture_ack and capture_complete WebSocket responses per websocket.md
-- [ ] T049 [US1] Add palace_update WebSocket broadcast for new rooms/artifacts
+- [x] T038 [US1] Create backend/app/models/capture_session.py with CaptureSession model
+- [x] T039 [US1] Create backend/app/services/capture_service.py with session management
+- [x] T040 [US1] Create backend/app/agents/capture_agent.py with Gemini Live API integration
+- [x] T041 [US1] Implement capture_start handler in backend/app/websocket/handlers.py
+- [x] T042 [US1] Implement media_chunk handler with base64 decoding and streaming to Gemini
+- [x] T043 [US1] Implement capture_end handler with session finalization
+- [x] T044 [US1] Create backend/app/agents/memory_architect.py for artifact categorization
+- [x] T045 [US1] Create backend/app/services/embedding_service.py with Gemini text-embedding-004
+- [x] T046 [US1] Create backend/app/services/artifact_service.py with artifact CRUD and embedding storage
+- [x] T047 [US1] Create backend/app/services/room_service.py with room creation and topic matching
+- [x] T048 [US1] Add capture_ack and capture_complete WebSocket responses per websocket.md
+- [x] T049 [US1] Add palace_update WebSocket broadcast for new rooms/artifacts
 
 ### Frontend Implementation for US1
 

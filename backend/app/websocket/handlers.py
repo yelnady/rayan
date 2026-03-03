@@ -17,13 +17,24 @@ Per websocket.md client→server message types:
   ping            → heartbeat
 """
 
+import base64
 import json
 import logging
 from typing import Any
 
 from fastapi import WebSocket
 
+from app.agents import capture_agent as capture_agent_module
+from app.agents.capture_agent import CaptureAgent
+from app.models.capture_session import SessionStatus
+from app.services import capture_service
 from app.websocket.manager import manager
+from app.websocket.responses import (
+    broadcast_palace_update,
+    send_capture_ack,
+    send_capture_complete,
+    send_room_suggestion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -47,27 +58,97 @@ async def handle_ping(user_id: str, msg: dict, websocket: WebSocket) -> None:
 
 @_handler("capture_start")
 async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """Initialise a capture session. Full logic implemented in Phase 3 (T039-T041)."""
-    session_id = msg.get("sessionId")
-    source_type = msg.get("sourceType", "webcam")
-    logger.info("capture_start: userId=%s sessionId=%s sourceType=%s", user_id, session_id, source_type)
-    # TODO (T039): delegate to capture_service.start_session()
+    """T041 — Start a capture session and spin up a CaptureAgent."""
+    session_id: str = msg.get("sessionId", "")
+    source_type: str = msg.get("sourceType", "webcam")
+
+    if not session_id:
+        await manager.send(user_id, {
+            "type": "error", "code": "INVALID_REQUEST",
+            "message": "capture_start requires sessionId", "retryable": False,
+        })
+        return
+
+    # Persist session in Firestore
+    await capture_service.start_session(user_id, session_id, source_type)
+
+    # Build extraction callback — fires on every concept Gemini extracts
+    async def on_extraction(event):
+        await send_capture_ack(user_id, session_id, event)
+        # Broadcast palace_update for the newly created artifact/room
+        if event.categorization:
+            cat = event.categorization
+            rooms_added = [cat.room] if cat.action == "suggested_new" else []
+            await broadcast_palace_update(
+                user_id,
+                rooms_added=rooms_added,
+                artifacts_added=[cat.artifact],
+            )
+            # Broadcast room_suggestion when user confirmation is required
+            if cat.requires_confirmation and cat.suggestion:
+                await send_room_suggestion(user_id, cat.artifact.id, cat.suggestion)
+
+    agent = CaptureAgent(user_id, session_id, on_extraction)
+    await agent.start()
+    capture_agent_module.register_agent(session_id, agent)
+    logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
 
 
 @_handler("media_chunk")
 async def handle_media_chunk(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """Stream a base64-encoded media chunk. Full logic implemented in Phase 3 (T042)."""
-    session_id = msg.get("sessionId")
-    logger.debug("media_chunk: userId=%s sessionId=%s chunkIndex=%s", user_id, session_id, msg.get("chunkIndex"))
-    # TODO (T042): forward chunk to capture agent
+    """T042 — Decode base64 media chunk and stream to the active CaptureAgent."""
+    session_id: str = msg.get("sessionId", "")
+    data_b64: str = msg.get("data", "")
+
+    agent = capture_agent_module.get_agent(session_id)
+    if agent is None:
+        logger.warning("media_chunk: no active agent for sessionId=%s", session_id)
+        return
+
+    try:
+        raw_bytes = base64.b64decode(data_b64)
+        await agent.send_chunk(raw_bytes)
+    except Exception:
+        logger.exception("media_chunk decode/send error: sessionId=%s", session_id)
 
 
 @_handler("capture_end")
 async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """Finalise a capture session. Full logic implemented in Phase 3 (T043)."""
-    session_id = msg.get("sessionId")
-    logger.info("capture_end: userId=%s sessionId=%s", user_id, session_id)
-    # TODO (T043): delegate to capture_service.end_session()
+    """T043 — Stop CaptureAgent, finalize session, send capture_complete."""
+    session_id: str = msg.get("sessionId", "")
+
+    agent = capture_agent_module.get_agent(session_id)
+    if agent is None:
+        logger.warning("capture_end: no active agent for sessionId=%s", session_id)
+        return
+
+    # Stop agent and collect all extractions
+    extractions = await agent.stop()
+    capture_agent_module.unregister_agent(session_id)
+
+    # Finalize session in Firestore
+    session = await capture_service.end_session(user_id, session_id, SessionStatus.completed)
+
+    # Gather artifact/room IDs from all extractions
+    artifact_ids: list[str] = []
+    room_ids: set[str] = set()
+    new_room_ids: list[str] = []
+    for ev in extractions:
+        if ev.categorization:
+            artifact_ids.append(ev.categorization.artifact.id)
+            room_ids.add(ev.categorization.room.id)
+            if ev.categorization.action == "suggested_new":
+                new_room_ids.append(ev.categorization.room.id)
+
+    concept_count = session.conceptCount if session else len(extractions)
+    await send_capture_complete(
+        user_id, session_id,
+        artifact_ids=artifact_ids,
+        room_ids=list(room_ids),
+        new_room_ids=new_room_ids,
+        concept_count=concept_count,
+    )
+    logger.info("capture_end: userId=%s sessionId=%s concepts=%d", user_id, session_id, concept_count)
 
 
 @_handler("voice_query")
