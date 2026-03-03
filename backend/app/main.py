@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.core.firebase import init_firebase
-from app.routers import health, sessions, palace, rooms, search
+from app.routers import health, sessions, palace, rooms, search, artifacts
 from app.websocket.auth import authenticate_websocket
 from app.websocket.handlers import route_message
 from app.websocket.manager import manager
@@ -40,6 +40,8 @@ app.include_router(sessions.router)
 app.include_router(palace.router)
 app.include_router(rooms.router)
 app.include_router(search.router)
+app.include_router(artifacts.router)
+
 
 
 @app.websocket("/ws/{user_id}")
