@@ -16,12 +16,14 @@
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.17.0",
+    "@types/uuid": "^10.0.0",
     "firebase": "^11.0.0",
     "gsap": "^3.12.5",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.27.0",
     "three": "^0.170.0",
+    "uuid": "^13.0.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
