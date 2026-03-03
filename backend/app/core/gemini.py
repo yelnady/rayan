@@ -12,5 +12,5 @@ EMBEDDING_MODEL = "models/text-embedding-004"
 
 @lru_cache(maxsize=1)
 def get_genai_client() -> genai.Client:
-    """Return a cached GenAI client."""
-    return genai.Client(api_key=settings.gemini_api_key)
+    """Return a cached GenAI client using Application Default Credentials."""
+    return genai.Client(vertexai=True, project=settings.google_cloud_project, location="us-central1")

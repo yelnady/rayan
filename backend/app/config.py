@@ -9,9 +9,6 @@ class Settings(BaseSettings):
     google_cloud_project: str = "rayan-memory"
     google_application_credentials: str = ""
 
-    # Gemini API
-    gemini_api_key: str = ""
-
     # Firebase (for token verification)
     firebase_project_id: str = "rayan-memory"
 
