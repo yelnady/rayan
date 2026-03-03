@@ -12,7 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.middleware.auth import get_current_user
+from app.middleware.auth import verify_token
 from app.services.search_service import semantic_search
 
 logger = logging.getLogger(__name__)
@@ -42,7 +42,7 @@ class SearchResponse(BaseModel):
 @router.post("", response_model=SearchResponse, status_code=status.HTTP_200_OK)
 async def search_memories(
     body: SearchRequest,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(verify_token),
 ) -> SearchResponse:
     """Semantic search across all stored memories.
 

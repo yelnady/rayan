@@ -83,6 +83,37 @@ async def delete_artifact(user_id: str, room_id: str, artifact_id: str) -> None:
     logger.info("Artifact deleted: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
 
 
+async def get_artifact_by_id(user_id: str, artifact_id: str) -> Artifact | None:
+    """Fetch an artifact without knowing its room — uses a subcollection query.
+
+    Needed by the /artifacts/{artifactId} REST endpoint which only has the
+    artifact ID, not the room ID.
+    """
+    db = get_firestore_client()
+    # Collection group query across all 'artifacts' sub-collections for this user
+    query = (
+        db.collection_group("artifacts")
+        .where("id", "==", artifact_id)
+    )
+    docs = await query.get()
+    for doc in docs:
+        if doc.exists:
+            # Verify ownership via path: users/{userId}/rooms/{roomId}/artifacts/{artifactId}
+            parts = doc.reference.path.split("/")
+            if len(parts) >= 6 and parts[1] == user_id:
+                return Artifact(**doc.to_dict())
+    return None
+
+
+async def delete_artifact_by_id(user_id: str, artifact_id: str) -> None:
+    """Delete an artifact without knowing its room (finds it first)."""
+    artifact = await get_artifact_by_id(user_id, artifact_id)
+    if artifact is None:
+        return
+    await _artifacts_ref(user_id, artifact.roomId).document(artifact_id).delete()
+    logger.info("Artifact deleted: userId=%s artifactId=%s", user_id, artifact_id)
+
+
 async def _count_artifacts(user_id: str, room_id: str) -> int:
     docs = await _artifacts_ref(user_id, room_id).select([]).get()
     return len(docs)
