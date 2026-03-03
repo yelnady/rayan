@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     debug: bool = False
 
     # CORS — accepts comma-separated string or JSON array
-    cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
+    cors_origins: list[str] | str = ["http://localhost:5173", "http://localhost:3000"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod
