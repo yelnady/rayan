@@ -1,0 +1,375 @@
+/**
+ * ArtifactDetailModal — full-screen modal for viewing artifact details.
+ *
+ * Triggered when the user clicks an artifact in the 3D palace.
+ * Displays:
+ *   - Artifact summary and full content
+ *   - Generated diagrams from artifact_recall
+ *   - Related artifacts (RelatedArtifacts component)
+ *   - Enrichments (US4, shown as placeholders if empty)
+ *   - Delete action
+ *
+ * Data sources:
+ *   - REST: GET /artifacts/{artifactId} for full content
+ *   - WebSocket: artifact_recall message wired into voiceStore
+ */
+
+import React, { useEffect, useState } from 'react';
+import { useVoiceStore } from '../../stores/voiceStore';
+import { RelatedArtifacts } from './RelatedArtifacts';
+import { GeneratedDiagramCard } from '../voice/GeneratedDiagram';
+import { API_BASE_URL } from '../../config/api';
+import { useAuthStore } from '../../stores/authStore';
+
+export interface ArtifactDetailData {
+    id: string;
+    roomId: string;
+    type: string;
+    visual: string;
+    summary: string;
+    fullContent?: string;
+    thumbnailUrl?: string;
+    createdAt: string;
+    relatedArtifacts: string[];
+    color?: string;
+}
+
+interface ArtifactDetailModalProps {
+    artifactId: string;
+    onClose: () => void;
+}
+
+export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModalProps) {
+    const [artifact, setArtifact] = useState<ArtifactDetailData | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [deleting, setDeleting] = useState(false);
+
+    const narration = useVoiceStore((s) => s.currentNarration);
+    const { user } = useAuthStore();
+
+    // ── Fetch full artifact details from REST API ───────────────────────────────
+    useEffect(() => {
+        if (!user) return;
+        let cancelled = false;
+
+        const fetchArtifact = async () => {
+            setLoading(true);
+            setError(null);
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch(`${API_BASE_URL}/artifacts/${artifactId}`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const json = await res.json();
+                if (!cancelled) setArtifact(json.artifact as ArtifactDetailData);
+            } catch (err) {
+                if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load artifact');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+
+        void fetchArtifact();
+        return () => { cancelled = true; };
+    }, [artifactId, user]);
+
+    // ── Delete handler ──────────────────────────────────────────────────────────
+    const handleDelete = async () => {
+        if (!user || deleting) return;
+        if (!window.confirm('Delete this memory artifact? This cannot be undone.')) return;
+        setDeleting(true);
+        try {
+            const token = await user.getIdToken();
+            await fetch(`${API_BASE_URL}/artifacts/${artifactId}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            onClose();
+        } catch {
+            setDeleting(false);
+        }
+    };
+
+    const diagrams = narration?.generatedDiagrams ?? [];
+    const accentColor = artifact?.color ?? '#6366f1';
+
+    return (
+        <div
+            id={`artifact-detail-modal-${artifactId}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="artifact-modal-title"
+            style={overlayStyle}
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+            <div style={modalStyle}>
+                {/* Header */}
+                <div style={headerStyle(accentColor)}>
+                    <div style={headerInnerStyle}>
+                        <span style={typeBadgeStyle(accentColor)}>{artifact?.type ?? '…'}</span>
+                        <button
+                            onClick={onClose}
+                            aria-label="Close"
+                            style={closeButtonStyle}
+                        >
+                            ✕
+                        </button>
+                    </div>
+                    <h2 id="artifact-modal-title" style={titleStyle}>
+                        {loading ? 'Loading…' : (artifact?.summary ?? 'Artifact')}
+                    </h2>
+                </div>
+
+                {/* Body */}
+                <div style={bodyStyle}>
+                    {loading && (
+                        <div style={loadingStyle}>
+                            <div style={spinnerStyle} />
+                            <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: 13 }}>Loading memory…</span>
+                        </div>
+                    )}
+
+                    {error && (
+                        <p style={errorStyle}>{error}</p>
+                    )}
+
+                    {/* Full content */}
+                    {!loading && artifact?.fullContent && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>Content</h3>
+                            <p style={contentStyle}>{artifact.fullContent}</p>
+                        </section>
+                    )}
+
+                    {/* Voice narration summary (from artifact_recall) */}
+                    {narration?.summary && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>Rayan's Summary</h3>
+                            <p style={{ ...contentStyle, color: 'rgba(99,102,241,0.9)' }}>{narration.summary}</p>
+                        </section>
+                    )}
+
+                    {/* Generated diagrams */}
+                    {diagrams.length > 0 && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>Generated Diagrams</h3>
+                            <div style={diagramsGridStyle}>
+                                {diagrams.map((d, i) => (
+                                    <GeneratedDiagramCard key={i} url={d.url} caption={d.caption} />
+                                ))}
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Related artifacts */}
+                    {(artifact?.relatedArtifacts.length ?? 0) > 0 && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>Related Memories</h3>
+                            <RelatedArtifacts
+                                relatedArtifactIds={artifact!.relatedArtifacts}
+                                narrationRelated={narration?.relatedArtifacts ?? []}
+                            />
+                        </section>
+                    )}
+                    {(narration?.relatedArtifacts.length ?? 0) > 0 && (artifact?.relatedArtifacts.length ?? 0) === 0 && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>Related Memories</h3>
+                            <RelatedArtifacts
+                                relatedArtifactIds={[]}
+                                narrationRelated={narration!.relatedArtifacts}
+                            />
+                        </section>
+                    )}
+
+                    {/* Meta */}
+                    {artifact?.createdAt && (
+                        <p style={metaStyle}>
+                            Captured {new Date(artifact.createdAt).toLocaleDateString(undefined, {
+                                month: 'long', day: 'numeric', year: 'numeric',
+                            })}
+                        </p>
+                    )}
+                </div>
+
+                {/* Footer */}
+                <div style={footerStyle}>
+                    <button
+                        onClick={handleDelete}
+                        disabled={deleting || loading}
+                        style={deleteButtonStyle}
+                        aria-label="Delete artifact"
+                    >
+                        {deleting ? 'Deleting…' : 'Delete Memory'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Styles ────────────────────────────────────────────────────────────────────
+
+const overlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.7)',
+    backdropFilter: 'blur(8px)',
+    zIndex: 1000,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+};
+
+const modalStyle: React.CSSProperties = {
+    background: 'rgba(12,12,20,0.97)',
+    border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 20,
+    width: '100%',
+    maxWidth: 580,
+    maxHeight: '85vh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
+    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+};
+
+const headerStyle = (accent: string): React.CSSProperties => ({
+    padding: '20px 20px 16px',
+    borderBottom: '1px solid rgba(255,255,255,0.06)',
+    background: `linear-gradient(135deg, ${accent}18 0%, transparent 60%)`,
+    flexShrink: 0,
+});
+
+const headerInnerStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+};
+
+const typeBadgeStyle = (accent: string): React.CSSProperties => ({
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    color: accent,
+    background: `${accent}22`,
+    border: `1px solid ${accent}44`,
+    borderRadius: 6,
+    padding: '3px 8px',
+    fontFamily: 'Inter, system-ui, sans-serif',
+});
+
+const closeButtonStyle: React.CSSProperties = {
+    background: 'rgba(255,255,255,0.06)',
+    border: 'none',
+    borderRadius: '50%',
+    width: 30,
+    height: 30,
+    color: 'rgba(255,255,255,0.5)',
+    cursor: 'pointer',
+    fontSize: 14,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+};
+
+const titleStyle: React.CSSProperties = {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 600,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    margin: 0,
+    lineHeight: 1.35,
+};
+
+const bodyStyle: React.CSSProperties = {
+    overflowY: 'auto',
+    padding: '16px 20px',
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 20,
+};
+
+const sectionStyle: React.CSSProperties = {};
+
+const sectionTitleStyle: React.CSSProperties = {
+    color: 'rgba(255,255,255,0.35)',
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    marginBottom: 8,
+    marginTop: 0,
+    fontFamily: 'Inter, system-ui, sans-serif',
+};
+
+const contentStyle: React.CSSProperties = {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 14,
+    lineHeight: 1.7,
+    margin: 0,
+    fontFamily: 'Inter, system-ui, sans-serif',
+};
+
+const metaStyle: React.CSSProperties = {
+    color: 'rgba(255,255,255,0.25)',
+    fontSize: 11,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    margin: 0,
+};
+
+const diagramsGridStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+    gap: 10,
+};
+
+const footerStyle: React.CSSProperties = {
+    padding: '12px 20px',
+    borderTop: '1px solid rgba(255,255,255,0.06)',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    flexShrink: 0,
+};
+
+const deleteButtonStyle: React.CSSProperties = {
+    background: 'rgba(239,68,68,0.12)',
+    border: '1px solid rgba(239,68,68,0.3)',
+    borderRadius: 8,
+    color: 'rgba(239,68,68,0.85)',
+    cursor: 'pointer',
+    fontSize: 13,
+    padding: '7px 14px',
+    fontFamily: 'Inter, system-ui, sans-serif',
+    fontWeight: 500,
+};
+
+const loadingStyle: React.CSSProperties = {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    gap: 12,
+    padding: '32px 0',
+};
+
+const spinnerStyle: React.CSSProperties = {
+    width: 32,
+    height: 32,
+    borderRadius: '50%',
+    border: '2.5px solid rgba(99,102,241,0.2)',
+    borderTopColor: '#6366f1',
+    animation: 'spin 0.85s linear infinite',
+};
+
+const errorStyle: React.CSSProperties = {
+    color: '#f87171',
+    fontSize: 13,
+    fontFamily: 'Inter, system-ui, sans-serif',
+    margin: 0,
+    padding: '12px 0',
+};
