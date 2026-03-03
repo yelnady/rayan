@@ -23,15 +23,15 @@
 
 **Purpose**: Project initialization, dependencies, and base configuration
 
-- [ ] T001 Create project directory structure per plan.md (backend/, frontend/, infrastructure/)
-- [ ] T002 [P] Initialize backend Python project with pyproject.toml and requirements.txt
-- [ ] T003 [P] Initialize frontend React/Vite project with package.json
-- [ ] T004 [P] Create backend/.env.example with all required environment variables
-- [ ] T005 [P] Create frontend/.env.example with Firebase and API configuration
-- [ ] T006 [P] Configure backend linting (ruff) and formatting in pyproject.toml
-- [ ] T007 [P] Configure frontend linting (ESLint) and formatting (Prettier) in package.json
-- [ ] T008 [P] Create backend/Dockerfile for Cloud Run deployment
-- [ ] T009 [P] Create infrastructure/main.tf with Cloud Run, Firestore, Storage modules
+- [x] T001 Create project directory structure per plan.md (backend/, frontend/, infrastructure/)
+- [x] T002 [P] Initialize backend Python project with pyproject.toml and requirements.txt
+- [x] T003 [P] Initialize frontend React/Vite project with package.json
+- [x] T004 [P] Create backend/.env.example with all required environment variables
+- [x] T005 [P] Create frontend/.env.example with Firebase and API configuration
+- [x] T006 [P] Configure backend linting (ruff) and formatting in pyproject.toml
+- [x] T007 [P] Configure frontend linting (ESLint) and formatting (Prettier) in package.json
+- [x] T008 [P] Create backend/Dockerfile for Cloud Run deployment
+- [x] T009 [P] Create infrastructure/main.tf with Cloud Run, Firestore, Storage modules
 
 ---
 
@@ -43,19 +43,19 @@
 
 ### Backend Foundation
 
-- [ ] T010 Create backend/app/main.py with FastAPI app, CORS, and health endpoint
-- [ ] T011 Create backend/app/config.py with Settings class using pydantic-settings
-- [ ] T012 [P] Create backend/app/core/firebase.py with Firebase Admin SDK initialization
-- [ ] T013 [P] Create backend/app/core/firestore.py with Firestore client singleton
-- [ ] T014 [P] Create backend/app/core/storage.py with Cloud Storage client
-- [ ] T015 [P] Create backend/app/core/gemini.py with GenAI client initialization
-- [ ] T016 Create backend/app/middleware/auth.py with Firebase token verification dependency
-- [ ] T017 Create backend/app/models/user.py with User Pydantic model per data-model.md
-- [ ] T018 [P] Create backend/app/models/palace.py with Palace and Layout models
-- [ ] T019 [P] Create backend/app/models/room.py with Room model and RoomStyle enum
-- [ ] T020 [P] Create backend/app/models/artifact.py with Artifact model and ArtifactType enum
-- [ ] T021 Create backend/app/services/user_service.py with user CRUD operations
-- [ ] T022 Create backend/app/routers/health.py with /health endpoint
+- [x] T010 Create backend/app/main.py with FastAPI app, CORS, and health endpoint
+- [x] T011 Create backend/app/config.py with Settings class using pydantic-settings
+- [x] T012 [P] Create backend/app/core/firebase.py with Firebase Admin SDK initialization
+- [x] T013 [P] Create backend/app/core/firestore.py with Firestore client singleton
+- [x] T014 [P] Create backend/app/core/storage.py with Cloud Storage client
+- [x] T015 [P] Create backend/app/core/gemini.py with GenAI client initialization
+- [x] T016 Create backend/app/middleware/auth.py with Firebase token verification dependency
+- [x] T017 Create backend/app/models/user.py with User Pydantic model per data-model.md
+- [x] T018 [P] Create backend/app/models/palace.py with Palace and Layout models
+- [x] T019 [P] Create backend/app/models/room.py with Room model and RoomStyle enum
+- [x] T020 [P] Create backend/app/models/artifact.py with Artifact model and ArtifactType enum
+- [x] T021 Create backend/app/services/user_service.py with user CRUD operations
+- [x] T022 Create backend/app/routers/health.py with /health endpoint
 
 ### Frontend Foundation
 
