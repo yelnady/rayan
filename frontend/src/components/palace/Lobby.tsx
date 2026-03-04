@@ -19,13 +19,13 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
   const offset = (doorIndex - 0) * DOOR_SPACING; // first door centred, extras shift right
   switch (wall) {
     case 'north':
-      return [LOBBY_SIZE / 2 - 0.75 + offset, 0, 0.06];
+      return [LOBBY_SIZE / 2 + offset, 0, 0.06];
     case 'south':
-      return [LOBBY_SIZE / 2 - 0.75 + offset, 0, LOBBY_SIZE - 0.06];
+      return [LOBBY_SIZE / 2 + offset, 0, LOBBY_SIZE - 0.06];
     case 'east':
-      return [LOBBY_SIZE - 0.06, 0, LOBBY_SIZE / 2 - 0.75 + offset];
+      return [LOBBY_SIZE - 0.06, 0, LOBBY_SIZE / 2 + offset];
     case 'west':
-      return [0.06, 0, LOBBY_SIZE / 2 - 0.75 + offset];
+      return [0.06, 0, LOBBY_SIZE / 2 + offset];
     default:
       return [LOBBY_SIZE / 2, 0, 0];
   }
@@ -91,7 +91,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
       {/* ── Title text — at eye level, facing north (toward -Z) ──────────── */}
       {/* Positioned on the south wall (z=12) so you see it when looking ahead */}
       <Text
-        position={[LOBBY_SIZE / 2, 2.2, LOBBY_SIZE - 0.1]}
+        position={[LOBBY_SIZE / 2, 3.5, LOBBY_SIZE - 0.1]}
         rotation={[0, Math.PI, 0]}   // face the camera (-Z direction)
         fontSize={0.7}
         color="#d0b8ff"

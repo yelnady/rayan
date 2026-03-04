@@ -68,9 +68,9 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
             const targetRoom = state.rooms.find(r => r.id === roomId);
             if (targetRoom) {
               useCameraStore.getState().teleport({
-                x: targetRoom.position.x + targetRoom.dimensions.w / 2, // Centre of the room
-                y: targetRoom.position.y,
-                z: targetRoom.position.z + targetRoom.dimensions.d - 1 // Near the door inside
+                x: targetRoom.position.x + targetRoom.dimensions.w / 2,
+                y: targetRoom.position.y + 1.7, // Eye height above floor
+                z: targetRoom.position.z + targetRoom.dimensions.d - 1,
               });
             }
           }}
