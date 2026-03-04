@@ -290,7 +290,7 @@
 
 ### Performance Optimization
 
-- [ ] T153 Add InstancedMesh for repeated geometry (books, orbs) in artifact components
+- [x] T153 Add InstancedMesh for repeated geometry (books, orbs) in artifact components
 - [ ] T154 Add frustum culling configuration to PalaceCanvas.tsx
 - [ ] T155 Add LOD (Level of Detail) for distant artifacts
 - [ ] T156 Compress textures using basis/ktx2 format for themes
