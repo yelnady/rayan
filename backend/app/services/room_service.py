@@ -72,6 +72,18 @@ async def update_last_accessed(user_id: str, room_id: str) -> None:
     await _rooms_ref(user_id).document(room_id).update({"lastAccessedAt": datetime.now(UTC)})
 
 
+async def update_room_summary(user_id: str, room_id: str, summary: str) -> None:
+    await _rooms_ref(user_id).document(room_id).update({"summary": summary})
+
+
+async def recompute_room_summary(user_id: str, room_id: str) -> str:
+    from app.services.artifact_service import get_room_artifacts  # local import avoids circular
+    artifacts = await get_room_artifacts(user_id, room_id)
+    summary = " | ".join(a.summary for a in artifacts if a.summary)
+    await update_room_summary(user_id, room_id, summary)
+    return summary
+
+
 async def find_best_room_match(
     user_id: str,
     artifact_embedding: list[float],

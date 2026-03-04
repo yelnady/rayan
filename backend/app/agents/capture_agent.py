@@ -108,7 +108,7 @@ class CaptureAgent:
     async def _run(self) -> None:
         client = get_genai_client()
         config = genai_types.LiveConnectConfig(
-            response_modalities=["AUDIO", "TEXT"],
+            response_modalities=["AUDIO"],
             system_instruction=_SYSTEM_PROMPT,
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(

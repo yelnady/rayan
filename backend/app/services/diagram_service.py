@@ -12,6 +12,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 
+from google.genai import types as genai_types
+
 from app.config import settings
 from app.core.gemini import IMAGE_MODEL, get_genai_client
 from app.core.storage import get_storage_client
@@ -80,17 +82,17 @@ def _build_prompt(description: str, caption: str) -> str:
 async def _generate_image(prompt: str) -> bytes:
     """Call Gemini image generation and return PNG bytes."""
     client = get_genai_client()
-    response = await client.aio.models.generate_images(
+    response = await client.aio.models.generate_content(
         model=IMAGE_MODEL,
-        prompt=prompt,
-        config={
-            "number_of_images": 1,
-            "output_mime_type": "image/png",
-        },
+        contents=[prompt],
+        config=genai_types.GenerateContentConfig(
+            response_modalities=["Text", "Image"],
+        ),
     )
-    # Extract first generated image bytes
-    generated = response.generated_images[0]
-    return generated.image.image_bytes
+    for part in response.parts:
+        if part.inline_data is not None:
+            return part.inline_data.data
+    raise ValueError("No image returned from Gemini image model")
 
 
 async def _upload_to_storage(image_bytes: bytes, blob_path: str) -> str:

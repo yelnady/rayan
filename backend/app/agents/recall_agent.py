@@ -56,6 +56,9 @@ and understand their stored memories in the Memory Palace.
 
 Today's date is {current_date}.
 
+ROOM DIRECTORY:
+{room_directory}
+
 RULES:
 - ONLY use information from the provided MEMORIES section below.
 - If you don't have relevant memories say "I don't have that in your palace yet."
@@ -69,6 +72,11 @@ RESPONSE STRUCTURE:
 3. Source citation ("This is from your [topic] session on [date]")
 4. Optional: note if a diagram would help
 
+ARTIFACT IDENTIFICATION:
+When a single artifact is the primary answer, emit exactly once:
+  [ARTIFACT: <artifact_id>]
+Only emit this when you are confident. Use the exact ID from MEMORIES.
+
 DIAGRAM TRIGGER:
 If a diagram would genuinely help, output exactly one line:
   [DIAGRAM: <type>|<title>|<description>]
@@ -79,10 +87,42 @@ MEMORIES:
 """
 
 
-def _build_system_prompt(results: list[SearchResult]) -> str:
+async def _build_room_directory(user_id: str) -> str:
+    from app.services.room_service import get_all_rooms
+    try:
+        rooms = await get_all_rooms(user_id)
+    except Exception:
+        return "(unavailable)"
+    if not rooms:
+        return "(no rooms)"
+    lines = [f"- [{r.id}] {r.name}: {r.summary or '(no summary yet)'}" for r in rooms]
+    return "\n".join(lines)
+
+
+async def _load_room_artifacts_as_results(user_id: str, room_id: str) -> list[SearchResult]:
+    from app.services.artifact_service import get_room_artifacts
+    from app.services.room_service import get_room
+    room = await get_room(user_id, room_id)
+    room_name = room.name if room else room_id
+    artifacts = await get_room_artifacts(user_id, room_id)
+    return [
+        SearchResult(
+            artifact_id=a.id, room_id=room_id, room_name=room_name,
+            summary=a.summary, similarity=1.0, highlight=None,
+            full_content=a.fullContent, embedding=a.embedding, captured_at=a.capturedAt,
+        )
+        for a in artifacts
+    ]
+
+
+def _build_system_prompt(results: list[SearchResult], room_directory: str = "") -> str:
     current_date = datetime.now(UTC).strftime("%Y-%m-%d")
     if not results:
-        return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="(none found)")
+        return _BASE_SYSTEM_PROMPT.format(
+            current_date=current_date,
+            room_directory=room_directory or "(unavailable)",
+            memories="(none found)",
+        )
     lines: list[str] = []
     for r in results:
         captured_str = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown"
@@ -93,7 +133,11 @@ def _build_system_prompt(results: list[SearchResult]) -> str:
         if r.full_content:
             lines.append(f"Full content: {r.full_content[:800]}")
         lines.append("")
-    return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="\n".join(lines))
+    return _BASE_SYSTEM_PROMPT.format(
+        current_date=current_date,
+        room_directory=room_directory or "(unavailable)",
+        memories="\n".join(lines),
+    )
 
 
 # ── Active-query registry ──────────────────────────────────────────────────────
@@ -132,13 +176,17 @@ async def process_voice_query(
     room_id: Optional[str] = context.get("currentRoomId")
     artifact_id: Optional[str] = context.get("focusedArtifactId")
 
-    results = await _retrieve_context(user_id, "", room_id, artifact_id)
-    system_prompt = _build_system_prompt(results)
-    nav_hint = _build_navigation(results)
+    room_directory = await _build_room_directory(user_id)
+    if room_id:
+        results = await _load_room_artifacts_as_results(user_id, room_id)
+    else:
+        results = await _retrieve_context(user_id, "", room_id, artifact_id)
+    system_prompt = _build_system_prompt(results, room_directory)
+    nav_hint = _build_navigation(results, is_room_mode=bool(room_id))
 
     client = get_genai_client()
     config = genai_types.LiveConnectConfig(
-        response_modalities=["AUDIO"],
+        response_modalities=["AUDIO", "TEXT"],
         system_instruction=system_prompt,
         speech_config=genai_types.SpeechConfig(
             voice_config=genai_types.VoiceConfig(
@@ -164,6 +212,7 @@ async def process_voice_query(
 
             text_buf = ""
             nav_sent = False
+            selected_artifact_id: Optional[str] = None
 
             async for response in gemini.receive():
                 audio_chunk: Optional[bytes] = None
@@ -176,6 +225,23 @@ async def process_voice_query(
                 if hasattr(response, "text") and response.text:
                     text_delta = response.text
                     text_buf += response.text
+
+                    # Check for artifact marker
+                    if not selected_artifact_id:
+                        found = _extract_artifact_id(text_buf)
+                        if found:
+                            selected_artifact_id = found
+                            await on_chunk(ResponseChunk(
+                                audio_chunk=None, text=None,
+                                generated_image_url=None, generated_image_position=None,
+                                navigation={
+                                    "targetRoomId": results[0].room_id if results else "",
+                                    "highlightArtifacts": [found],
+                                    "enterRoom": False,
+                                    "selectedArtifactId": found,
+                                },
+                                is_complete=False,
+                            ))
 
                     # Check for diagram trigger in buffered text
                     diagram_result = await _maybe_generate_diagram(
@@ -227,18 +293,23 @@ async def process_text_query(
     captured_after = date_range[0] if date_range else None
     captured_before = date_range[1] if date_range else None
 
-    results = await _retrieve_context(
-        user_id, text, room_id, artifact_id,
-        captured_after=captured_after,
-        captured_before=captured_before,
-    )
-    system_prompt = _build_system_prompt(results)
-    nav_hint = _build_navigation(results)
+    room_directory = await _build_room_directory(user_id)
+    if room_id:
+        results = await _load_room_artifacts_as_results(user_id, room_id)
+    else:
+        results = await _retrieve_context(
+            user_id, text, room_id, artifact_id,
+            captured_after=captured_after,
+            captured_before=captured_before,
+        )
+    system_prompt = _build_system_prompt(results, room_directory)
+    nav_hint = _build_navigation(results, is_room_mode=bool(room_id))
 
     client = get_genai_client()
     nav_sent = False
     text_buf = ""
     chunk_index = 0
+    selected_artifact_id: Optional[str] = None
 
     try:
         async for response in await client.aio.models.generate_content_stream(
@@ -250,6 +321,23 @@ async def process_text_query(
             if response.text:
                 text_delta = response.text
                 text_buf += response.text
+
+                # Check for artifact marker
+                if not selected_artifact_id:
+                    found = _extract_artifact_id(text_buf)
+                    if found:
+                        selected_artifact_id = found
+                        await on_chunk(ResponseChunk(
+                            audio_chunk=None, text=None,
+                            generated_image_url=None, generated_image_position=None,
+                            navigation={
+                                "targetRoomId": results[0].room_id if results else "",
+                                "highlightArtifacts": [found],
+                                "enterRoom": False,
+                                "selectedArtifactId": found,
+                            },
+                            is_complete=False,
+                        ))
 
             diagram_result = await _maybe_generate_diagram(text_buf, user_id, results)
             if diagram_result:
@@ -347,7 +435,11 @@ async def _retrieve_context(
         return []
 
 
-def _build_navigation(results: list[SearchResult]) -> Optional[dict]:
+def _build_navigation(
+    results: list[SearchResult],
+    is_room_mode: bool = False,
+    selected_artifact_id: Optional[str] = None,
+) -> Optional[dict]:
     """Build a navigation hint from top search results if any exist."""
     if not results:
         return None
@@ -356,7 +448,22 @@ def _build_navigation(results: list[SearchResult]) -> Optional[dict]:
     return {
         "targetRoomId": top.room_id,
         "highlightArtifacts": highlight_ids,
+        "enterRoom": not is_room_mode,
+        "selectedArtifactId": selected_artifact_id,
     }
+
+
+_ARTIFACT_TRIGGER_PREFIX = "[ARTIFACT:"
+
+
+def _extract_artifact_id(text_buf: str) -> Optional[str]:
+    if _ARTIFACT_TRIGGER_PREFIX not in text_buf:
+        return None
+    start = text_buf.index(_ARTIFACT_TRIGGER_PREFIX)
+    end = text_buf.find("]", start)
+    if end == -1:
+        return None
+    return text_buf[start + len(_ARTIFACT_TRIGGER_PREFIX):end].strip() or None
 
 
 _DIAGRAM_TRIGGER_PREFIX = "[DIAGRAM:"

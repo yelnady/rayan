@@ -69,9 +69,12 @@ async def create_artifact(
     await _artifacts_ref(user_id, room_id).document(artifact_id).set(artifact.model_dump())
     logger.info("Artifact created: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
 
+    import asyncio
+    from app.services.room_service import recompute_room_summary
+    asyncio.create_task(recompute_room_summary(user_id, room_id), name=f"room-summary-{room_id}")
+
     if not skip_enrichment:
         # T122: Kick off web enrichment asynchronously after artifact creation
-        import asyncio
         from app.agents.enrichment_agent import run_enrichment
         from app.websocket.manager import manager
 
@@ -107,27 +110,33 @@ async def get_room_artifacts(user_id: str, room_id: str) -> list[Artifact]:
 async def delete_artifact(user_id: str, room_id: str, artifact_id: str) -> None:
     await _artifacts_ref(user_id, room_id).document(artifact_id).delete()
     logger.info("Artifact deleted: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
+    from app.services.room_service import recompute_room_summary
+    await recompute_room_summary(user_id, room_id)
 
 
 async def get_artifact_by_id(user_id: str, artifact_id: str) -> Artifact | None:
-    """Fetch an artifact without knowing its room — uses a subcollection query.
+    """Fetch an artifact without knowing its room.
 
     Needed by the /artifacts/{artifactId} REST endpoint which only has the
-    artifact ID, not the room ID.
+    artifact ID, not the room ID. Uses direct document lookups to avoid
+    requiring a Firestore collection-group index on the 'id' field.
     """
+    from app.services.room_service import get_all_rooms
+
     db = get_firestore_client()
-    # Collection group query across all 'artifacts' sub-collections for this user
-    query = (
-        db.collection_group("artifacts")
-        .where("id", "==", artifact_id)
-    )
-    docs = await query.get()
-    for doc in docs:
+    rooms = await get_all_rooms(user_id)
+    for room in rooms:
+        doc = await (
+            db.collection("users")
+            .document(user_id)
+            .collection("rooms")
+            .document(room.id)
+            .collection("artifacts")
+            .document(artifact_id)
+            .get()
+        )
         if doc.exists:
-            # Verify ownership via path: users/{userId}/rooms/{roomId}/artifacts/{artifactId}
-            parts = doc.reference.path.split("/")
-            if len(parts) >= 6 and parts[1] == user_id:
-                return Artifact(**doc.to_dict())
+            return Artifact(**doc.to_dict())
     return None
 
 
@@ -136,8 +145,11 @@ async def delete_artifact_by_id(user_id: str, artifact_id: str) -> None:
     artifact = await get_artifact_by_id(user_id, artifact_id)
     if artifact is None:
         return
-    await _artifacts_ref(user_id, artifact.roomId).document(artifact_id).delete()
+    room_id = artifact.roomId
+    await _artifacts_ref(user_id, room_id).document(artifact_id).delete()
     logger.info("Artifact deleted: userId=%s artifactId=%s", user_id, artifact_id)
+    from app.services.room_service import recompute_room_summary
+    await recompute_room_summary(user_id, room_id)
 
 
 async def _count_artifacts(user_id: str, room_id: str) -> int:
