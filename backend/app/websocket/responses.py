@@ -113,3 +113,36 @@ async def broadcast_palace_update(
         })
 
     await manager.send(user_id, {"type": "palace_update", "changes": changes})
+
+
+# ── T121: Enrichment update broadcast ─────────────────────────────────────────
+
+async def send_enrichment_update(
+    user_id: str,
+    artifact_id: str,
+    enrichment_id: str,
+    source_name: str,
+    source_url: str,
+    preview: str,
+    images: Optional[list[dict]] = None,
+) -> None:
+    """Broadcast enrichment_update when the enrichment agent adds new data.
+
+    Per websocket.md §6 — includes a crystal_orb_pulse visual indicator.
+    """
+    await manager.send(user_id, {
+        "type": "enrichment_update",
+        "artifactId": artifact_id,
+        "enrichment": {
+            "id": enrichment_id,
+            "sourceName": source_name,
+            "sourceUrl": source_url,
+            "preview": preview,
+            "images": images or [],
+        },
+        "visualIndicator": {
+            "artifactId": artifact_id,
+            "effect": "crystal_orb_pulse",
+        },
+    })
+

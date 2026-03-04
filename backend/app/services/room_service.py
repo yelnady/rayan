@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 from app.core.firestore import get_firestore_client
 from app.models.common import Dimensions3D, Position3D
-from app.models.room import Room, RoomStyle
+from app.models.room import Room
 from app.services.embedding_service import cosine_similarity, get_embedding
 
 logger = logging.getLogger(__name__)
@@ -35,7 +35,6 @@ async def get_room(user_id: str, room_id: str) -> Room | None:
 async def create_room(
     user_id: str,
     name: str,
-    style: RoomStyle,
     keywords: list[str],
     position: Position3D | None = None,
 ) -> Room:
@@ -54,7 +53,6 @@ async def create_room(
         name=name,
         position=position,
         dimensions=Dimensions3D(),
-        style=style,
         createdAt=now,
         lastAccessedAt=now,
         topicKeywords=keywords,
@@ -97,7 +95,17 @@ async def find_best_room_match(
 
 
 def _next_grid_position(existing: list[Room]) -> Position3D:
-    """Lay rooms out on a square grid, 20 units apart."""
+    """Lay rooms out on a square grid, 30 units apart, starting well clear of the lobby.
+
+    The lobby occupies roughly 0-12 on X and Z, so we start rooms at X=30
+    to avoid any geometry overlap.
+    """
+    OFFSET_X = 30.0   # clear the lobby width
+    OFFSET_Z = 0.0
+    SPACING = 30.0
+    COLS = 3           # rooms per row before wrapping
+
     n = len(existing)
-    cols = max(1, int(n**0.5) + 1)
-    return Position3D(x=(n % cols) * 20.0, y=0.0, z=(n // cols) * 20.0)
+    col = n % COLS
+    row = n // COLS
+    return Position3D(x=OFFSET_X + col * SPACING, y=0.0, z=OFFSET_Z + row * SPACING)
