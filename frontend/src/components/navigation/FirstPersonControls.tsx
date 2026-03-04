@@ -6,6 +6,9 @@ import { useCameraStore } from '../../stores/cameraStore';
 const MOVE_SPEED = 5; // m/s
 const CAMERA_HEIGHT = 1.7; // metres
 const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6); // lobby start position
+const DEFAULT_FOV = 75;
+const MIN_FOV = 20;
+const MAX_FOV = 100;
 
 interface FirstPersonControlsProps {
   /** Called every frame with the current world position */
@@ -23,6 +26,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     camera.position.copy(SPAWN);
     euler.current.set(0, 0, 0); // look toward -Z (straight into the lobby)
     camera.quaternion.setFromEuler(euler.current);
+    (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
   }, [camera]);
 
   // ── Reset view whenever resetToken is bumped ─────────────────────────────────
@@ -32,6 +37,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     camera.position.copy(SPAWN);
     euler.current.set(0, 0, 0);
     camera.quaternion.setFromEuler(euler.current);
+    (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
   }, [resetToken, camera]);
 
   // ── Teleport view whenever teleportToken is bumped ───────────────────────────
@@ -96,6 +103,13 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
       camera.quaternion.setFromEuler(euler.current);
     }
 
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const cam = camera as THREE.PerspectiveCamera;
+      cam.fov = Math.max(MIN_FOV, Math.min(MAX_FOV, cam.fov + e.deltaY * 0.05));
+      cam.updateProjectionMatrix();
+    }
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
 
@@ -103,6 +117,7 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     canvas.addEventListener('pointerdown', onPointerDown);
     canvas.addEventListener('pointerup', onPointerUp);
     canvas.addEventListener('pointermove', onPointerMove);
+    canvas.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       window.removeEventListener('keydown', onKeyDown);
@@ -111,6 +126,7 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
       canvas.removeEventListener('pointerdown', onPointerDown);
       canvas.removeEventListener('pointerup', onPointerUp);
       canvas.removeEventListener('pointermove', onPointerMove);
+      canvas.removeEventListener('wheel', onWheel);
     };
   }, [camera, gl]);
 

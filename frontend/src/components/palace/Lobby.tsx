@@ -1,9 +1,12 @@
-import { Text } from '@react-three/drei';
+import { Text, useGLTF } from '@react-three/drei';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
 
 const LOBBY_SIZE = 12;
 const LOBBY_HEIGHT = 5;
+
+// Pre-load the microphone model
+useGLTF.preload('/models/microphone.glb');
 
 interface LobbyProps {
   lobbyDoors: LobbyDoor[];
@@ -33,6 +36,7 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
 
 export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
   const roomMap = new Map(rooms.map((r) => [r.id, r]));
+  const micGLTF = useGLTF('/models/microphone.glb');
 
   return (
     <group>
@@ -102,6 +106,17 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
       >
         Memory Palace
       </Text>
+
+      {/* ── Centerpiece Microphone ────────────────────────────────────────── */}
+      <group position={[LOBBY_SIZE / 2, 1.2, 3]}>
+        {/* Slowly rotate or just place statically. For now, static in center of lobby */}
+        <primitive
+          object={micGLTF.scene.clone()}
+          scale={0.6} // Reduced from 5 to 0.6 to make it much smaller
+          rotation={[0, Math.PI / 4, 0]}
+        />
+        <pointLight color="#8a5af9" intensity={3} distance={5} decay={2} />
+      </group>
 
       {/* ── Doors to rooms ────────────────────────────────────────────────── */}
       {lobbyDoors.map((ld) => {
