@@ -3,6 +3,10 @@
    Reset, base styles, global @keyframes, scrollbar styling
    ============================================================================= */
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 *,
 *::before,
@@ -19,7 +23,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', 'Plus Jakarta Sans', system-ui, sans-serif;
   background-color: #F9FAFB;
   color: #111827;
   line-height: 1.6;
@@ -40,7 +44,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-family: 'Cinzel', 'Playfair Display', serif;
   font-weight: 600;
   line-height: 1.25;
 }
