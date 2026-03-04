@@ -6,45 +6,45 @@
 
 export const colors = {
     // ── Core palette ──────────────────────────────────────────────────────────
-    primary: '#6366f1',           // Indigo-500 — main accent
-    primaryLight: '#818cf8',      // Indigo-400 — lighter accent
-    primaryGlow: 'rgba(99,102,241,0.35)',
-    primaryMuted: 'rgba(99,102,241,0.15)',
-    primaryBorder: 'rgba(99,102,241,0.4)',
+    primary: '#FBBF24',           // Amber-400 — main accent (Yellow/Gold)
+    primaryLight: '#FDE68A',      // Amber-200 — lighter accent
+    primaryGlow: 'rgba(251,191,36,0.3)',
+    primaryMuted: 'rgba(251,191,36,0.15)',
+    primaryBorder: 'rgba(251,191,36,0.4)',
 
-    secondary: '#8b5cf6',         // Violet-500
-    secondaryGlow: 'rgba(139,92,246,0.3)',
+    secondary: '#10B981',         // Emerald-500
+    secondaryGlow: 'rgba(16,185,129,0.3)',
 
     // ── Surfaces & backgrounds ────────────────────────────────────────────────
-    bg: '#060614',                // Page background
-    surface: 'rgba(12,12,20,0.97)',    // Modal / panel surface
-    surfaceAlt: '#1a1a2e',        // Alternative card background
-    surfaceHover: 'rgba(255,255,255,0.04)',
-    glass: 'rgba(12,12,18,0.88)', // Glassmorphic panel
+    bg: '#F9FAFB',                // Page background
+    surface: '#FFFFFF',           // Modal / panel surface
+    surfaceAlt: '#F3F4F6',        // Alternative card background
+    surfaceHover: 'rgba(0,0,0,0.04)',
+    glass: 'rgba(255,255,255,0.95)', // Glassmorphic panel
 
     // ── Semantic states ───────────────────────────────────────────────────────
-    error: '#f87171',             // Red-400
-    errorSolid: '#ef4444',        // Red-500
+    error: '#ef4444',             // Red-500
+    errorSolid: '#dc2626',        // Red-600
     errorMuted: 'rgba(239,68,68,0.12)',
     errorBorder: 'rgba(239,68,68,0.3)',
     errorGlow: 'rgba(239,68,68,0.3)',
 
-    success: '#22c55e',           // Green-500
-    successMuted: 'rgba(34,197,94,0.2)',
+    success: '#10B981',           // Emerald-500
+    successMuted: 'rgba(16,185,129,0.2)',
 
     warning: '#f59e0b',           // Amber-500
 
     // ── Text ──────────────────────────────────────────────────────────────────
-    textPrimary: 'rgba(255,255,255,0.92)',
-    textSecondary: 'rgba(255,255,255,0.65)',
-    textMuted: 'rgba(255,255,255,0.35)',
-    textFaint: 'rgba(255,255,255,0.2)',
+    textPrimary: '#111827',       // Gray-900
+    textSecondary: '#4B5563',     // Gray-600
+    textMuted: '#6B7280',         // Gray-500
+    textFaint: '#9CA3AF',         // Gray-400
 
     // ── Borders & overlays ────────────────────────────────────────────────────
-    border: 'rgba(255,255,255,0.08)',
-    borderLight: 'rgba(255,255,255,0.12)',
-    overlay: 'rgba(0,0,0,0.7)',
-    overlayLight: 'rgba(0,0,0,0.6)',
+    border: 'rgba(0,0,0,0.08)',
+    borderLight: 'rgba(0,0,0,0.04)',
+    overlay: 'rgba(0,0,0,0.4)',
+    overlayLight: 'rgba(0,0,0,0.2)',
 
     // ── Other ─────────────────────────────────────────────────────────────────
     white: '#ffffff',
@@ -66,12 +66,12 @@ export const radii = {
 };
 
 export const shadows = {
-    sm: '0 4px 12px rgba(0,0,0,0.25)',
-    md: '0 8px 24px rgba(0,0,0,0.35)',
-    lg: '0 24px 64px rgba(0,0,0,0.6)',
-    panel: '-8px 0 32px rgba(0,0,0,0.4)',
-    primaryGlow: `0 0 20px rgba(99,102,241,0.4), 0 4px 16px rgba(0,0,0,0.4)`,
-    errorGlow: '0 0 12px rgba(239,68,68,0.3)',
+    sm: '0 2px 8px rgba(0,0,0,0.04)',
+    md: '0 4px 16px rgba(0,0,0,0.06)',
+    lg: '0 12px 32px rgba(0,0,0,0.08)',
+    panel: '-4px 0 24px rgba(0,0,0,0.05)',
+    primaryGlow: `0 0 16px rgba(251,191,36,0.3), 0 4px 12px rgba(0,0,0,0.05)`,
+    errorGlow: '0 0 12px rgba(239,68,68,0.2)',
 };
 
 export const transitions = {
