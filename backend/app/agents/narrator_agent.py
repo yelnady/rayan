@@ -213,7 +213,7 @@ async def _synthesise_voice(narration_text: str) -> Optional[bytes]:
             await gemini.send_client_content(
                 turns=genai_types.Content(
                     role="user",
-                    parts=[genai_types.Part.from_text(narration_text)],
+                    parts=[genai_types.Part(text=narration_text)],
                 ),
                 turn_complete=True,
             )
