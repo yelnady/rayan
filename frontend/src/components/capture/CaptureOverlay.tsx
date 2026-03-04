@@ -1,4 +1,5 @@
 import { useCaptureStore } from '../../stores/captureStore';
+import { colors, fonts, radii } from '../../config/tokens';
 
 export function CaptureOverlay() {
   const status = useCaptureStore((s) => s.status);
@@ -19,20 +20,23 @@ export function CaptureOverlay() {
         position: 'fixed',
         top: 16,
         right: 16,
-        background: 'rgba(0,0,0,0.75)',
-        color: '#fff',
-        borderRadius: 12,
+        background: colors.glass,
+        color: colors.white,
+        borderRadius: radii.lg,
         padding: '12px 16px',
         minWidth: 220,
         zIndex: 1000,
-        backdropFilter: 'blur(8px)',
+        backdropFilter: 'blur(12px)',
+        border: `1px solid ${colors.border}`,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+        animation: 'fadeIn 0.2s ease',
       }}
     >
-      <div style={{ fontWeight: 700, marginBottom: 8 }}>
+      <div style={{ fontWeight: 700, marginBottom: 8, fontFamily: fonts.body, fontSize: 13 }}>
         {statusLabel[status] ?? status}
       </div>
       {concepts.length > 0 && (
-        <div style={{ fontSize: 12, opacity: 0.85 }}>
+        <div style={{ fontSize: 12, color: colors.textSecondary, fontFamily: fonts.body }}>
           {concepts.length} concept{concepts.length !== 1 ? 's' : ''} captured
         </div>
       )}

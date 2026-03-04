@@ -1,6 +1,7 @@
 import { jsx as _jsx } from "react/jsx-runtime";
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
+import { colors, radii, transitions } from '../../config/tokens';
 export function CaptureButton({ source = 'webcam' }) {
     const { startCapture, stopCapture } = useCapture();
     const status = useCaptureStore((s) => s.status);
@@ -16,18 +17,21 @@ export function CaptureButton({ source = 'webcam' }) {
         }
     }
     return (_jsx("button", { onClick: handleClick, disabled: disabled, "aria-label": isCapturing ? 'Stop capture' : 'Start capture', style: {
-            borderRadius: '50%',
+            borderRadius: radii.pill,
             width: 64,
             height: 64,
-            background: isCapturing ? '#e53935' : '#1976d2',
+            background: isCapturing ? colors.errorSolid : colors.primary,
             border: 'none',
             cursor: disabled ? 'not-allowed' : 'pointer',
-            color: '#fff',
+            color: colors.white,
             fontSize: 24,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             opacity: disabled ? 0.5 : 1,
-            transition: 'background 0.2s',
+            transition: `background ${transitions.normal}, opacity ${transitions.fast}`,
+            boxShadow: isCapturing
+                ? `0 0 0 6px rgba(239,68,68,0.25), 0 4px 16px rgba(0,0,0,0.4)`
+                : `0 4px 16px rgba(99,102,241,0.3), 0 2px 8px rgba(0,0,0,0.3)`,
         }, children: isProcessing ? '⏳' : isCapturing ? '⏹' : '⏺' }));
 }
