@@ -7,12 +7,10 @@
  * Each section has an animated icon button + label + state sub-label.
  */
 
-import React from 'react';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
 import { useCameraStore } from '../../stores/cameraStore';
-import { colors, fonts, radii, transitions, zIndex } from '../../config/tokens';
 
 // ─── Reset View button ────────────────────────────────────────────────────────
 
@@ -23,36 +21,14 @@ function ResetViewSection() {
             onClick={resetView}
             aria-label="Reset view to palace entrance"
             title="Reset View"
-            style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: 4,
-                padding: '6px 14px',
-                background: 'transparent',
-                border: 'none',
-                borderRadius: radii.pill,
-                cursor: 'pointer',
-                color: colors.textPrimary,
-                transition: `background ${transitions.fast}`,
-            }}
+            className="flex flex-col items-center gap-1 py-1.5 px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
         >
             <div
-                style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: radii.pill,
-                    background: 'rgba(0,0,0,0.04)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: `background ${transitions.fast}, transform ${transitions.fast}`,
-                }}
+                className="w-9 h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95"
             >
                 <HomeIcon />
             </div>
-            <span style={{ fontFamily: fonts.body, fontSize: 10, color: colors.textMuted, letterSpacing: '0.03em', lineHeight: 1 }}>
+            <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 Reset
             </span>
         </button>
@@ -76,12 +52,12 @@ function CaptureSection() {
     }
 
     const btnColor = isCapturing
-        ? colors.error
-        : colors.primary;
+        ? 'bg-error'
+        : 'bg-primary';
 
     const btnGlow = isCapturing
-        ? `0 0 0 6px ${colors.errorMuted}, 0 4px 16px ${colors.errorGlow}`
-        : `0 0 0 6px ${colors.primaryMuted}, 0 4px 16px ${colors.primaryGlow}`;
+        ? 'shadow-[0_0_0_6px_rgba(248,113,113,0.1),0_4px_16px_rgba(239,68,68,0.35)]'
+        : 'shadow-[0_0_0_6px_rgba(99,102,241,0.12),0_4px_16px_rgba(99,102,241,0.35)]';
 
     const subLabel = isProcessing
         ? 'Thinking…'
@@ -96,38 +72,23 @@ function CaptureSection() {
             onClick={handleClick}
             disabled={disabled}
             aria-label={isCapturing ? 'Stop capture' : 'Start capture'}
-            style={sectionBtn}
+            className="action-section-btn flex items-center gap-3 py-1.5 pr-4 pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[190px] hover:bg-surface-hover group"
         >
             {/* Icon */}
             <div
-                style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: radii.pill,
-                    background: btnColor,
-                    boxShadow: btnGlow,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: `background ${transitions.normal}, box-shadow ${transitions.normal}`,
-                    animation: isCapturing ? 'capture-pulse 1.6s ease-in-out infinite' : 'none',
-                }}
+                className={`w-[46px] h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isCapturing ? 'animate-[capture-pulse_1.6s_ease-in-out_infinite]' : ''}`}
             >
                 {isProcessing ? <SpinnerIcon color="#111827" /> : isCapturing ? <StopIcon /> : <CamIcon />}
             </div>
 
             {/* Labels */}
-            <div style={labelStack}>
-                <span style={labelPrimary}>Add to Memory</span>
+            <div className="flex flex-col gap-0.5">
+                <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
                 <span
-                    style={{
-                        ...labelSub,
-                        color: isCapturing ? 'rgba(248,113,113,0.9)' : colors.textMuted,
-                    }}
+                    className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                 >
                     {isProcessing ? (
-                        <span style={{ animation: 'pulse-opacity 1s ease infinite' }}>{subLabel}</span>
+                        <span className="animate-[pulse-opacity_1s_ease_infinite]">{subLabel}</span>
                     ) : (
                         subLabel
                     )}
@@ -140,7 +101,7 @@ function CaptureSection() {
 // ─── Voice half ───────────────────────────────────────────────────────────────
 
 function VoiceSection() {
-    const { status, muted, toggleMute, interrupt, connect } = useVoice();
+    const { status, muted, toggleMute, interrupt, connect, disconnect } = useVoice();
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') await connect();
@@ -151,23 +112,29 @@ function VoiceSection() {
         }
     };
 
+    const handleStop = () => {
+        disconnect();
+    };
+
+    const isSessionActive = status !== 'disconnected' && status !== 'error' && status !== 'connecting';
+
     const isActive = status === 'connected' && !muted;
     const isResponding = status === 'responding';
     const isConnecting = status === 'connecting';
 
     const btnColor = isResponding
-        ? colors.secondary
+        ? 'bg-secondary'
         : isActive
-            ? colors.success
+            ? 'bg-success'
             : status === 'error'
-                ? colors.error
-                : 'rgba(0,0,0,0.04)';
+                ? 'bg-error'
+                : 'bg-[rgba(0,0,0,0.04)]';
 
     const btnGlow = isActive
-        ? '0 0 0 6px rgba(16, 185, 129, 0.15), 0 4px 16px rgba(16, 185, 129, 0.3)'
+        ? 'shadow-[0_0_0_6px_rgba(16,185,129,0.15),0_4px_16px_rgba(16,185,129,0.3)]'
         : isResponding
-            ? `0 0 0 6px ${colors.secondaryGlow}, 0 4px 16px ${colors.secondaryGlow}`
-            : 'none';
+            ? 'shadow-[0_0_0_6px_rgba(167,139,250,0.15),0_4px_16px_rgba(139,92,246,0.3)]'
+            : 'shadow-none';
 
     const subLabel =
         status === 'disconnected' ? 'Tap to connect'
@@ -188,23 +155,11 @@ function VoiceSection() {
             onClick={handleClick}
             disabled={isConnecting}
             aria-label={ariaLabel}
-            style={sectionBtn}
+            className="action-section-btn flex items-center gap-3 py-1.5 pr-4 pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[190px] hover:bg-surface-hover group"
         >
             {/* Icon */}
             <div
-                style={{
-                    width: 46,
-                    height: 46,
-                    borderRadius: radii.pill,
-                    background: btnColor,
-                    boxShadow: btnGlow,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexShrink: 0,
-                    transition: `background ${transitions.normal}, box-shadow ${transitions.normal}`,
-                    animation: isResponding ? 'voice-pulse 1.2s ease-in-out infinite' : 'none',
-                }}
+                className={`w-[46px] h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isResponding ? 'animate-[voice-pulse_1.2s_ease-in-out_infinite]' : ''}`}
             >
                 {isConnecting ? (
                     <SpinnerIcon color="#111827" />
@@ -220,23 +175,31 @@ function VoiceSection() {
             </div>
 
             {/* Labels */}
-            <div style={labelStack}>
-                <span style={labelPrimary}>Chat with Memory</span>
+            <div className="flex flex-col gap-0.5">
+                <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Chat with Memory</span>
                 <span
-                    style={{
-                        ...labelSub,
-                        color: isActive
-                            ? 'rgba(74,222,128,0.9)'
-                            : isResponding
-                                ? 'rgba(167,139,250,0.9)'
-                                : status === 'error'
-                                    ? 'rgba(248,113,113,0.9)'
-                                    : colors.textMuted,
-                    }}
+                    className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                 >
                     {subLabel}
                 </span>
             </div>
+
+            {/* Stop button — only shown when session is active */}
+            {isSessionActive && (
+                <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => { e.stopPropagation(); handleStop(); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleStop(); } }}
+                    aria-label="Stop voice session"
+                    title="Stop session"
+                    className="w-[26px] h-[26px] rounded-full bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center cursor-pointer shrink-0 transition-background duration-150 ml-1 hover:bg-[rgba(239,68,68,0.2)]"
+                >
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="rgba(239,68,68,0.9)">
+                        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                    </svg>
+                </div>
+            )}
         </button>
     );
 }
@@ -275,37 +238,14 @@ export function ActionBar() {
             <div
                 role="toolbar"
                 aria-label="Memory actions"
-                style={{
-                    position: 'fixed',
-                    bottom: 28,
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: zIndex.hud,
-                    display: 'flex',
-                    alignItems: 'center',
-                    background: colors.glass,
-                    backdropFilter: 'blur(20px)',
-                    WebkitBackdropFilter: 'blur(20px)',
-                    border: `1px solid ${colors.border}`,
-                    borderRadius: radii.pill,
-                    boxShadow: '0 8px 32px rgba(0,0,0,0.08), 0 1px 0 rgba(255,255,255,0.5) inset',
-                    padding: '10px 10px',
-                    gap: 0,
-                    animation: 'bar-appear 0.4s cubic-bezier(0.32,0,0.67,0) both',
-                }}
+                className="fixed bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-2.5 py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both]"
             >
                 <ResetViewSection />
 
                 {/* Divider */}
                 <div
                     aria-hidden="true"
-                    style={{
-                        width: 1,
-                        height: 48,
-                        background: colors.borderLight,
-                        margin: '0 4px',
-                        flexShrink: 0,
-                    }}
+                    className="w-px h-12 bg-border-light mx-1 shrink-0"
                 />
 
                 <CaptureSection />
@@ -313,13 +253,7 @@ export function ActionBar() {
                 {/* Divider */}
                 <div
                     aria-hidden="true"
-                    style={{
-                        width: 1,
-                        height: 48,
-                        background: colors.borderLight,
-                        margin: '0 4px',
-                        flexShrink: 0,
-                    }}
+                    className="w-px h-12 bg-border-light mx-1 shrink-0"
                 />
 
                 <VoiceSection />
@@ -327,46 +261,6 @@ export function ActionBar() {
         </>
     );
 }
-
-// ─── Shared styles ────────────────────────────────────────────────────────────
-
-const sectionBtn: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-    padding: '6px 16px 6px 8px',
-    background: 'transparent',
-    border: 'none',
-    borderRadius: radii.pill,
-    cursor: 'pointer',
-    color: colors.textPrimary,
-    textAlign: 'left',
-    transition: `background ${transitions.fast}`,
-    minWidth: 190,
-};
-
-const labelStack: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
-};
-
-const labelPrimary: React.CSSProperties = {
-    fontFamily: fonts.body,
-    fontWeight: 600,
-    fontSize: 14,
-    color: colors.textPrimary,
-    letterSpacing: '0.01em',
-    lineHeight: 1.2,
-};
-
-const labelSub: React.CSSProperties = {
-    fontFamily: fonts.body,
-    fontSize: 11,
-    letterSpacing: '0.02em',
-    lineHeight: 1.2,
-    transition: `color ${transitions.fast}`,
-};
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 

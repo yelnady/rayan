@@ -2,7 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { GoogleSignIn } from './components/auth/GoogleSignIn';
 import { PalacePage } from './pages/PalacePage';
-import { fonts, colors } from './config/tokens';
+import { IsoPalacePage } from './pages/IsoPalacePage';
+import { IslandPalacePage } from './pages/IslandPalacePage';
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 
@@ -18,37 +19,10 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function LoadingScreen() {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: colors.bg,
-        flexDirection: 'column',
-        gap: 16,
-      }}
-    >
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg gap-4">
       {/* Spinner */}
-      <div
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: '50%',
-          border: `2px solid ${colors.primaryMuted}`,
-          borderTopColor: colors.primary,
-          animation: 'spin 0.85s linear infinite',
-        }}
-      />
-      <span
-        style={{
-          fontFamily: fonts.body,
-          fontSize: 13,
-          color: colors.textMuted,
-          letterSpacing: '0.03em',
-        }}
-      >
+      <div className="w-8 h-8 rounded-full border-2 border-primary-muted border-t-primary animate-spin" />
+      <span className="font-body text-[13px] text-text-muted tracking-wide">
         Loading…
       </span>
     </div>
@@ -63,21 +37,21 @@ function LoginPage() {
   if (user) return <Navigate to="/" replace />;
 
   return (
-    <div style={loginWrapperStyle}>
+    <div className="relative flex items-center justify-center min-h-[100dvh] bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(99,102,241,0.12)_0%,transparent_70%),radial-gradient(ellipse_60%_50%_at_80%_100%,rgba(139,92,246,0.08)_0%,transparent_60%)] bg-bg overflow-hidden">
       {/* Ambient glow orbs */}
-      <div style={glowOrb1Style} />
-      <div style={glowOrb2Style} />
+      <div className="absolute -top-[10%] left-1/2 -translate-x-1/2 w-[600px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(99,102,241,0.18)_0%,transparent_70%)] pointer-events-none animate-[glow-pulse_5s_ease-in-out_infinite]" />
+      <div className="absolute bottom-[5%] right-[10%] w-[300px] h-[300px] rounded-full bg-[radial-gradient(circle,rgba(139,92,246,0.12)_0%,transparent_70%)] pointer-events-none animate-[glow-pulse_7s_ease-in-out_infinite_reverse]" />
 
       {/* Card */}
-      <div style={loginCardStyle}>
+      <div className="relative z-10 flex flex-col items-center gap-3 bg-[rgba(14,14,26,0.7)] backdrop-blur-xl border border-[rgba(99,102,241,0.18)] rounded-3xl pt-12 px-11 pb-10 w-full max-w-[380px] shadow-[0_32px_80px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04)] animate-[scaleIn_0.4s_ease]">
         {/* Palace icon */}
-        <div style={iconWrapperStyle}>
+        <div className="w-16 h-16 rounded-2xl bg-[rgba(99,102,241,0.12)] border border-[rgba(99,102,241,0.25)] flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
           <svg
             width="40"
             height="40"
             viewBox="0 0 24 24"
             fill="none"
-            style={{ display: 'block' }}
+            className="block"
           >
             <defs>
               <linearGradient id="icon-grad" x1="0" y1="0" x2="1" y2="1">
@@ -96,17 +70,21 @@ function LoginPage() {
         </div>
 
         {/* Heading */}
-        <h1 style={loginTitleStyle}>Rayan</h1>
-        <p style={loginSubtitleStyle}>Your AI-powered Memory Palace</p>
+        <h1 className="font-heading text-[34px] font-bold text-white tracking-tight m-0 text-center bg-[linear-gradient(135deg,#fff_0%,rgba(255,255,255,0.7)_100%)] bg-clip-text text-transparent">
+          Rayan
+        </h1>
+        <p className="font-body text-sm text-text-muted m-0 text-center tracking-wide">
+          Your AI-powered Memory Palace
+        </p>
 
         {/* Divider */}
-        <div style={dividerStyle} />
+        <div className="w-full h-px bg-[rgba(255,255,255,0.07)] my-2" />
 
         {/* Sign in */}
         <GoogleSignIn />
 
         {/* Footer note */}
-        <p style={loginFootnoteStyle}>
+        <p className="font-body text-[11px] text-text-faint m-0 text-center leading-relaxed mt-1">
           Sign in to access your memory rooms &amp; artifacts
         </p>
       </div>
@@ -118,13 +96,7 @@ function LoginPage() {
 
 function PlaceholderPage({ name }: { name: string }) {
   return (
-    <div
-      style={{
-        padding: '2rem',
-        fontFamily: fonts.body,
-        color: colors.textSecondary,
-      }}
-    >
+    <div className="p-8 font-body text-text-secondary">
       {name} — coming soon
     </div>
   );
@@ -146,6 +118,22 @@ export default function App() {
           }
         />
         <Route
+          path="/iso"
+          element={
+            <AuthGuard>
+              <IsoPalacePage />
+            </AuthGuard>
+          }
+        />
+        <Route
+          path="/island"
+          element={
+            <AuthGuard>
+              <IslandPalacePage />
+            </AuthGuard>
+          }
+        />
+        <Route
           path="/dashboard"
           element={
             <AuthGuard>
@@ -158,112 +146,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
-// ── Login Styles ──────────────────────────────────────────────────────────────
-
-const loginWrapperStyle: React.CSSProperties = {
-  position: 'relative',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '100dvh',
-  background: `radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,0.12) 0%, transparent 70%),
-               radial-gradient(ellipse 60% 50% at 80% 100%, rgba(139,92,246,0.08) 0%, transparent 60%),
-               ${colors.bg}`,
-  overflow: 'hidden',
-};
-
-const glowOrb1Style: React.CSSProperties = {
-  position: 'absolute',
-  top: '-10%',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  width: 600,
-  height: 400,
-  borderRadius: '50%',
-  background: 'radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)',
-  pointerEvents: 'none',
-  animation: 'glow-pulse 5s ease-in-out infinite',
-};
-
-const glowOrb2Style: React.CSSProperties = {
-  position: 'absolute',
-  bottom: '5%',
-  right: '10%',
-  width: 300,
-  height: 300,
-  borderRadius: '50%',
-  background: 'radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)',
-  pointerEvents: 'none',
-  animation: 'glow-pulse 7s ease-in-out infinite reverse',
-};
-
-const loginCardStyle: React.CSSProperties = {
-  position: 'relative',
-  zIndex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 12,
-  background: 'rgba(14,14,26,0.7)',
-  backdropFilter: 'blur(24px)',
-  border: '1px solid rgba(99,102,241,0.18)',
-  borderRadius: 24,
-  padding: '48px 44px 40px',
-  width: '100%',
-  maxWidth: 380,
-  boxShadow: '0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.04) inset',
-  animation: 'scaleIn 0.4s ease',
-};
-
-const iconWrapperStyle: React.CSSProperties = {
-  width: 64,
-  height: 64,
-  borderRadius: 16,
-  background: 'rgba(99,102,241,0.12)',
-  border: '1px solid rgba(99,102,241,0.25)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginBottom: 8,
-  boxShadow: '0 0 20px rgba(99,102,241,0.2)',
-};
-
-const loginTitleStyle: React.CSSProperties = {
-  fontFamily: fonts.heading,
-  fontSize: 34,
-  fontWeight: 700,
-  color: colors.white,
-  letterSpacing: '-0.02em',
-  margin: 0,
-  textAlign: 'center',
-  background: 'linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.7) 100%)',
-  WebkitBackgroundClip: 'text',
-  WebkitTextFillColor: 'transparent',
-};
-
-const loginSubtitleStyle: React.CSSProperties = {
-  fontFamily: fonts.body,
-  fontSize: 14,
-  color: colors.textMuted,
-  margin: 0,
-  textAlign: 'center',
-  letterSpacing: '0.01em',
-};
-
-const dividerStyle: React.CSSProperties = {
-  width: '100%',
-  height: 1,
-  background: 'rgba(255,255,255,0.07)',
-  margin: '8px 0',
-};
-
-const loginFootnoteStyle: React.CSSProperties = {
-  fontFamily: fonts.body,
-  fontSize: 11,
-  color: colors.textFaint,
-  margin: 0,
-  textAlign: 'center',
-  lineHeight: 1.5,
-  marginTop: 4,
-};

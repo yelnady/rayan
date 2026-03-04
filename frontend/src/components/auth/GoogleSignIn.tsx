@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { auth } from '../../config/firebase';
-import { colors, fonts, shadows, transitions } from '../../config/tokens';
 
 const provider = new GoogleAuthProvider();
 
@@ -22,47 +21,34 @@ export function GoogleSignIn() {
   }
 
   return (
-    <div style={wrapperStyle}>
+    <div className="flex flex-col items-center gap-3 w-full">
       <button
         onClick={handleSignIn}
         disabled={loading}
         id="google-sign-in-button"
         aria-label="Sign in with Google"
-        style={btnStyle(loading)}
-        onMouseEnter={(e) => {
-          if (!loading) {
-            const t = e.currentTarget;
-            t.style.background = 'rgba(99,102,241,0.14)';
-            t.style.borderColor = 'rgba(99,102,241,0.55)';
-            t.style.boxShadow = shadows.primaryGlow;
-            t.style.transform = 'translateY(-1px)';
-          }
-        }}
-        onMouseLeave={(e) => {
-          const t = e.currentTarget;
-          t.style.background = 'rgba(255,255,255,0.05)';
-          t.style.borderColor = 'rgba(255,255,255,0.12)';
-          t.style.boxShadow = shadows.sm;
-          t.style.transform = 'translateY(0)';
-        }}
+        className={`flex items-center justify-center gap-2.5 w-full px-5 py-3 rounded-xl border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.05)] shadow-sm transition-all duration-250 ease-out focus:outline-none focus:ring-2 focus:ring-primary ${loading
+            ? 'opacity-65 cursor-not-allowed'
+            : 'cursor-pointer hover:bg-[rgba(99,102,241,0.14)] hover:border-[rgba(99,102,241,0.55)] hover:shadow-primary-glow hover:-translate-y-px'
+          }`}
       >
         {loading ? (
           <>
             {/* Spinner */}
-            <div style={spinnerStyle} />
-            <span style={btnTextStyle}>Signing in…</span>
+            <div className="w-4 h-4 rounded-full border-2 border-primary-muted border-t-primary animate-spin shrink-0" />
+            <span className="font-body text-sm font-medium text-text-primary tracking-wide">Signing in…</span>
           </>
         ) : (
           <>
             {/* Google "G" icon */}
             <GoogleLogo />
-            <span style={btnTextStyle}>Sign in with Google</span>
+            <span className="font-body text-sm font-medium text-text-primary tracking-wide">Sign in with Google</span>
           </>
         )}
       </button>
 
       {error && (
-        <p style={errorStyle}>{error}</p>
+        <p className="font-body text-xs text-error m-0 text-center leading-relaxed">{error}</p>
       )}
     </div>
   );
@@ -77,7 +63,7 @@ function GoogleLogo() {
       height="18"
       viewBox="0 0 24 24"
       xmlns="http://www.w3.org/2000/svg"
-      style={{ flexShrink: 0 }}
+      className="shrink-0"
     >
       <path
         d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -98,57 +84,3 @@ function GoogleLogo() {
     </svg>
   );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const wrapperStyle: React.CSSProperties = {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: 12,
-  width: '100%',
-};
-
-const btnStyle = (loading: boolean): React.CSSProperties => ({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: 10,
-  width: '100%',
-  padding: '11px 20px',
-  background: 'rgba(255,255,255,0.05)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: 12,
-  cursor: loading ? 'not-allowed' : 'pointer',
-  opacity: loading ? 0.65 : 1,
-  boxShadow: shadows.sm,
-  transition: `background ${transitions.normal}, border-color ${transitions.normal}, box-shadow ${transitions.normal}, transform ${transitions.normal}`,
-  transform: 'translateY(0)',
-});
-
-const btnTextStyle: React.CSSProperties = {
-  fontFamily: fonts.body,
-  fontSize: 14,
-  fontWeight: 500,
-  color: colors.textPrimary,
-  letterSpacing: '0.01em',
-};
-
-const spinnerStyle: React.CSSProperties = {
-  width: 16,
-  height: 16,
-  borderRadius: '50%',
-  border: `2px solid ${colors.primaryMuted}`,
-  borderTopColor: colors.primary,
-  animation: 'spin 0.85s linear infinite',
-  flexShrink: 0,
-};
-
-const errorStyle: React.CSSProperties = {
-  fontFamily: fonts.body,
-  fontSize: 12,
-  color: colors.error,
-  margin: 0,
-  textAlign: 'center',
-  lineHeight: 1.5,
-};

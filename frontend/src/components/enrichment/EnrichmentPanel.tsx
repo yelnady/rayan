@@ -1,23 +1,7 @@
-/**
- * EnrichmentPanel — detailed view of all enrichments for an artifact.
- *
- * T128: Shows a scrollable list of enrichment cards. Each card displays:
- *   - Source site name + link (SourceAttribution)
- *   - Extracted content preview
- *   - Images (EnrichmentImage)
- *
- * Props:
- *   artifactId — the artifact whose enrichments to display
- *
- * Data: reads from enrichmentStore; REST data is loaded once by
- * ArtifactDetailModal before rendering this panel.
- */
-
 import React from 'react';
 import { useEnrichmentStore } from '../../stores/enrichmentStore';
 import { EnrichmentImage } from './EnrichmentImage';
 import { SourceAttribution } from './SourceAttribution';
-import { colors, fonts, radii, shadows } from '../../config/tokens';
 
 interface EnrichmentPanelProps {
     artifactId: string;
@@ -37,9 +21,9 @@ export function EnrichmentPanel({ artifactId }: EnrichmentPanelProps) {
 
     if (enrichments.length === 0) {
         return (
-            <div style={emptyStyle}>
-                <span style={emptyIconStyle}>🔮</span>
-                <p style={emptyTextStyle}>
+            <div className="flex flex-col items-center gap-2.5 py-6">
+                <span className="text-[32px] opacity-50 animate-[pulse_2s_ease-in-out_infinite]">🔮</span>
+                <p className="text-text-faint text-[13px] font-body m-0 text-center">
                     Web enrichment in progress… Check back shortly.
                 </p>
             </div>
@@ -47,25 +31,32 @@ export function EnrichmentPanel({ artifactId }: EnrichmentPanelProps) {
     }
 
     return (
-        <div style={containerStyle}>
+        <div className="flex flex-col gap-3">
             {enrichments.map((e) => (
-                <div key={e.id} style={cardStyle}>
+                <div key={e.id} className="bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.08)] rounded-md p-3.5 flex flex-col gap-2.5 shadow-sm">
                     {/* Card header */}
-                    <div style={cardHeaderStyle}>
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
                         <SourceAttribution url={e.sourceUrl} sourceName={e.sourceName} />
                         {typeof e.relevanceScore === 'number' && (
-                            <span style={relevanceBadgeStyle(e.relevanceScore)}>
+                            <span
+                                className={`text-[10px] font-body font-semibold rounded-sm px-1.5 py-0.5 border ${e.relevanceScore >= 0.7
+                                        ? 'text-[#34d399] bg-[rgba(52,211,153,0.1)] border-[rgba(52,211,153,0.3)]'
+                                        : e.relevanceScore >= 0.5
+                                            ? 'text-[#fbbf24] bg-[rgba(251,191,36,0.1)] border-[rgba(251,191,36,0.3)]'
+                                            : 'text-text-faint bg-[rgba(255,255,255,0.05)] border-[rgba(255,255,255,0.1)]'
+                                    }`}
+                            >
                                 {Math.round(e.relevanceScore * 100)}% relevant
                             </span>
                         )}
                     </div>
 
                     {/* Preview text */}
-                    <p style={previewStyle}>{e.preview}</p>
+                    <p className="text-text-secondary text-[13px] leading-[1.65] m-0 font-body">{e.preview}</p>
 
                     {/* Images */}
                     {e.images.length > 0 && (
-                        <div style={imagesGridStyle}>
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2">
                             {e.images.map((img, i) => (
                                 <EnrichmentImage key={i} url={img.url} caption={img.caption} />
                             ))}
@@ -76,77 +67,3 @@ export function EnrichmentPanel({ artifactId }: EnrichmentPanelProps) {
         </div>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 12,
-};
-
-const cardStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: radii.md,
-    padding: 14,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 10,
-    boxShadow: shadows.sm,
-};
-
-const cardHeaderStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    flexWrap: 'wrap',
-};
-
-const relevanceBadgeStyle = (score: number): React.CSSProperties => ({
-    fontSize: 10,
-    fontFamily: fonts.body,
-    fontWeight: 600,
-    color: score >= 0.7 ? '#34d399' : score >= 0.5 ? '#fbbf24' : colors.textFaint,
-    background: score >= 0.7 ? 'rgba(52,211,153,0.1)' : score >= 0.5 ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.05)',
-    border: `1px solid ${score >= 0.7 ? 'rgba(52,211,153,0.3)' : score >= 0.5 ? 'rgba(251,191,36,0.3)' : 'rgba(255,255,255,0.1)'}`,
-    borderRadius: radii.sm,
-    padding: '2px 6px',
-});
-
-const previewStyle: React.CSSProperties = {
-    color: colors.textSecondary,
-    fontSize: 13,
-    lineHeight: 1.65,
-    margin: 0,
-    fontFamily: fonts.body,
-};
-
-const imagesGridStyle: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))',
-    gap: 8,
-};
-
-const emptyStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: 10,
-    padding: '24px 0',
-};
-
-const emptyIconStyle: React.CSSProperties = {
-    fontSize: 32,
-    opacity: 0.5,
-    animation: 'pulse 2s ease-in-out infinite',
-};
-
-const emptyTextStyle: React.CSSProperties = {
-    color: colors.textFaint,
-    fontSize: 13,
-    fontFamily: fonts.body,
-    margin: 0,
-    textAlign: 'center',
-};

@@ -11,6 +11,7 @@ import { WS_BASE_URL } from '../config/api';
 import { useAuthStore } from '../stores/authStore';
 import { useCaptureStore } from '../stores/captureStore';
 import { usePalaceStore } from '../stores/palaceStore';
+import { useCameraStore } from '../stores/cameraStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { AudioPlayback } from '../services/audioPlayback';
 import { useEnrichmentStore } from '../stores/enrichmentStore';
@@ -98,6 +99,10 @@ function wireListeners(ws: RayanWebSocket): void {
         voiceStore.setStatus('responding');
       }
       voiceStore.appendTranscript(msg.text);
+      voiceStore.appendRayanText(msg.text);
+    }),
+    ws.on('live_user_text', (msg) => {
+      useVoiceStore.getState().appendUserText(msg.text);
     }),
     ws.on('live_interrupted', () => {
       _playback?.stop();
@@ -121,12 +126,39 @@ function wireListeners(ws: RayanWebSocket): void {
 
       if (msg.content.text) {
         voiceStore.appendTranscript(msg.content.text);
+        voiceStore.appendRayanText(msg.content.text);
       }
       if (msg.content.audioChunk && _playback) {
         void _playback.enqueue(msg.content.audioChunk);
       }
       if (msg.content.generatedImage) {
         voiceStore.addDiagram(msg.content.generatedImage);
+      }
+
+      if (msg.content.navigation) {
+        const nav = msg.content.navigation;
+        const palaceStore = usePalaceStore.getState();
+
+        if (nav.highlightArtifacts?.length) {
+          palaceStore.setHighlightedArtifacts(nav.highlightArtifacts);
+          setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5000);
+        }
+
+        if (nav.enterRoom && nav.targetRoomId && palaceStore.currentRoomId !== nav.targetRoomId) {
+          palaceStore.setCurrentRoomId(nav.targetRoomId);
+          const room = palaceStore.rooms.find((r) => r.id === nav.targetRoomId);
+          if (room) {
+            useCameraStore.getState().teleport({
+              x: room.position.x + room.dimensions.w / 2,
+              y: 1.7,
+              z: room.position.z + room.dimensions.d / 2,
+            });
+          }
+        }
+
+        if (nav.selectedArtifactId) {
+          palaceStore.setAgentSelectedArtifactId(nav.selectedArtifactId);
+        }
       }
     }),
     ws.on('response_complete', (_msg) => {

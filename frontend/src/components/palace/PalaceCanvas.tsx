@@ -33,7 +33,7 @@ interface PalaceCanvasProps {
 }
 
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
-  const { palace, layout, rooms, artifacts } = usePalaceStore();
+  const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
 
   // Compute raw lobby doors (used in useMemo below — must happen before any hooks)
   const rawLobbyDoors = (() => {
@@ -128,6 +128,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
                     key={artifact.id}
                     artifact={artifact}
                     onClick={onArtifactClick}
+                    isHighlighted={highlightedArtifactIds.includes(artifact.id)}
                   />
                 ))}
               </Room>

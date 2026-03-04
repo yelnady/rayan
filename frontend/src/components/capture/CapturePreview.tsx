@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useCaptureStore } from '../../stores/captureStore';
-import { colors, radii, shadows, zIndex } from '../../config/tokens';
 
 export function CapturePreview() {
     const stream = useCaptureStore((s) => s.activeStream);
@@ -19,50 +18,17 @@ export function CapturePreview() {
     }
 
     return (
-        <div
-            style={{
-                position: 'fixed',
-                bottom: 120,
-                right: 24,
-                width: 240,
-                aspectRatio: '16/9',
-                borderRadius: radii.lg,
-                overflow: 'hidden',
-                boxShadow: shadows.lg,
-                border: `2px solid ${colors.primaryBorder}`,
-                backgroundColor: colors.surface,
-                zIndex: zIndex.hud,
-                animation: 'scaleIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-            }}
-        >
+        <div className="fixed bottom-[120px] right-6 w-[240px] aspect-video rounded-2xl overflow-hidden shadow-lg border-2 border-primary-border bg-surface z-hud animate-[scaleIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)]">
             <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: sourceType === 'webcam' ? 'cover' : 'contain',
-                    transform: sourceType === 'webcam' ? 'scaleX(-1)' : 'none',
-                    backgroundColor: colors.surface,
-                }}
+                className={`w-full h-full bg-surface ${sourceType === 'webcam' ? 'object-cover -scale-x-100' : 'object-contain'}`}
             />
 
             {/* Recording Indicator */}
-            <div
-                style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                    width: 8,
-                    height: 8,
-                    borderRadius: radii.pill,
-                    backgroundColor: colors.errorSolid,
-                    boxShadow: colors.errorGlow,
-                    animation: 'pulse-opacity 1.5s ease-in-out infinite',
-                }}
-            />
+            <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-error-solid shadow-[0_0_12px_rgba(239,68,68,0.6)] animate-[pulse-opacity_1.5s_ease-in-out_infinite]" />
         </div>
     );
 }

@@ -8,9 +8,6 @@
  *      message (includes roomId and reason string)
  */
 
-import React from 'react';
-import { colors, fonts, radii } from '../../config/tokens';
-
 interface NarrationRelated {
     artifactId: string;
     roomId: string;
@@ -29,11 +26,11 @@ export function RelatedArtifacts({ relatedArtifactIds, narrationRelated }: Relat
     const hasNarration = narrationRelated.length > 0;
 
     if (!hasNarration && relatedArtifactIds.length === 0) {
-        return <p style={emptyStyle}>No related memories found.</p>;
+        return <p className="text-text-muted text-[12px] font-body m-0">No related memories found.</p>;
     }
 
     return (
-        <div id="related-artifacts-list" style={containerStyle}>
+        <div id="related-artifacts-list" className="flex flex-col gap-2">
             {hasNarration
                 ? narrationRelated.map((rel) => (
                     <NarrationCard key={rel.artifactId} rel={rel} />
@@ -49,96 +46,20 @@ export function RelatedArtifacts({ relatedArtifactIds, narrationRelated }: Relat
 
 function NarrationCard({ rel }: { rel: NarrationRelated }) {
     return (
-        <div style={cardStyle} title={`Room: ${rel.roomId}`}>
-            <div style={cardHeaderStyle}>
-                <span style={artifactIdStyle}>{rel.artifactId.slice(0, 16)}…</span>
-                <span style={roomTagStyle}>{rel.roomId.replace('room_', '').replace(/_/g, ' ')}</span>
+        <div className="bg-surface-hover border border-border rounded-md py-2.5 px-3" title={`Room: ${rel.roomId}`}>
+            <div className="flex items-center justify-end mb-1.5">
+                <span className="bg-primary-muted text-primary-light text-[10px] font-semibold capitalize py-0.5 px-1.5 rounded-[4px] font-body">{rel.roomId.replace('room_', '').replace(/_/g, ' ')}</span>
             </div>
-            <p style={reasonStyle}>{rel.reason}</p>
+            <p className="text-text-secondary text-[12px] leading-[1.5] m-0 font-body">{rel.reason}</p>
         </div>
     );
 }
 
-function BareIdCard({ artifactId }: { artifactId: string }) {
+function BareIdCard(_props: { artifactId: string }) {
     return (
-        <div style={chipStyle}>
-            <span style={chipIconStyle}>↗</span>
-            <span style={chipTextStyle}>{artifactId.slice(0, 18)}…</span>
+        <div className="inline-flex items-center gap-1.5 bg-surface-hover border border-border rounded-md py-1.5 px-2.5">
+            <span className="text-primary text-[12px]">↗</span>
+            <span className="text-text-muted text-[11px] font-mono">Related Memory</span>
         </div>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const containerStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 8,
-};
-
-const emptyStyle: React.CSSProperties = {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontFamily: fonts.body,
-    margin: 0,
-};
-
-const cardStyle: React.CSSProperties = {
-    background: colors.surfaceHover,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.md,
-    padding: '10px 12px',
-};
-
-const cardHeaderStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-};
-
-const artifactIdStyle: React.CSSProperties = {
-    color: colors.textMuted,
-    fontSize: 10,
-    fontFamily: fonts.mono,
-};
-
-const roomTagStyle: React.CSSProperties = {
-    background: colors.primaryMuted,
-    color: colors.primaryLight,
-    fontSize: 10,
-    fontWeight: 600,
-    textTransform: 'capitalize',
-    padding: '2px 7px',
-    borderRadius: radii.xs,
-    fontFamily: fonts.body,
-};
-
-const reasonStyle: React.CSSProperties = {
-    color: colors.textSecondary,
-    fontSize: 12,
-    lineHeight: 1.5,
-    margin: 0,
-    fontFamily: fonts.body,
-};
-
-const chipStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    background: colors.surfaceHover,
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.md,
-    padding: '6px 10px',
-};
-
-const chipIconStyle: React.CSSProperties = {
-    color: colors.primary,
-    fontSize: 12,
-};
-
-const chipTextStyle: React.CSSProperties = {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontFamily: fonts.mono,
-};

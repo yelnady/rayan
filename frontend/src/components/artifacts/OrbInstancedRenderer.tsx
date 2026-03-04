@@ -202,7 +202,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                         entries[hoveredIdx].artifact.position.z,
                     ]}
                     center
-                    distanceFactor={6}
+                    distanceFactor={10}
                     zIndexRange={[100, 0]}
                     style={{ pointerEvents: 'none' }}
                 >

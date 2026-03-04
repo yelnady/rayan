@@ -12,9 +12,8 @@
  *   <GeneratedDiagramCard url="..." caption="..." onDismiss={() => ...} />
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Html } from '@react-three/drei';
-import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
 
 // ── 3D version (inside <Canvas>) ─────────────────────────────────────────────
 
@@ -33,16 +32,16 @@ export function GeneratedDiagram({ url, position, caption, onDismiss }: Generate
             position={[position.x, position.y, position.z]}
             center
             distanceFactor={4}
-            style={{ pointerEvents: 'auto' }}
+            className="pointer-events-auto"
             zIndexRange={[100, 110]}
         >
             <div
                 id={`generated-diagram-${encodeURIComponent(url).slice(-12)}`}
-                style={containerStyle(loaded)}
+                className={`relative bg-glass backdrop-blur-md border border-border rounded-md overflow-hidden max-w-[280px] shadow-md transition-opacity duration-300 ${loaded ? 'opacity-100' : 'opacity-60'}`}
             >
                 <button
                     onClick={onDismiss}
-                    style={closeButtonStyle}
+                    className="absolute top-1.5 right-2 bg-surface-hover border border-border-light rounded-full w-[22px] h-[22px] text-text-muted cursor-pointer text-base leading-none flex items-center justify-center z-10"
                     aria-label="Dismiss diagram"
                     title="Dismiss"
                 >
@@ -52,11 +51,11 @@ export function GeneratedDiagram({ url, position, caption, onDismiss }: Generate
                     src={url}
                     alt={caption ?? 'Generated diagram'}
                     onLoad={() => setLoaded(true)}
-                    style={imageStyle(loaded)}
+                    className={`block w-full h-auto object-contain transition-opacity duration-400 ${loaded ? 'opacity-100' : 'opacity-0'}`}
                     draggable={false}
                 />
-                {caption && <p style={captionStyle}>{caption}</p>}
-                {!loaded && <div style={skeletonStyle} aria-label="Loading diagram…" />}
+                {caption && <p className="my-1.5 mx-3 mb-2.5 text-text-secondary text-[11px] font-body leading-[1.4] text-center">{caption}</p>}
+                {!loaded && <div className="absolute inset-0 bg-surface-alt animate-pulse" aria-label="Loading diagram…" />}
             </div>
         </Html>
     );
@@ -76,14 +75,17 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
 
     return (
         <>
-            <div style={cardContainerStyle(loaded)} onClick={() => setIsExpanded(true)}>
+            <div
+                className={`relative bg-glass backdrop-blur-md border border-border rounded-md overflow-hidden shadow-md transition-opacity duration-300 w-full cursor-pointer ${loaded ? 'opacity-100' : 'opacity-60'}`}
+                onClick={() => setIsExpanded(true)}
+            >
                 {onDismiss && (
                     <button
                         onClick={(e) => {
                             e.stopPropagation();
                             onDismiss();
                         }}
-                        style={closeButtonStyle}
+                        className="absolute top-1.5 right-2 bg-surface-hover border border-border-light rounded-full w-[22px] h-[22px] text-text-muted cursor-pointer text-base leading-none flex items-center justify-center z-10"
                         aria-label="Dismiss"
                         title="Dismiss"
                     >
@@ -94,17 +96,17 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
                     src={url}
                     alt={caption ?? 'Generated diagram'}
                     onLoad={() => setLoaded(true)}
-                    style={{ ...imageStyle(loaded), cursor: 'pointer' }}
+                    className={`block w-full h-auto object-contain transition-opacity duration-400 cursor-pointer ${loaded ? 'opacity-100' : 'opacity-0'}`}
                     draggable={false}
                 />
-                {caption && <p style={captionStyle}>{caption}</p>}
-                {!loaded && <div style={skeletonStyle} />}
+                {caption && <p className="my-1.5 mx-3 mb-2.5 text-text-secondary text-[11px] font-body leading-[1.4] text-center">{caption}</p>}
+                {!loaded && <div className="absolute inset-0 bg-surface-alt animate-pulse" />}
             </div>
 
             {/* Fullscreen Expand Modal */}
             {isExpanded && (
                 <div
-                    style={fullscreenOverlayStyle}
+                    className="fixed inset-0 bg-overlay backdrop-blur-md z-[1210] flex flex-col items-center justify-center p-6 animate-[fadeIn_0.2s_ease] cursor-zoom-out"
                     onClick={() => setIsExpanded(false)}
                     role="dialog"
                     aria-modal="true"
@@ -112,7 +114,7 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
                 >
                     <button
                         onClick={() => setIsExpanded(false)}
-                        style={fullscreenCloseBtnStyle}
+                        className="absolute top-6 right-6 bg-surface border-none rounded-full w-10 h-10 text-text-primary cursor-pointer text-xl flex items-center justify-center shadow-md transition-transform duration-200 hover:scale-[1.05]"
                         aria-label="Close fullscreen"
                     >
                         ✕
@@ -120,13 +122,13 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
                     <img
                         src={url}
                         alt={caption ?? 'Expanded diagram'}
-                        style={fullscreenImageStyle}
+                        className="max-w-[90vw] max-h-[80vh] object-contain rounded-md shadow-lg cursor-default"
                         onClick={(e) => e.stopPropagation()} // Prevent close when clicking image
                         draggable={false}
                     />
                     {caption && (
-                        <div style={fullscreenCaptionContainerStyle} onClick={(e) => e.stopPropagation()}>
-                            <p style={fullscreenCaptionStyle}>{caption}</p>
+                        <div className="mt-4 bg-surface py-2 px-4 rounded-full shadow-md max-w-[80vw]" onClick={(e) => e.stopPropagation()}>
+                            <p className="m-0 text-text-primary text-sm font-body text-center">{caption}</p>
                         </div>
                     )}
                 </div>
@@ -134,130 +136,3 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
         </>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const containerStyle = (loaded: boolean): React.CSSProperties => ({
-    position: 'relative',
-    background: colors.glass,
-    backdropFilter: 'blur(16px)',
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.md,
-    overflow: 'hidden',
-    maxWidth: 280,
-    boxShadow: shadows.md,
-    opacity: loaded ? 1 : 0.6,
-    transition: 'opacity 0.3s ease',
-});
-
-const cardContainerStyle = (loaded: boolean): React.CSSProperties => ({
-    ...containerStyle(loaded),
-    maxWidth: '100%',
-});
-
-const imageStyle = (loaded: boolean): React.CSSProperties => ({
-    display: 'block',
-    width: '100%',
-    height: 'auto',
-    objectFit: 'contain',
-    opacity: loaded ? 1 : 0,
-    transition: 'opacity 0.4s ease',
-});
-
-const skeletonStyle: React.CSSProperties = {
-    position: 'absolute',
-    inset: 0,
-    background: `linear-gradient(90deg, ${colors.surfaceAlt} 25%, ${colors.surfaceHover} 50%, ${colors.surfaceAlt} 75%)`,
-    backgroundSize: '200% 100%',
-    animation: 'skeleton-shimmer 1.5s ease-in-out infinite',
-};
-
-const captionStyle: React.CSSProperties = {
-    margin: '6px 12px 10px',
-    color: colors.textSecondary,
-    fontSize: 11,
-    fontFamily: fonts.body,
-    lineHeight: 1.4,
-    textAlign: 'center',
-};
-
-const closeButtonStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 6,
-    right: 8,
-    background: colors.surfaceHover,
-    border: `1px solid ${colors.borderLight}`,
-    borderRadius: '50%',
-    width: 22,
-    height: 22,
-    color: colors.textMuted,
-    cursor: 'pointer',
-    fontSize: 16,
-    lineHeight: 1,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-};
-
-// ── Fullscreen Overlay Styles ─────────────────────────────────────────────────
-
-const fullscreenOverlayStyle: React.CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    background: colors.overlay,
-    backdropFilter: 'blur(8px)',
-    zIndex: zIndex.modal + 10, // Must be above the artifact detail modal
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    animation: 'fadeIn 0.2s ease',
-    cursor: 'zoom-out',
-};
-
-const fullscreenImageStyle: React.CSSProperties = {
-    maxWidth: '90vw',
-    maxHeight: '80vh',
-    objectFit: 'contain',
-    borderRadius: radii.md,
-    boxShadow: shadows.lg,
-    cursor: 'default',
-};
-
-const fullscreenCloseBtnStyle: React.CSSProperties = {
-    position: 'absolute',
-    top: 24,
-    right: 24,
-    background: colors.surface,
-    border: 'none',
-    borderRadius: '50%',
-    width: 40,
-    height: 40,
-    color: colors.textPrimary,
-    cursor: 'pointer',
-    fontSize: 20,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: shadows.md,
-    transition: 'transform 0.2s',
-};
-
-const fullscreenCaptionContainerStyle: React.CSSProperties = {
-    marginTop: 16,
-    background: colors.surface,
-    padding: '8px 16px',
-    borderRadius: radii.pill,
-    boxShadow: shadows.md,
-    maxWidth: '80vw',
-};
-
-const fullscreenCaptionStyle: React.CSSProperties = {
-    margin: 0,
-    color: colors.textPrimary,
-    fontSize: 14,
-    fontFamily: fonts.body,
-    textAlign: 'center',
-};

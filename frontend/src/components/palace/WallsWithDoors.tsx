@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
+import { useTexture } from '@react-three/drei';
 import type { DoorSpec, WallSide } from '../../types/three';
 
 const DOOR_WIDTH = 1.5;
 const DOOR_HEIGHT = 2.5;
+const WALL_THICKNESS = 0.2;
 
 interface WallsWithDoorsProps {
   width: number;
@@ -13,47 +15,96 @@ interface WallsWithDoorsProps {
   wallColor?: string;
 }
 
-function buildWallShape(wallLength: number, wallHeight: number, doorSpecs: DoorSpec[]): THREE.Shape {
-  const shape = new THREE.Shape();
-  shape.moveTo(0, 0);
-  shape.lineTo(wallLength, 0);
-  shape.lineTo(wallLength, wallHeight);
-  shape.lineTo(0, wallHeight);
-  shape.lineTo(0, 0);
+interface WallSegment {
+  position: [number, number, number];
+  scale: [number, number, number];
+}
 
-  // Cut a hole for each door on this wall
-  doorSpecs.forEach((d) => {
-    const offset = (d.index + 1) * (wallLength / (doorSpecs.length + 1));
-    const dx = offset - DOOR_WIDTH / 2;
-    const hole = new THREE.Path();
-    hole.moveTo(dx, 0);
-    hole.lineTo(dx + DOOR_WIDTH, 0);
-    hole.lineTo(dx + DOOR_WIDTH, DOOR_HEIGHT);
-    hole.lineTo(dx, DOOR_HEIGHT);
-    hole.lineTo(dx, 0);
-    shape.holes.push(hole);
+/**
+ * Builds the BoxGeometry segments for a single wall, leaving gaps for doors.
+ * The wall starts at x=0 and extends to x=wallLength along the local X axis.
+ * It is positioned such that its inner face is at z=0 and its outer face is at z=-thickness.
+ */
+function buildWallSegments(wallLength: number, wallHeight: number, doorSpecs: DoorSpec[]): WallSegment[] {
+  const segments: WallSegment[] = [];
+
+  // Sort doors by position along the wall
+  const sortedDoors = [...doorSpecs].sort((a, b) => a.index - b.index);
+
+  let currentX = 0;
+
+  // Create solid wall segments between doors
+  sortedDoors.forEach((d) => {
+    // Offset calculation matches original ShapeGeometry logic
+    const centerOffset = (d.index + 1) * (wallLength / (doorSpecs.length + 1));
+    const doorStartX = centerOffset - DOOR_WIDTH / 2;
+    const doorEndX = centerOffset + DOOR_WIDTH / 2;
+
+    // 1. Bottom-to-top segment *before* the door
+    if (doorStartX > currentX) {
+      const segWidth = doorStartX - currentX;
+      segments.push({
+        position: [currentX + segWidth / 2, wallHeight / 2, -WALL_THICKNESS / 2],
+        scale: [segWidth, wallHeight, WALL_THICKNESS],
+      });
+    }
+
+    // 2. Top segment *above* the door
+    if (wallHeight > DOOR_HEIGHT) {
+      const topHeight = wallHeight - DOOR_HEIGHT;
+      segments.push({
+        position: [currentX + DOOR_WIDTH / 2 + (doorStartX - currentX), DOOR_HEIGHT + topHeight / 2, -WALL_THICKNESS / 2],
+        scale: [DOOR_WIDTH, topHeight, WALL_THICKNESS],
+      });
+    }
+
+    currentX = doorEndX;
   });
 
-  return shape;
+  // 3. Final segment after the last door (or full wall if no doors)
+  if (currentX < wallLength) {
+    const segWidth = wallLength - currentX;
+    segments.push({
+      position: [currentX + segWidth / 2, wallHeight / 2, -WALL_THICKNESS / 2],
+      scale: [segWidth, wallHeight, WALL_THICKNESS],
+    });
+  }
+
+  return segments;
 }
 
 interface WallProps {
-  shape: THREE.Shape;
+  segments: WallSegment[];
   position: [number, number, number];
   rotation: [number, number, number];
   color: string;
 }
 
-function Wall({ shape, position, rotation, color }: WallProps) {
-  const geometry = useMemo(() => {
-    const geo = new THREE.ShapeGeometry(shape);
-    return geo;
-  }, [shape]);
+function Wall({ segments, position, rotation, color }: WallProps) {
+  // Try loading texture, it must be preloaded or cached, or wrapped in suspense
+  const wallTexture = useTexture('/textures/wall_texture.png');
+
+  // Use a common material for all segments in this wall
+  const material = useMemo(() => {
+    const tex = wallTexture.clone();
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(2, 2);
+    tex.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({
+      color,
+      map: tex,
+      roughness: 0.85
+    });
+  }, [color, wallTexture]);
 
   return (
-    <mesh geometry={geometry} position={position} rotation={rotation}>
-      <meshStandardMaterial color={color} side={THREE.DoubleSide} />
-    </mesh>
+    <group position={position} rotation={rotation}>
+      {segments.map((seg, i) => (
+        <mesh key={i} position={seg.position} material={material} castShadow receiveShadow>
+          <boxGeometry args={seg.scale} />
+        </mesh>
+      ))}
+    </group>
   );
 }
 
@@ -74,25 +125,29 @@ export function WallsWithDoors({
     () => [
       {
         side: 'north' as WallSide,
-        shape: buildWallShape(width, height, doorsPerWall.north),
+        segments: buildWallSegments(width, height, doorsPerWall.north),
+        // Positioned at the origin, extending along +X, inner face at z=0
         position: [0, 0, 0] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
       },
       {
         side: 'south' as WallSide,
-        shape: buildWallShape(width, height, doorsPerWall.south),
+        segments: buildWallSegments(width, height, doorsPerWall.south),
+        // Positioned at opposite corner, extending back along -X, inner face pointing -Z
         position: [width, 0, depth] as [number, number, number],
         rotation: [0, Math.PI, 0] as [number, number, number],
       },
       {
         side: 'east' as WallSide,
-        shape: buildWallShape(depth, height, doorsPerWall.east),
+        segments: buildWallSegments(depth, height, doorsPerWall.east),
+        // Positioned at far X corner, extending along +Z
         position: [width, 0, 0] as [number, number, number],
         rotation: [0, -Math.PI / 2, 0] as [number, number, number],
       },
       {
         side: 'west' as WallSide,
-        shape: buildWallShape(depth, height, doorsPerWall.west),
+        segments: buildWallSegments(depth, height, doorsPerWall.west),
+        // Positioned at Z corner, extending along -Z
         position: [0, 0, depth] as [number, number, number],
         rotation: [0, Math.PI / 2, 0] as [number, number, number],
       },
@@ -105,12 +160,23 @@ export function WallsWithDoors({
       {walls.map((w) => (
         <Wall
           key={w.side}
-          shape={w.shape}
+          segments={w.segments}
           position={w.position}
           rotation={w.rotation}
           color={wallColor}
         />
       ))}
+
+      {/* Ceiling Slab */}
+      <mesh
+        position={[width / 2, height + WALL_THICKNESS / 2, depth / 2]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[width + WALL_THICKNESS * 2, WALL_THICKNESS, depth + WALL_THICKNESS * 2]} />
+        {/* We use a neutral white/gray inner ceiling color if the theme doesn't override it with decor */}
+        <meshStandardMaterial color="#FFFFFF" roughness={0.9} />
+      </mesh>
     </>
   );
 }
