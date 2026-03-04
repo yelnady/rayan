@@ -1,44 +1,40 @@
 /**
- * VoiceButton — push-to-talk microphone button.
+ * VoiceButton — mute/unmute toggle for persistent live voice session.
  *
  * Visual states:
- *   idle       → mic icon, click to start recording
- *   listening  → red pulsing circle with stop icon
- *   processing → spinner
- *   responding → speaking icon (interrupt on click)
- *   error      → red exclamation
+ *   disconnected → mic-off icon, click to reconnect
+ *   connecting   → spinner
+ *   connected    → green mic icon (unmuted) / mic-off icon (muted)
+ *   responding   → speaking icon (click to mute/interrupt)
+ *   error        → red exclamation, click to retry
  */
 
 import React from 'react';
 import { useVoice } from '../../hooks/useVoice';
+import { colors, radii, shadows, transitions } from '../../config/tokens';
 
-interface VoiceButtonProps {
-    context: {
-        currentRoomId: string | null;
-        focusedArtifactId: string | null;
-    };
-    /** Optional extra CSS class */
-    className?: string;
-}
-
-export function VoiceButton({ context, className = '' }: VoiceButtonProps) {
-    const { status, startListening, stopListening, interrupt } = useVoice();
+export function VoiceButton({ className = '' }: { className?: string }) {
+    const { status, muted, toggleMute, interrupt, connect } = useVoice();
 
     const handleClick = async () => {
-        if (status === 'idle' || status === 'error') {
-            await startListening(context);
-        } else if (status === 'listening') {
-            stopListening();
-        } else if (status === 'processing' || status === 'responding') {
+        if (status === 'disconnected' || status === 'error') {
+            await connect();
+        } else if (status === 'connected') {
+            toggleMute();
+        } else if (status === 'responding') {
+            // Mute + interrupt playback
+            if (!muted) toggleMute();
             interrupt();
         }
     };
 
     const label =
-        status === 'idle' ? 'Start voice query'
-            : status === 'listening' ? 'Stop recording'
-                : status === 'processing' ? 'Processing…'
-                    : status === 'responding' ? 'Stop response'
+        status === 'disconnected' ? 'Connect voice'
+            : status === 'connecting' ? 'Connecting…'
+                : status === 'connected'
+                    ? (muted ? 'Unmute microphone' : 'Mute microphone')
+                    : status === 'responding'
+                        ? 'Interrupt response'
                         : 'Voice error – retry';
 
     return (
@@ -48,12 +44,14 @@ export function VoiceButton({ context, className = '' }: VoiceButtonProps) {
             aria-label={label}
             title={label}
             className={`voice-button voice-button--${status} ${className}`}
-            style={styles.button(status)}
+            style={styles.button(status, muted)}
+            disabled={status === 'connecting'}
         >
             <span style={styles.icon} aria-hidden="true">
-                {status === 'idle' && <MicIcon />}
-                {status === 'listening' && <StopIcon />}
-                {status === 'processing' && <SpinnerIcon />}
+                {status === 'disconnected' && <MicOffIcon />}
+                {status === 'connecting' && <SpinnerIcon />}
+                {status === 'connected' && !muted && <MicIcon />}
+                {status === 'connected' && muted && <MicOffIcon />}
                 {status === 'responding' && <SpeakingIcon />}
                 {status === 'error' && <ErrorIcon />}
             </span>
@@ -71,10 +69,10 @@ function MicIcon() {
     );
 }
 
-function StopIcon() {
+function MicOffIcon() {
     return (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="6" width="12" height="12" rx="2" />
+            <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
         </svg>
     );
 }
@@ -116,33 +114,34 @@ function ErrorIcon() {
 
 // ── Inline styles ─────────────────────────────────────────────────────────────
 
-type VoiceStatus = 'idle' | 'listening' | 'processing' | 'responding' | 'error';
+type StatusType = 'disconnected' | 'connecting' | 'connected' | 'responding' | 'error';
 
-const BG_COLOR: Record<VoiceStatus, string> = {
-    idle: 'rgba(255,255,255,0.15)',
-    listening: 'rgba(239,68,68,0.9)',
-    processing: 'rgba(99,102,241,0.85)',
-    responding: 'rgba(34,197,94,0.85)',
-    error: 'rgba(239,68,68,0.7)',
+const BG_COLOR = (status: StatusType, muted: boolean): string => {
+    if (status === 'connected' && muted) return 'rgba(255,255,255,0.15)';
+    if (status === 'connected') return colors.success;
+    if (status === 'responding') return colors.primary;
+    if (status === 'connecting') return colors.primary;
+    if (status === 'error') return 'rgba(239,68,68,0.7)';
+    return 'rgba(255,255,255,0.15)';
 };
 
 const styles = {
-    button: (status: VoiceStatus): React.CSSProperties => ({
+    button: (status: StatusType, muted: boolean): React.CSSProperties => ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         width: 52,
         height: 52,
-        borderRadius: '50%',
+        borderRadius: radii.pill,
         border: 'none',
-        cursor: 'pointer',
-        background: BG_COLOR[status],
-        color: '#fff',
-        boxShadow: status === 'listening'
-            ? '0 0 0 6px rgba(239,68,68,0.3), 0 0 0 12px rgba(239,68,68,0.1)'
-            : '0 4px 12px rgba(0,0,0,0.3)',
-        transition: 'background 0.25s ease, box-shadow 0.25s ease',
-        animation: status === 'listening' ? 'voice-pulse 1.2s ease-in-out infinite' : 'none',
+        cursor: status === 'connecting' ? 'wait' : 'pointer',
+        background: BG_COLOR(status, muted),
+        color: colors.white,
+        boxShadow: status === 'connected' && !muted
+            ? `0 0 0 6px rgba(34,197,94,0.2), 0 0 0 12px rgba(34,197,94,0.05)`
+            : shadows.sm,
+        transition: `background ${transitions.normal}, box-shadow ${transitions.normal}`,
+        animation: status === 'responding' ? 'voice-pulse 1.2s ease-in-out infinite' : 'none',
     }),
     icon: {
         display: 'flex',

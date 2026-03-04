@@ -1,12 +1,12 @@
 /**
- * Voice store — Zustand state for the US3 voice conversation feature.
+ * Voice store — Zustand state for the voice conversation feature.
  *
- * Tracks the full lifecycle of a voice query:
- *   idle → listening → processing → responding → idle
+ * Tracks the full lifecycle of a live streaming session:
+ *   disconnected → connecting → connected → responding → connected
  *
  * Populated by:
- *   - useVoice hook (status transitions, audio playback)
- *   - useWS listener (response_chunk, response_complete, artifact_recall)
+ *   - useVoice hook (status transitions, mute state)
+ *   - useWS listener (live_audio, live_text, live_interrupted, live_turn_complete)
  */
 
 import { create } from 'zustand';
@@ -14,7 +14,7 @@ import type { ArtifactRecallMessage } from '../services/websocket';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type VoiceStatus = 'idle' | 'listening' | 'processing' | 'responding' | 'error';
+export type VoiceStatus = 'disconnected' | 'connecting' | 'connected' | 'responding' | 'error';
 
 export interface DiagramEntry {
   url: string;
@@ -22,13 +22,15 @@ export interface DiagramEntry {
 }
 
 interface VoiceState {
-  /** Current UI status */
+  /** Current session status */
   status: VoiceStatus;
-  /** UUID of the active query (set when listening starts) */
+  /** Whether the microphone is muted (session stays open) */
+  muted: boolean;
+  /** UUID of the active query (kept for backward compat with text_query) */
   activeQueryId: string | null;
-  /** Accumulated transcript text from response_chunk messages */
+  /** Accumulated transcript text from live_text messages */
   transcript: string;
-  /** Generated diagram images from response_chunk messages */
+  /** Generated diagram images */
   diagrams: DiagramEntry[];
   /** Narration data from an artifact_recall message */
   currentNarration: ArtifactRecallMessage['content'] | null;
@@ -37,22 +39,23 @@ interface VoiceState {
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setStatus: (status: VoiceStatus) => void;
+  setMuted: (muted: boolean) => void;
   setActiveQueryId: (queryId: string | null) => void;
-  /** Append a text chunk to the transcript */
   appendTranscript: (text: string) => void;
-  /** Add a generated diagram from a response_chunk */
   addDiagram: (diagram: DiagramEntry) => void;
-  /** Set the narration received from an artifact_recall message */
   setNarration: (narration: ArtifactRecallMessage['content'] | null) => void;
   setError: (error: string | null) => void;
-  /** Reset all transient state (call when a query completes or is interrupted) */
+  /** Reset transient state (transcript, diagrams) but keep session status */
+  resetTranscript: () => void;
+  /** Full reset to disconnected state */
   reset: () => void;
 }
 
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 const defaultState = {
-  status: 'idle' as VoiceStatus,
+  status: 'disconnected' as VoiceStatus,
+  muted: false,
   activeQueryId: null,
   transcript: '',
   diagrams: [] as DiagramEntry[],
@@ -64,6 +67,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   ...defaultState,
 
   setStatus: (status) => set({ status }),
+  setMuted: (muted) => set({ muted }),
   setActiveQueryId: (activeQueryId) => set({ activeQueryId }),
   appendTranscript: (text) =>
     set((state) => ({ transcript: state.transcript ? `${state.transcript}${text}` : text })),
@@ -71,5 +75,6 @@ export const useVoiceStore = create<VoiceState>((set) => ({
     set((state) => ({ diagrams: [...state.diagrams, diagram] })),
   setNarration: (currentNarration) => set({ currentNarration }),
   setError: (error) => set({ error, status: 'error' }),
+  resetTranscript: () => set({ transcript: '', diagrams: [], currentNarration: null }),
   reset: () => set(defaultState),
 }));
