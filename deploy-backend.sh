@@ -47,11 +47,14 @@ parse_env_var() {
 }
 
 # Build --set-env-vars string (skip GOOGLE_APPLICATION_CREDENTIALS — handled via SA)
+# Use @ as a separator so commas inside values (like CORS_ORIGINS) don't break gcloud
 ENV_VARS=$(parse_env_var \
   | grep -v 'GOOGLE_APPLICATION_CREDENTIALS' \
   | grep -v 'DEBUG' \
+  | grep -v '^PORT=' \
+  | grep -v '^HOST=' \
   | awk -F= '{print $1"="$2}' \
-  | paste -sd "," -)
+  | paste -sd "@" -)
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 if [[ "$SKIP_BUILD" == false ]]; then
@@ -77,7 +80,7 @@ gcloud run deploy "${SERVICE}" \
   --cpu             2 \
   --timeout         300 \
   --concurrency     80 \
-  --set-env-vars    "DEBUG=false,${ENV_VARS}" \
+  --set-env-vars    "^@^DEBUG=false@${ENV_VARS}" \
   --project         "${PROJECT}"
 
 # ── Print the service URL ─────────────────────────────────────────────────────

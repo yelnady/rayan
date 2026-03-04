@@ -1,11 +1,10 @@
-import { Suspense, useState } from 'react';
+import { Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
 import { Corridor } from './Corridor';
 import { Artifact } from '../artifacts/Artifact';
-import { ArtifactTooltip } from '../artifacts/ArtifactTooltip';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useCameraStore } from '../../stores/cameraStore';
 import type { Artifact as ArtifactData } from '../../types/palace';
@@ -26,7 +25,6 @@ interface PalaceCanvasProps {
 
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
   const { palace, layout, rooms, artifacts } = usePalaceStore();
-  const [hoveredArtifact, setHoveredArtifact] = useState<ArtifactData | null>(null);
 
   // Show nothing until the palace record itself exists (very brief flash at most)
   if (!palace) {
@@ -91,15 +89,11 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
                   key={artifact.id}
                   artifact={artifact}
                   onClick={onArtifactClick}
-                  onHover={setHoveredArtifact}
                 />
               ))}
             </Room>
           );
         })}
-
-        {/* Hover tooltip */}
-        {hoveredArtifact && <ArtifactTooltip artifact={hoveredArtifact} />}
 
         {/* Corridors */}
         {layout?.corridors?.map((c, i) => {

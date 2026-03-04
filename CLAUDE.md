@@ -101,6 +101,7 @@ ADK agents are orchestrated via the Memory Architect. Each agent has a specific 
 - 001-rayan-memory-palace: Initial feature implementation plan
 
 <!-- MANUAL ADDITIONS START -->
-<!-- Add project-specific notes here that should persist across updates -->
-- Do not create or include `.js` files for React components (especially palace items) when a corresponding `.tsx` file exists. Always default to updating the `.tsx` versions.
+## STRICT RULES
+
+- **NEVER create `.js` files in `frontend/src/`.** The entire frontend is TypeScript. All files must use `.ts` or `.tsx`. Plain `.js` files in this directory are forbidden — they are dead code that Vite never loads (`.tsx`/`.ts` always takes precedence). A past migration left orphan `.js` duplicates of every file; they have been deleted. Do not recreate them under any circumstances.
 <!-- MANUAL ADDITIONS END -->
