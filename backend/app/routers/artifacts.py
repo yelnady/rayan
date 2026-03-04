@@ -132,7 +132,7 @@ async def get_artifact_detail(
             fullContent=getattr(artifact_doc, "fullContent", None),
             sourceMediaUrl=getattr(artifact_doc, "sourceMediaUrl", None),
             thumbnailUrl=getattr(artifact_doc, "thumbnailUrl", None),
-            createdAt=artifact_doc.createdAt,
+            createdAt=artifact_doc.createdAt.isoformat(),
             captureSessionId=getattr(artifact_doc, "captureSessionId", None),
             relatedArtifacts=getattr(artifact_doc, "relatedArtifacts", []),
             color=getattr(artifact_doc, "color", None),

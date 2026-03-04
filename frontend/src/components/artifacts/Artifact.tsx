@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { memo, useMemo, useState, useEffect } from 'react';
+import * as THREE from 'three';
 import { Html } from '@react-three/drei';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import { FloatingBook } from './FloatingBook';
@@ -29,18 +30,21 @@ interface ArtifactProps {
   onHover?: (artifact: ArtifactData | null) => void;
 }
 
-export function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
+export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
+  useEffect(() => {
+    console.log(`[Artifact] MOUNTED: id=${artifact.id} visual=${artifact.visual} pos=(${artifact.position.x}, ${artifact.position.y}, ${artifact.position.z})`);
+    return () => console.log(`[Artifact] UNMOUNTED: id=${artifact.id}`);
+  }, [artifact.id]);
   const [hovered, setHovered] = useState(false);
 
-  const pos: [number, number, number] = [
-    artifact.position.x,
-    artifact.position.y,
-    artifact.position.z,
-  ];
+  const pos = useMemo<[number, number, number]>(
+    () => [artifact.position.x, artifact.position.y, artifact.position.z],
+    [artifact.position.x, artifact.position.y, artifact.position.z],
+  );
 
-  const color = artifact.color ?? undefined;
-  const label = TYPE_LABELS[artifact.visual] ?? 'Memory';
-  const accentColor = TYPE_COLORS[artifact.visual] ?? '#60A8FF';
+  const color = useMemo(() => artifact.color ?? undefined, [artifact.color]);
+  const label = useMemo(() => TYPE_LABELS[artifact.visual] ?? 'Memory', [artifact.visual]);
+  const accentColor = useMemo(() => TYPE_COLORS[artifact.visual] ?? '#60A8FF', [artifact.visual]);
 
   const handleClick = () => onClick?.(artifact);
 
@@ -73,12 +77,30 @@ export function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
       {/* Invisible hover hitbox — much easier to target than the small artifact mesh */}
       <mesh
         position={pos}
-        onPointerOver={() => handleHover(true)}
-        onPointerOut={() => handleHover(false)}
-        onClick={handleClick}
+        onPointerOver={() => {
+          console.log(`[Artifact] Hitbox Hover Over: ${artifact.id}`);
+          handleHover(true);
+        }}
+        onPointerOut={() => {
+          console.log(`[Artifact] Hitbox Hover Out: ${artifact.id}`);
+          handleHover(false);
+        }}
+        onPointerDown={(e) => {
+          const worldPos = new THREE.Vector3();
+          e.eventObject.getWorldPosition(worldPos);
+          console.log(`[Artifact] Hitbox Pointer Down: ${artifact.id}`, {
+            local: e.point,
+            world: worldPos,
+            dist: e.distance
+          });
+        }}
+        onClick={() => {
+          console.log(`[Artifact] Hitbox Click: ${artifact.id}`);
+          handleClick();
+        }}
       >
-        <sphereGeometry args={[0.45, 8, 6]} />
-        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        <sphereGeometry args={[0.8, 16, 12]} />
+        <meshBasicMaterial color="red" depthTest={false} transparent opacity={0.6} />
       </mesh>
 
       {/* Tooltip — rendered in the Room's coordinate space so position is correct */}
@@ -149,4 +171,4 @@ export function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
       )}
     </>
   );
-}
+}, (prev: ArtifactProps, next: ArtifactProps) => prev.artifact.id === next.artifact.id && prev.artifact.visual === next.artifact.visual);

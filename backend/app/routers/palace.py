@@ -13,6 +13,7 @@ from app.middleware.auth import verify_token
 from app.models.common import Position3D, Rotation3D
 from app.core.firestore import get_firestore_client
 from app.services.room_service import get_all_rooms
+from app.services.artifact_service import get_room_artifacts
 from app.services.seed_service import seed_palace
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,13 @@ async def get_palace(user: dict = Depends(verify_token)):
 
     rooms = await get_all_rooms(user_id)
     rooms_list = []
-    for room in rooms:
+    artifacts_map = {}
+    
+    # Fetch artifacts for each room in parallel
+    room_artifact_tasks = [get_room_artifacts(user_id, room.id) for room in rooms]
+    all_artifacts = await asyncio.gather(*room_artifact_tasks)
+
+    for i, room in enumerate(rooms):
         rooms_list.append({
             "id": room.id,
             "name": room.name,
@@ -65,6 +72,9 @@ async def get_palace(user: dict = Depends(verify_token)):
             "connections": room.connections,
             "artifactCount": room.artifactCount,
         })
+        
+        # Add fetched artifacts to the map
+        artifacts_map[room.id] = [a.model_dump() for a in all_artifacts[i]]
 
     # Auto-generate lobbyDoors when they're empty but rooms exist.
     # This handles the race condition where rooms are seeded but layout
@@ -90,6 +100,7 @@ async def get_palace(user: dict = Depends(verify_token)):
         "palace": palace_data,
         "layout": layout_data,
         "rooms": rooms_list,
+        "artifacts": artifacts_map,
     }
 
 

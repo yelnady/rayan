@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
 import type { Group, Mesh } from 'three';
 import { useEnrichmentStore } from '../../stores/enrichmentStore';
@@ -22,7 +23,12 @@ const ORBIT_RADIUS = 0.3;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
 
-export function CrystalOrb({
+// Pre-computed once at module level — depends only on the constant above
+const PARTICLE_ANGLES = Array.from({ length: PARTICLE_COUNT }, (_, i) =>
+  (i / PARTICLE_COUNT) * Math.PI * 2,
+);
+
+export const CrystalOrb = memo(function CrystalOrb({
   position,
   color = '#9B59B6',
   artifactId,
@@ -77,13 +83,10 @@ export function CrystalOrb({
     onHover?.(false);
   }
 
-  // Pre-compute particle positions (evenly around a circle)
-  const particleAngles = Array.from({ length: PARTICLE_COUNT }, (_, i) =>
-    (i / PARTICLE_COUNT) * Math.PI * 2,
-  );
-
   return (
-    <group position={position}>
+    // T155: LOD — full detail < 10 units, simplified 10–25 units, hidden > 25 units
+    <Detailed distances={[0, 10, 25]} position={position}>
+      {/* LOD 0: Full detail — orb + inner glow + particles + light (within 10 units) */}
       <group ref={groupRef}>
         {/* Main orb */}
         <mesh
@@ -117,7 +120,7 @@ export function CrystalOrb({
 
         {/* Orbiting particles */}
         <group ref={particlesRef}>
-          {particleAngles.map((angle, i) => (
+          {PARTICLE_ANGLES.map((angle, i) => (
             <mesh
               key={i}
               position={[
@@ -134,6 +137,25 @@ export function CrystalOrb({
 
         <pointLight color={color} intensity={0.8} distance={2} decay={2} />
       </group>
-    </group>
+
+      {/* LOD 1: Mid-range — orb only, no particles or inner glow (10–25 units) */}
+      <group>
+        <mesh onClick={onClick}>
+          <icosahedronGeometry args={[ORB_RADIUS, 1]} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={0.3}
+            roughness={0.1}
+            metalness={0.6}
+            opacity={0.85}
+            transparent
+          />
+        </mesh>
+      </group>
+
+      {/* LOD 2: Far — invisible placeholder (> 25 units) */}
+      <group />
+    </Detailed>
   );
-}
+});

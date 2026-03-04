@@ -15,6 +15,7 @@ interface PalaceState {
   setRooms: (rooms: Room[]) => void;
   addRoom: (room: Room) => void;
   setArtifacts: (roomId: string, artifacts: Artifact[]) => void;
+  setAllArtifacts: (artifacts: Record<string, Artifact[]>) => void;
   addArtifact: (artifact: Artifact) => void;
   setCurrentRoomId: (roomId: string | null) => void;
   setLoading: (loading: boolean) => void;
@@ -39,6 +40,7 @@ export const usePalaceStore = create<PalaceState>((set) => ({
     })),
   setArtifacts: (roomId, artifacts) =>
     set((state) => ({ artifacts: { ...state.artifacts, [roomId]: artifacts } })),
+  setAllArtifacts: (artifacts) => set({ artifacts }),
   addArtifact: (artifact) =>
     set((state) => {
       const existing = state.artifacts[artifact.roomId] ?? [];

@@ -1,11 +1,17 @@
+import { memo } from 'react';
 import { WallsWithDoors } from './WallsWithDoors';
-import type { Room as RoomData } from '../../types/palace';
+import { BookInstancedRenderer } from '../artifacts/BookInstancedRenderer';
+import { OrbInstancedRenderer } from '../artifacts/OrbInstancedRenderer';
+import type { Room as RoomData, Artifact as ArtifactData } from '../../types/palace';
 import type { DoorSpec } from '../../types/three';
 
 interface RoomProps {
   room: RoomData;
   index: number;
   doors?: DoorSpec[];
+  /** T153: artifacts array so Room can render instanced books/orbs */
+  artifacts?: ArtifactData[];
+  onArtifactClick?: (artifact: ArtifactData) => void;
   children?: React.ReactNode;
 }
 
@@ -16,7 +22,7 @@ const THEMES = [
   { wallColor: '#1C1C2E', name: 'dark' },   // 2 – Night Lab
 ];
 
-export function Room({ room, index, doors = [], children }: RoomProps) {
+export function Room({ room, index, doors = [], artifacts = [], onArtifactClick, children }: RoomProps) {
   const themeIdx = index % 3;
   const theme = THEMES[themeIdx];
 
@@ -24,6 +30,10 @@ export function Room({ room, index, doors = [], children }: RoomProps) {
   const d = room.dimensions.d;
   // Give each theme a distinct ceiling height
   const h = themeIdx === 0 ? 4 : themeIdx === 1 ? 5.5 : 5;
+
+  // T153: split artifacts by visual type so instanced renderers handle books/orbs
+  const bookArtifacts = artifacts.filter((a) => a.visual === 'floating_book');
+  const orbArtifacts = artifacts.filter((a) => a.visual === 'crystal_orb');
 
   return (
     <group position={[room.position.x, room.position.y, room.position.z]}>
@@ -41,8 +51,12 @@ export function Room({ room, index, doors = [], children }: RoomProps) {
         wallColor={theme.wallColor}
       />
 
-      {/* Artifacts are generated around (0,0) origin with r=2.5.
-          Offset to room center so they appear inside the room. */}
+      {/* T153: Instanced renderers for repeated geometry (one draw call per type per room) */}
+      <BookInstancedRenderer artifacts={bookArtifacts} onClick={onArtifactClick} />
+      <OrbInstancedRenderer artifacts={orbArtifacts} onClick={onArtifactClick} />
+
+      {/* Non-instanced artifacts (hologram_frame, framed_image, speech_bubble) */}
+      {/* Plus any Room children (kept for backward compat) */}
       <group position={[w / 2, 0, d / 2]}>
         {children}
       </group>
@@ -52,7 +66,7 @@ export function Room({ room, index, doors = [], children }: RoomProps) {
 
 // ── Theme 0: Warm Study ───────────────────────────────────────────────────────
 // Honey-wood floor, cream ceiling, warm pendant lights, soft bookshelf accent
-function WarmStudyDecor({ w, d, h }: { w: number; d: number; h: number }) {
+const WarmStudyDecor = memo(function WarmStudyDecor({ w, d, h }: { w: number; d: number; h: number }) {
   const cx = w / 2;
   const cz = d / 2;
   return (
@@ -63,7 +77,7 @@ function WarmStudyDecor({ w, d, h }: { w: number; d: number; h: number }) {
       {/* Main ceiling pendant */}
       <pointLight position={[cx, h - 0.3, cz]} intensity={12} color="#FFE8C0" distance={w * 2} decay={2} castShadow />
       {/* Corner fill lights */}
-      <pointLight position={[1, h * 0.6, 1]}       intensity={3} color="#FFD8A0" distance={10} decay={2} />
+      <pointLight position={[1, h * 0.6, 1]} intensity={3} color="#FFD8A0" distance={10} decay={2} />
       <pointLight position={[w - 1, h * 0.6, d - 1]} intensity={3} color="#FFD8A0" distance={10} decay={2} />
 
       {/* Floor — warm honey oak */}
@@ -126,11 +140,11 @@ function WarmStudyDecor({ w, d, h }: { w: number; d: number; h: number }) {
       </group>
     </group>
   );
-}
+});
 
 // ── Theme 1: Bright Studio ────────────────────────────────────────────────────
 // Polished concrete floor, white walls, LED ceiling grid, minimalist desk
-function BrightStudioDecor({ w, d, h }: { w: number; d: number; h: number }) {
+const BrightStudioDecor = memo(function BrightStudioDecor({ w, d, h }: { w: number; d: number; h: number }) {
   const cx = w / 2;
   const cz = d / 2;
 
@@ -154,8 +168,8 @@ function BrightStudioDecor({ w, d, h }: { w: number; d: number; h: number }) {
       {/* Central overhead */}
       <pointLight position={[cx, h - 0.2, cz]} intensity={14} color="#FFFFFF" distance={w * 2.5} decay={2} castShadow />
       {/* Secondary fills */}
-      <pointLight position={[1.5, h * 0.8, 1.5]}          intensity={4} color="#E8F0FF" distance={12} decay={2} />
-      <pointLight position={[w - 1.5, h * 0.8, d - 1.5]}  intensity={4} color="#E8F0FF" distance={12} decay={2} />
+      <pointLight position={[1.5, h * 0.8, 1.5]} intensity={4} color="#E8F0FF" distance={12} decay={2} />
+      <pointLight position={[w - 1.5, h * 0.8, d - 1.5]} intensity={4} color="#E8F0FF" distance={12} decay={2} />
 
       {/* Floor — polished light concrete */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
@@ -205,11 +219,11 @@ function BrightStudioDecor({ w, d, h }: { w: number; d: number; h: number }) {
       </mesh>
     </group>
   );
-}
+});
 
 // ── Theme 2: Night Lab ────────────────────────────────────────────────────────
 // Dark charcoal walls, slate floor, teal accent strips, geometric decor
-function NightLabDecor({ w, d, h }: { w: number; d: number; h: number }) {
+const NightLabDecor = memo(function NightLabDecor({ w, d, h }: { w: number; d: number; h: number }) {
   const cx = w / 2;
   const cz = d / 2;
   return (
@@ -219,7 +233,7 @@ function NightLabDecor({ w, d, h }: { w: number; d: number; h: number }) {
       {/* Dramatic overhead */}
       <pointLight position={[cx, h - 0.4, cz]} intensity={8} color="#A0C8FF" distance={w * 2} decay={2} castShadow />
       {/* Teal accent fill */}
-      <pointLight position={[1, 1.5, 1]}       intensity={5} color="#00D4CC" distance={8} decay={2} />
+      <pointLight position={[1, 1.5, 1]} intensity={5} color="#00D4CC" distance={8} decay={2} />
       <pointLight position={[w - 1, 1.5, d - 1]} intensity={5} color="#7060FF" distance={8} decay={2} />
 
       {/* Floor — dark slate with slight shimmer */}
@@ -274,4 +288,4 @@ function NightLabDecor({ w, d, h }: { w: number; d: number; h: number }) {
       </mesh>
     </group>
   );
-}
+});

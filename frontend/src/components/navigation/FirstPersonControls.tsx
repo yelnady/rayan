@@ -74,6 +74,7 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     // manually and use a movement threshold to distinguish clicks from drags.
     let totalMovement = 0;
     function onPointerDown(e: PointerEvent) {
+      console.log(`[Controls] Pointer Down: button=${e.button}, target=${(e.target as any)?.tagName}`);
       if (e.button === 0) {
         isDragging.current = false; // will only become true after movement threshold
         totalMovement = 0;

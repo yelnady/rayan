@@ -21,8 +21,9 @@ export function useArtifactInteraction(currentRoomId: string | null): UseArtifac
 
   const onArtifactClick = useCallback(
     (artifact: Artifact) => {
-      setSelectedArtifact(artifact);
       const roomId = artifact.roomId ?? currentRoomId ?? '';
+      console.log(`[useArtifactInteraction] Artifact Click: id=${artifact.id}, roomId=${roomId}`);
+      setSelectedArtifact(artifact);
       ws.sendArtifactClick(artifact.id, roomId);
     },
     [ws, currentRoomId],
