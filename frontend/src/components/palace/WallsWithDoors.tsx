@@ -81,19 +81,19 @@ export function WallsWithDoors({
       {
         side: 'south' as WallSide,
         shape: buildWallShape(width, height, doorsPerWall.south),
-        position: [0, 0, depth] as [number, number, number],
+        position: [width, 0, depth] as [number, number, number],
         rotation: [0, Math.PI, 0] as [number, number, number],
       },
       {
         side: 'east' as WallSide,
         shape: buildWallShape(depth, height, doorsPerWall.east),
-        position: [width, 0, depth] as [number, number, number],
+        position: [width, 0, 0] as [number, number, number],
         rotation: [0, -Math.PI / 2, 0] as [number, number, number],
       },
       {
         side: 'west' as WallSide,
         shape: buildWallShape(depth, height, doorsPerWall.west),
-        position: [0, 0, 0] as [number, number, number],
+        position: [0, 0, depth] as [number, number, number],
         rotation: [0, Math.PI / 2, 0] as [number, number, number],
       },
     ],
