@@ -230,25 +230,25 @@
 
 ### Backend Implementation for US4
 
-- [ ] T116 [US4] Create backend/app/models/enrichment.py with Enrichment model
-- [ ] T117 [US4] Create backend/app/agents/enrichment_agent.py with ADK tools for web search
-- [ ] T118 [US4] Create backend/app/services/enrichment_service.py with enrichment CRUD
-- [ ] T119 [US4] Create backend/app/services/web_search.py with Google Search API integration
-- [ ] T120 [US4] Create backend/app/services/content_extractor.py for webpage parsing
-- [ ] T121 [US4] Add enrichment_update WebSocket broadcast per websocket.md
-- [ ] T122 [US4] Trigger enrichment agent after artifact creation in artifact_service.py
-- [ ] T123 [US4] Create backend/app/routers/enrichment.py with POST /enrichment/trigger, PATCH /enrichments/{id}
-- [ ] T124 [US4] Register enrichment router in backend/app/main.py
+- [x] T116 [US4] Create backend/app/models/enrichment.py with Enrichment model
+- [x] T117 [US4] Create backend/app/agents/enrichment_agent.py with ADK tools for web search
+- [x] T118 [US4] Create backend/app/services/enrichment_service.py with enrichment CRUD
+- [x] T119 [US4] Create backend/app/services/web_search.py with Google Search API integration
+- [x] T120 [US4] Create backend/app/services/content_extractor.py for webpage parsing
+- [x] T121 [US4] Add enrichment_update WebSocket broadcast per websocket.md
+- [x] T122 [US4] Trigger enrichment agent after artifact creation in artifact_service.py
+- [x] T123 [US4] Create backend/app/routers/enrichment.py with POST /enrichment/trigger, PATCH /enrichments/{id}
+- [x] T124 [US4] Register enrichment router in backend/app/main.py
 
 ### Frontend Enrichment Implementation for US4
 
-- [ ] T125 [P] [US4] Create frontend/src/stores/enrichmentStore.ts with enrichment state
-- [ ] T126 [US4] Handle enrichment_update WebSocket messages in websocket.ts
-- [ ] T127 [US4] Add crystal_orb_pulse animation to CrystalOrb.tsx on new enrichment
-- [ ] T128 [US4] Create frontend/src/components/enrichment/EnrichmentPanel.tsx detail view
-- [ ] T129 [US4] Create frontend/src/components/enrichment/EnrichmentImage.tsx with caption
-- [ ] T130 [US4] Create frontend/src/components/enrichment/SourceAttribution.tsx for links
-- [ ] T131 [US4] Add enrichments section to ArtifactDetailModal.tsx
+- [x] T125 [P] [US4] Create frontend/src/stores/enrichmentStore.ts with enrichment state
+- [x] T126 [US4] Handle enrichment_update WebSocket messages in websocket.ts
+- [x] T127 [US4] Add crystal_orb_pulse animation to CrystalOrb.tsx on new enrichment
+- [x] T128 [US4] Create frontend/src/components/enrichment/EnrichmentPanel.tsx detail view
+- [x] T129 [US4] Create frontend/src/components/enrichment/EnrichmentImage.tsx with caption
+- [x] T130 [US4] Create frontend/src/components/enrichment/SourceAttribution.tsx for links
+- [x] T131 [US4] Add enrichments section to ArtifactDetailModal.tsx
 
 **Checkpoint**: Enrichment complete - Artifacts get enriched with web data, viewable as orbs
 
