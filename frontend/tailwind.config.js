@@ -1,0 +1,64 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: '#FBBF24',
+        'primary-light': '#FDE68A',
+        'primary-glow': 'rgba(251,191,36,0.3)',
+        'primary-muted': 'rgba(251,191,36,0.15)',
+        'primary-border': 'rgba(251,191,36,0.4)',
+        secondary: '#10B981',
+        'secondary-glow': 'rgba(16,185,129,0.3)',
+        bg: '#F9FAFB',
+        surface: '#FFFFFF',
+        'surface-alt': '#F3F4F6',
+        'surface-hover': 'rgba(0,0,0,0.04)',
+        glass: 'rgba(255,255,255,0.95)',
+        error: '#ef4444',
+        'error-solid': '#dc2626',
+        'error-muted': 'rgba(239,68,68,0.12)',
+        'error-border': 'rgba(239,68,68,0.3)',
+        'error-glow': 'rgba(239,68,68,0.3)',
+        success: '#10B981',
+        'success-muted': 'rgba(16,185,129,0.2)',
+        warning: '#f59e0b',
+        'text-primary': '#111827',
+        'text-secondary': '#4B5563',
+        'text-muted': '#6B7280',
+        'text-faint': '#9CA3AF',
+        border: 'rgba(0,0,0,0.08)',
+        'border-light': 'rgba(0,0,0,0.04)',
+        overlay: 'rgba(0,0,0,0.4)',
+        'overlay-light': 'rgba(0,0,0,0.2)',
+      },
+      fontFamily: {
+        heading: ["'Cinzel'", "'Playfair Display'", 'serif'],
+        body: ["'Inter'", "'Plus Jakarta Sans'", 'system-ui', 'sans-serif'],
+        mono: ["'JetBrains Mono'", "'Fira Code'", 'monospace'],
+      },
+      boxShadow: {
+        'primary-glow': '0 0 16px rgba(251,191,36,0.3), 0 4px 12px rgba(0,0,0,0.05)',
+        'error-glow': '0 0 12px rgba(239,68,68,0.2)',
+        'panel': '-4px 0 24px rgba(0,0,0,0.05)',
+      },
+      zIndex: {
+        hud: '20',
+        overlay: '50',
+        toast: '1100',
+        modal: '1000',
+        'room-modal': '1300',
+        'capture-overlay': '1000',
+        'capture-complete': '1200',
+        'response-panel': '150',
+        'voice-indicator': '200',
+      }
+    },
+  },
+  plugins: [],
+}
+
