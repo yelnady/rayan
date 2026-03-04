@@ -15,6 +15,7 @@ import asyncio
 import base64
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Awaitable, Callable, Optional
 
 from google.genai import types as genai_types
@@ -48,6 +49,8 @@ _BASE_SYSTEM_PROMPT = """\
 You are Rayan, a knowledgeable memory recall assistant. You help users explore \
 and understand their stored memories in the Memory Palace.
 
+Today's date is {current_date}.
+
 RULES:
 - ONLY use information from the provided MEMORIES section below.
 - If you don't have relevant memories say "I don't have that in your palace yet."
@@ -66,18 +69,20 @@ MEMORIES:
 
 
 def _build_system_prompt(results: list[SearchResult]) -> str:
+    current_date = datetime.now(UTC).strftime("%Y-%m-%d")
     if not results:
-        return _BASE_SYSTEM_PROMPT.format(memories="(none found)")
+        return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="(none found)")
     lines: list[str] = []
     for r in results:
+        captured_str = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown"
         lines.append(
-            f"[ARTIFACT {r.artifact_id} | Room: {r.room_name} | Similarity: {r.similarity:.2f}]\n"
+            f"[ARTIFACT {r.artifact_id} | Room: {r.room_name} | Captured: {captured_str} | Similarity: {r.similarity:.2f}]\n"
             f"Summary: {r.summary}"
         )
         if r.full_content:
             lines.append(f"Full content: {r.full_content[:800]}")
         lines.append("")
-    return _BASE_SYSTEM_PROMPT.format(memories="\n".join(lines))
+    return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="\n".join(lines))
 
 
 # ── Manager ────────────────────────────────────────────────────────────────────
@@ -168,8 +173,13 @@ class LiveSessionManager:
             await live.session.send_realtime_input(
                 audio=genai_types.Blob(data=audio_bytes, mime_type="audio/pcm;rate=16000")
             )
-        except Exception:
-            logger.exception("send_audio error for userId=%s", user_id)
+        except Exception as exc:
+            # Connection already closed — mark session as closed to stop further attempts
+            if "ConnectionClosed" in type(exc).__name__:
+                logger.debug("send_audio: session already closed for userId=%s, ignoring", user_id)
+                live._closed = True
+            else:
+                logger.exception("send_audio error for userId=%s", user_id)
 
     async def close_session(self, user_id: str) -> None:
         """Signal the session task to shut down and wait for cleanup."""
@@ -226,38 +236,44 @@ class LiveSessionManager:
         on_interrupted: OnInterrupted,
         on_turn_complete: OnTurnComplete,
     ) -> None:
-        """Read from Gemini and dispatch events until close_event is set."""
+        """Read from Gemini and dispatch events until close_event is set.
+
+        session.receive() may stop iterating after a turn completes,
+        so we wrap it in an outer loop to keep the session alive across
+        multiple conversational turns.
+        """
         try:
-            async for response in session.receive():
-                if live.close_event.is_set():
-                    break
+            while not live.close_event.is_set():
+                async for response in session.receive():
+                    if live.close_event.is_set():
+                        break
 
-                server_content = getattr(response, "server_content", None)
-                if server_content is None:
-                    continue
+                    server_content = getattr(response, "server_content", None)
+                    if server_content is None:
+                        continue
 
-                # Interruption — Gemini detected user started speaking
-                if getattr(server_content, "interrupted", False):
-                    await on_interrupted()
-                    continue
+                    # Interruption — Gemini detected user started speaking
+                    if getattr(server_content, "interrupted", False):
+                        await on_interrupted()
+                        continue
 
-                # Model turn — audio/text chunks
-                model_turn = getattr(server_content, "model_turn", None)
-                if model_turn and model_turn.parts:
-                    for part in model_turn.parts:
-                        # Audio data
-                        inline_data = getattr(part, "inline_data", None)
-                        if inline_data and inline_data.data:
-                            audio_b64 = base64.b64encode(inline_data.data).decode()
-                            await on_audio(audio_b64)
-                        # Text
-                        text = getattr(part, "text", None)
-                        if text:
-                            await on_text(text)
+                    # Model turn — audio/text chunks
+                    model_turn = getattr(server_content, "model_turn", None)
+                    if model_turn and model_turn.parts:
+                        for part in model_turn.parts:
+                            # Audio data
+                            inline_data = getattr(part, "inline_data", None)
+                            if inline_data and inline_data.data:
+                                audio_b64 = base64.b64encode(inline_data.data).decode()
+                                await on_audio(audio_b64)
+                            # Text
+                            text = getattr(part, "text", None)
+                            if text:
+                                await on_text(text)
 
-                # Turn complete
-                if getattr(server_content, "turn_complete", False):
-                    await on_turn_complete()
+                    # Turn complete
+                    if getattr(server_content, "turn_complete", False):
+                        await on_turn_complete()
 
         except asyncio.CancelledError:
             logger.debug("Receive loop cancelled for userId=%s", live.user_id)

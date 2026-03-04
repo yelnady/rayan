@@ -9,10 +9,11 @@ Categorizes extracted concepts into palace rooms per agent-prompts.md thresholds
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Literal, Optional
 
 from app.models.artifact import Artifact, ArtifactType
-from app.models.room import Room, RoomStyle
+from app.models.room import Room
 from app.services.artifact_service import create_artifact
 from app.services.embedding_service import get_embedding
 from app.services.room_service import (
@@ -26,13 +27,7 @@ logger = logging.getLogger(__name__)
 HIGH_SIMILARITY: float = 0.75
 LOW_SIMILARITY: float = 0.50
 
-_STYLE_KEYWORDS: dict[RoomStyle, list[str]] = {
-    RoomStyle.library: ["theory", "history", "literature", "philosophy", "law", "economics"],
-    RoomStyle.lab: ["science", "experiment", "code", "data", "algorithm", "chemistry", "physics"],
-    RoomStyle.gallery: ["art", "design", "visual", "architecture", "photography", "film"],
-    RoomStyle.garden: ["biology", "nature", "ecology", "medicine", "health", "organic"],
-    RoomStyle.workshop: ["engineering", "building", "mechanical", "electronics", "craft"],
-}
+
 
 
 @dataclass
@@ -44,16 +39,6 @@ class CategorizationResult:
     suggestion: Optional[dict] = None
 
 
-def select_room_style(keywords: list[str]) -> RoomStyle:
-    """Pick the best room style based on keyword overlap per agent-prompts.md."""
-    scores: dict[RoomStyle, int] = {s: 0 for s in RoomStyle}
-    for kw in keywords:
-        kw_lower = kw.lower()
-        for style, style_words in _STYLE_KEYWORDS.items():
-            if any(sw in kw_lower for sw in style_words):
-                scores[style] += 1
-    best = max(scores, key=lambda s: scores[s])
-    return best if scores[best] > 0 else RoomStyle.library
 
 
 def _infer_room_name(title: str, keywords: list[str]) -> str:
@@ -70,6 +55,7 @@ async def categorize_and_store(
     concept_type: str,
     concept_keywords: list[str],
     concept_confidence: float,
+    captured_at: Optional[datetime] = None,
 ) -> CategorizationResult:
     """Embed concept → match room → create artifact → return result."""
     # Map raw string type to enum (default to lecture)
@@ -89,7 +75,7 @@ async def categorize_and_store(
     )
 
     if best_room and similarity >= HIGH_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, captured_at)
         await increment_artifact_count(user_id, best_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -99,7 +85,7 @@ async def categorize_and_store(
         )
 
     elif best_room and similarity >= LOW_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, captured_at)
         return CategorizationResult(
             artifact=artifact,
             room=best_room,
@@ -110,7 +96,6 @@ async def categorize_and_store(
                 "room": {
                     "id": best_room.id,
                     "name": best_room.name,
-                    "style": best_room.style.value,
                     "keywords": best_room.topicKeywords,
                     "reason": (
                         f"This matches your '{best_room.name}' room "
@@ -122,10 +107,9 @@ async def categorize_and_store(
         )
 
     else:
-        style = select_room_style(concept_keywords)
         room_name = _infer_room_name(concept_title, concept_keywords)
-        new_room = await create_room(user_id, room_name, style, concept_keywords)
-        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary)
+        new_room = await create_room(user_id, room_name, concept_keywords)
+        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, captured_at)
         await increment_artifact_count(user_id, new_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -137,7 +121,6 @@ async def categorize_and_store(
                 "room": {
                     "id": new_room.id,
                     "name": new_room.name,
-                    "style": new_room.style.value,
                     "keywords": new_room.topicKeywords,
                     "reason": f"Created a new room for '{concept_title}'",
                 },
@@ -153,6 +136,7 @@ async def _store(
     artifact_type: ArtifactType,
     title: str,
     summary: str,
+    captured_at: Optional[datetime] = None,
 ) -> Artifact:
     return await create_artifact(
         user_id=user_id,
@@ -160,4 +144,5 @@ async def _store(
         artifact_type=artifact_type,
         summary=f"{title}: {summary}",
         capture_session_id=session_id,
+        captured_at=captured_at,
     )

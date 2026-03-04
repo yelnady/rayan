@@ -10,6 +10,7 @@ Public API:
 
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Optional
 
 from app.core.firestore import get_firestore_client
@@ -30,6 +31,7 @@ class SearchResult:
     highlight: Optional[str]
     full_content: Optional[str]
     embedding: list[float]
+    captured_at: Optional[datetime] = None
 
 
 async def semantic_search(
@@ -37,6 +39,8 @@ async def semantic_search(
     query: str,
     limit: int = 10,
     room_id: Optional[str] = None,
+    captured_after: Optional[datetime] = None,
+    captured_before: Optional[datetime] = None,
 ) -> list[SearchResult]:
     """Semantic search across user's memories.
 
@@ -83,6 +87,15 @@ async def semantic_search(
             if not artifact.embedding:
                 continue
 
+            # Date filtering: exclude artifacts without capturedAt when filters active
+            if captured_after or captured_before:
+                if artifact.capturedAt is None:
+                    continue
+                if captured_after and artifact.capturedAt < captured_after:
+                    continue
+                if captured_before and artifact.capturedAt > captured_before:
+                    continue
+
             sim = cosine_similarity(query_embedding, artifact.embedding)
             if sim <= 0.0:
                 continue
@@ -98,6 +111,7 @@ async def semantic_search(
                     highlight=highlight,
                     full_content=artifact.fullContent,
                     embedding=artifact.embedding,
+                    captured_at=artifact.capturedAt,
                 )
             )
 

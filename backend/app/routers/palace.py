@@ -1,5 +1,6 @@
 """Palace router — REST endpoints per rest-api.md: GET/POST /palace, PATCH /palace/layout."""
 
+import asyncio
 import uuid
 import logging
 from datetime import UTC, datetime
@@ -12,6 +13,7 @@ from app.middleware.auth import verify_token
 from app.models.common import Position3D, Rotation3D
 from app.core.firestore import get_firestore_client
 from app.services.room_service import get_all_rooms
+from app.services.seed_service import seed_palace
 
 logger = logging.getLogger(__name__)
 
@@ -59,10 +61,30 @@ async def get_palace(user: dict = Depends(verify_token)):
             "name": room.name,
             "position": room.position.model_dump(),
             "dimensions": room.dimensions.model_dump(),
-            "style": room.style.value,
+            "style": "library", # Default since style was removed from DB model
             "connections": room.connections,
             "artifactCount": room.artifactCount,
         })
+
+    # Auto-generate lobbyDoors when they're empty but rooms exist.
+    # This handles the race condition where rooms are seeded but layout
+    # isn't updated with door entries yet.
+    if not layout_data.get("lobbyDoors") and rooms_list:
+        wall_cycle = ["north", "east", "south", "west"]
+        generated_doors = []
+        for i, room in enumerate(rooms_list):
+            generated_doors.append({
+                "roomId": room["id"],
+                "wallPosition": wall_cycle[i % len(wall_cycle)],
+                "doorIndex": i // len(wall_cycle),
+            })
+        layout_data["lobbyDoors"] = generated_doors
+        # Persist so this only needs to happen once
+        try:
+            await _layout_ref(user_id).set({"lobbyDoors": generated_doors}, merge=True)
+            logger.info("Auto-generated %d lobbyDoors for userId=%s", len(generated_doors), user_id)
+        except Exception:
+            logger.exception("Failed to persist auto-generated lobbyDoors for userId=%s", user_id)
 
     return {
         "palace": palace_data,
@@ -104,6 +126,17 @@ async def create_palace(user: dict = Depends(verify_token)):
     await _layout_ref(user_id).set(layout_data)
 
     logger.info("Palace created for userId=%s", user_id)
+
+    async def _seed_and_notify(uid: str) -> None:
+        try:
+            summary = await seed_palace(uid)
+            from app.websocket.manager import manager
+            await manager.send(uid, {"type": "palace_update", "data": summary})
+        except Exception:
+            logger.exception("Seed palace failed for userId=%s", uid)
+
+    asyncio.create_task(_seed_and_notify(user_id), name=f"seed-palace-{user_id}")
+
     return {
         "palace": {
             "id": f"palace_{user_id}",
@@ -142,3 +175,58 @@ async def update_palace_layout(
         await _layout_ref(user_id).set(updates, merge=True)
 
     return {"success": True}
+
+
+# ── Admin: fix room positions ─────────────────────────────────────────────────
+
+_WALL_CYCLE = ["north", "east", "south", "west"]
+_OFFSET_X   = 30.0
+_OFFSET_Z   = 0.0
+_SPACING    = 30.0
+_COLS       = 3
+
+
+def _grid_pos(n: int) -> dict:
+    col = n % _COLS
+    row = n // _COLS
+    return {"x": _OFFSET_X + col * _SPACING, "y": 0.0, "z": _OFFSET_Z + row * _SPACING}
+
+
+@router.post("/palace/fix-positions")
+async def fix_room_positions(user: dict = Depends(verify_token)):
+    """One-shot repair: re-grid all rooms away from origin and rebuild lobbyDoors.
+
+    Safe to call multiple times — idempotent.
+    """
+    user_id = user["user_id"]
+    db = get_firestore_client()
+    rooms_ref = db.collection("users").document(user_id).collection("rooms")
+
+    room_docs = await rooms_ref.get()
+    rooms = sorted(
+        [{"id": d.id, **d.to_dict()} for d in room_docs if d.exists],
+        key=lambda r: r.get("createdAt", ""),
+    )
+
+    lobby_doors = []
+    for i, room in enumerate(rooms):
+        new_pos = _grid_pos(i)
+        await rooms_ref.document(room["id"]).update({"position": new_pos})
+        lobby_doors.append({
+            "roomId": room["id"],
+            "wallPosition": _WALL_CYCLE[i % len(_WALL_CYCLE)],
+            "doorIndex": i // len(_WALL_CYCLE),
+        })
+
+    await _layout_ref(user_id).set({"lobbyDoors": lobby_doors}, merge=True)
+
+    logger.info(
+        "fix-positions: userId=%s rooms=%d lobbyDoors=%d",
+        user_id, len(rooms), len(lobby_doors),
+    )
+    return {
+        "fixed": len(rooms),
+        "lobbyDoors": len(lobby_doors),
+        "positions": [{"roomId": rooms[i]["id"], "position": _grid_pos(i)} for i in range(len(rooms))],
+    }
+

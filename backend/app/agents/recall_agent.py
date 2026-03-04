@@ -19,8 +19,10 @@ Per agent-prompts.md §3 Recall Agent.
 
 import asyncio
 import base64
+import json
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Awaitable, Callable, Optional
 
 from google.genai import types as genai_types
@@ -52,6 +54,8 @@ _BASE_SYSTEM_PROMPT = """\
 You are Rayan, a knowledgeable memory recall assistant. You help users explore \
 and understand their stored memories in the Memory Palace.
 
+Today's date is {current_date}.
+
 RULES:
 - ONLY use information from the provided MEMORIES section below.
 - If you don't have relevant memories say "I don't have that in your palace yet."
@@ -76,18 +80,20 @@ MEMORIES:
 
 
 def _build_system_prompt(results: list[SearchResult]) -> str:
+    current_date = datetime.now(UTC).strftime("%Y-%m-%d")
     if not results:
-        return _BASE_SYSTEM_PROMPT.format(memories="(none found)")
+        return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="(none found)")
     lines: list[str] = []
     for r in results:
+        captured_str = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown"
         lines.append(
-            f"[ARTIFACT {r.artifact_id} | Room: {r.room_name} | Similarity: {r.similarity:.2f}]\n"
+            f"[ARTIFACT {r.artifact_id} | Room: {r.room_name} | Captured: {captured_str} | Similarity: {r.similarity:.2f}]\n"
             f"Summary: {r.summary}"
         )
         if r.full_content:
             lines.append(f"Full content: {r.full_content[:800]}")
         lines.append("")
-    return _BASE_SYSTEM_PROMPT.format(memories="\n".join(lines))
+    return _BASE_SYSTEM_PROMPT.format(current_date=current_date, memories="\n".join(lines))
 
 
 # ── Active-query registry ──────────────────────────────────────────────────────
@@ -216,7 +222,16 @@ async def process_text_query(
     room_id: Optional[str] = context.get("currentRoomId")
     artifact_id: Optional[str] = context.get("focusedArtifactId")
 
-    results = await _retrieve_context(user_id, text, room_id, artifact_id)
+    # Extract temporal date range from query
+    date_range = await _extract_date_range(text)
+    captured_after = date_range[0] if date_range else None
+    captured_before = date_range[1] if date_range else None
+
+    results = await _retrieve_context(
+        user_id, text, room_id, artifact_id,
+        captured_after=captured_after,
+        captured_before=captured_before,
+    )
     system_prompt = _build_system_prompt(results)
     nav_hint = _build_navigation(results)
 
@@ -268,16 +283,53 @@ async def process_text_query(
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
+_DATE_EXTRACTION_PROMPT = """\
+Extract a date range from the user's query. Today is {today}.
+If the query contains a temporal reference (e.g. "yesterday", "last week", "two days ago"),
+return JSON: {{"after": "YYYY-MM-DDTHH:MM:SSZ", "before": "YYYY-MM-DDTHH:MM:SSZ"}}
+If no temporal reference, return: {{"after": null, "before": null}}
+Only output the JSON, nothing else."""
+
+
+async def _extract_date_range(query: str) -> Optional[tuple[datetime, datetime]]:
+    """Parse temporal references ('yesterday', 'last week') into a date range."""
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    try:
+        client = get_genai_client()
+        response = await client.aio.models.generate_content(
+            model=STANDARD_MODEL,
+            contents=_DATE_EXTRACTION_PROMPT.format(today=today) + f"\n\nQuery: {query}",
+            config=genai_types.GenerateContentConfig(
+                temperature=0,
+                max_output_tokens=100,
+            ),
+        )
+        text = response.text.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+        data = json.loads(text)
+        if data.get("after") and data.get("before"):
+            return (
+                datetime.fromisoformat(data["after"].replace("Z", "+00:00")),
+                datetime.fromisoformat(data["before"].replace("Z", "+00:00")),
+            )
+    except Exception:
+        logger.debug("Date extraction failed for query: %s", query[:80])
+    return None
+
+
 async def _retrieve_context(
     user_id: str,
     query_text: str,
     room_id: Optional[str],
     artifact_id: Optional[str],
+    captured_after: Optional[datetime] = None,
+    captured_before: Optional[datetime] = None,
 ) -> list[SearchResult]:
     """Use text query (or artifact summary as proxy) for semantic retrieval."""
     search_query = query_text
     if not search_query and artifact_id:
-        # Use artifact id as a breadcrumb; search_service handles it gracefully
         search_query = artifact_id
     if not search_query:
         return []
@@ -287,6 +339,8 @@ async def _retrieve_context(
             query=search_query,
             limit=8,
             room_id=room_id,
+            captured_after=captured_after,
+            captured_before=captured_before,
         )
     except Exception:
         logger.exception("semantic_search failed for userId=%s", user_id)

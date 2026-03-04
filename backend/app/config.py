@@ -9,6 +9,10 @@ class Settings(BaseSettings):
     google_cloud_project: str = "rayan-memory"
     google_application_credentials: str = ""
 
+    # Google Custom Search (for enrichment agent)
+    google_api_key: str = ""
+    google_search_cx: str = ""  # Custom Search Engine ID
+
     # Firebase (for token verification)
     firebase_project_id: str = "rayan-memory"
 

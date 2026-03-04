@@ -37,6 +37,9 @@ async def create_artifact(
     capture_session_id: Optional[str] = None,
     position: Optional[Position3D] = None,
     color: Optional[str] = None,
+    is_seed_data: bool = False,
+    skip_enrichment: bool = False,
+    captured_at: Optional[datetime] = None,
 ) -> Artifact:
     artifact_id = f"artifact_{uuid.uuid4().hex[:12]}"
     now = datetime.now(UTC)
@@ -60,10 +63,33 @@ async def create_artifact(
         createdAt=now,
         captureSessionId=capture_session_id,
         color=color,
+        isSeedData=is_seed_data,
+        capturedAt=captured_at or now,
     )
     await _artifacts_ref(user_id, room_id).document(artifact_id).set(artifact.model_dump())
     logger.info("Artifact created: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
+
+    if not skip_enrichment:
+        # T122: Kick off web enrichment asynchronously after artifact creation
+        import asyncio
+        from app.agents.enrichment_agent import run_enrichment
+        from app.websocket.manager import manager
+
+        async def _on_enrichment(payload: dict) -> None:
+            await manager.send(user_id, payload)
+
+        asyncio.create_task(
+            run_enrichment(
+                user_id=user_id,
+                artifact=artifact,
+                room_id=room_id,
+                on_enrichment_created=_on_enrichment,
+            ),
+            name=f"enrichment-{user_id}-{artifact_id}",
+        )
+
     return artifact
+
 
 
 async def get_artifact(user_id: str, room_id: str, artifact_id: str) -> Artifact | None:

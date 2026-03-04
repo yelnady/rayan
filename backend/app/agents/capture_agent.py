@@ -13,6 +13,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Awaitable, Callable, Optional
 
 from google.genai import types as genai_types
@@ -49,6 +50,7 @@ class ExtractionEvent:
     concept_type: str
     concept_keywords: list[str]
     confidence: float
+    captured_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     voice_audio: Optional[bytes] = None
     categorization: Optional[CategorizationResult] = None
 
@@ -177,6 +179,7 @@ class CaptureAgent:
                 concept_type=event.concept_type,
                 concept_keywords=event.concept_keywords,
                 concept_confidence=event.confidence,
+                captured_at=event.captured_at,
             )
             event.categorization = result
             await add_artifact_to_session(
