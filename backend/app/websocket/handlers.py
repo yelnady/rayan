@@ -31,6 +31,7 @@ from app.agents import narrator_agent as narrator_agent_module
 from app.agents.capture_agent import CaptureAgent
 from app.models.capture_session import SessionStatus
 from app.services import capture_service
+from app.services.live_session_manager import live_session_manager
 from app.websocket.manager import manager
 from app.websocket.responses import (
     broadcast_palace_update,
@@ -351,6 +352,64 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
             "relatedArtifacts": result.related_artifacts,
         },
     })
+
+
+# ── US3-v2: Live streaming voice handlers ─────────────────────────────────────
+
+
+@_handler("live_session_start")
+async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Open a persistent Gemini Live session for real-time voice streaming."""
+    context: dict = msg.get("context", {})
+
+    async def on_audio(audio_b64: str) -> None:
+        await manager.send(user_id, {"type": "live_audio", "audioChunk": audio_b64})
+
+    async def on_text(text: str) -> None:
+        await manager.send(user_id, {"type": "live_text", "text": text})
+
+    async def on_interrupted() -> None:
+        await manager.send(user_id, {"type": "live_interrupted"})
+
+    async def on_turn_complete() -> None:
+        await manager.send(user_id, {"type": "live_turn_complete"})
+
+    try:
+        await live_session_manager.start_session(
+            user_id=user_id,
+            context=context,
+            on_audio=on_audio,
+            on_text=on_text,
+            on_interrupted=on_interrupted,
+            on_turn_complete=on_turn_complete,
+        )
+        await manager.send(user_id, {"type": "live_session_started"})
+    except Exception:
+        logger.exception("live_session_start failed: userId=%s", user_id)
+        await manager.send(user_id, {
+            "type": "error", "code": "LIVE_SESSION_FAILED",
+            "message": "Failed to start live session", "retryable": True,
+        })
+
+
+@_handler("audio_chunk")
+async def handle_audio_chunk(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Forward a PCM audio chunk to the active Gemini Live session."""
+    data_b64: str = msg.get("data", "")
+    if not data_b64:
+        return
+    try:
+        audio_bytes = base64.b64decode(data_b64)
+        await live_session_manager.send_audio(user_id, audio_bytes)
+    except Exception:
+        logger.exception("audio_chunk error: userId=%s", user_id)
+
+
+@_handler("live_session_end")
+async def handle_live_session_end(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Close the persistent Gemini Live session."""
+    await live_session_manager.close_session(user_id)
+    logger.info("live_session_end: userId=%s", user_id)
 
 
 @_handler("request_connection")
