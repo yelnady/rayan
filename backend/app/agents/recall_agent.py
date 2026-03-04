@@ -132,7 +132,7 @@ async def process_voice_query(
 
     client = get_genai_client()
     config = genai_types.LiveConnectConfig(
-        response_modalities=["AUDIO", "TEXT"],
+        response_modalities=["AUDIO"],
         system_instruction=system_prompt,
         speech_config=genai_types.SpeechConfig(
             voice_config=genai_types.VoiceConfig(
@@ -148,10 +148,13 @@ async def process_voice_query(
         async with client.aio.live.connect(model=LIVE_MODEL, config=config) as gemini:
             # Send audio input
             await gemini.send(
-                genai_types.LiveClientRealtimeInput(
+                input=genai_types.LiveClientRealtimeInput(
                     media_chunks=[genai_types.Blob(data=audio_bytes, mime_type="audio/webm")]
                 )
             )
+            # Signal end of turn so Gemini knows we're done sending and should respond.
+            # Without this, the Live API just waits forever for more audio.
+            await gemini.send(end_of_turn=True)
 
             text_buf = ""
             nav_sent = False

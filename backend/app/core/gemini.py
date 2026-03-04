@@ -7,7 +7,7 @@ from app.config import settings
 LIVE_MODEL = "gemini-live-2.5-flash-native-audio"
 STANDARD_MODEL = "gemini-2.5-flash"
 IMAGE_MODEL = "gemini-2.5-flash-image"
-EMBEDDING_MODEL = "models/text-embedding-004"
+EMBEDDING_MODEL = "text-embedding-005"
 
 
 @lru_cache(maxsize=1)
