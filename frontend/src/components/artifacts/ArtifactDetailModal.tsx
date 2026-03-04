@@ -20,6 +20,7 @@ import { RelatedArtifacts } from './RelatedArtifacts';
 import { GeneratedDiagramCard } from '../voice/GeneratedDiagram';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
+import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
 
 export interface ArtifactDetailData {
     id: string;
@@ -214,26 +215,28 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
 const overlayStyle: React.CSSProperties = {
     position: 'fixed',
     inset: 0,
-    background: 'rgba(0,0,0,0.7)',
+    background: colors.overlay,
     backdropFilter: 'blur(8px)',
-    zIndex: 1000,
+    zIndex: zIndex.modal,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
+    animation: 'fadeIn 0.2s ease',
 };
 
 const modalStyle: React.CSSProperties = {
-    background: 'rgba(12,12,20,0.97)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 20,
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.xl,
     width: '100%',
     maxWidth: 580,
     maxHeight: '85vh',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
+    boxShadow: shadows.lg,
+    animation: 'scaleIn 0.25s ease',
 };
 
 const headerStyle = (accent: string): React.CSSProperties => ({
@@ -258,30 +261,31 @@ const typeBadgeStyle = (accent: string): React.CSSProperties => ({
     color: accent,
     background: `${accent}22`,
     border: `1px solid ${accent}44`,
-    borderRadius: 6,
+    borderRadius: radii.sm,
     padding: '3px 8px',
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 });
 
 const closeButtonStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.06)',
+    background: colors.surfaceHover,
     border: 'none',
     borderRadius: '50%',
     width: 30,
     height: 30,
-    color: 'rgba(255,255,255,0.5)',
+    color: colors.textMuted,
     cursor: 'pointer',
     fontSize: 14,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'background 0.2s ease',
 };
 
 const titleStyle: React.CSSProperties = {
-    color: '#fff',
+    color: colors.white,
     fontSize: 18,
     fontWeight: 600,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.heading,
     margin: 0,
     lineHeight: 1.35,
 };
@@ -298,28 +302,28 @@ const bodyStyle: React.CSSProperties = {
 const sectionStyle: React.CSSProperties = {};
 
 const sectionTitleStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.35)',
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: 700,
     textTransform: 'uppercase',
     letterSpacing: '0.1em',
     marginBottom: 8,
     marginTop: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const contentStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.75)',
+    color: colors.textSecondary,
     fontSize: 14,
     lineHeight: 1.7,
     margin: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const metaStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.25)',
+    color: colors.textFaint,
     fontSize: 11,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     margin: 0,
 };
 
@@ -338,14 +342,14 @@ const footerStyle: React.CSSProperties = {
 };
 
 const deleteButtonStyle: React.CSSProperties = {
-    background: 'rgba(239,68,68,0.12)',
-    border: '1px solid rgba(239,68,68,0.3)',
-    borderRadius: 8,
-    color: 'rgba(239,68,68,0.85)',
+    background: colors.errorMuted,
+    border: `1px solid ${colors.errorBorder}`,
+    borderRadius: radii.md,
+    color: colors.error,
     cursor: 'pointer',
     fontSize: 13,
     padding: '7px 14px',
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     fontWeight: 500,
 };
 
@@ -361,15 +365,15 @@ const spinnerStyle: React.CSSProperties = {
     width: 32,
     height: 32,
     borderRadius: '50%',
-    border: '2.5px solid rgba(99,102,241,0.2)',
-    borderTopColor: '#6366f1',
+    border: `2.5px solid ${colors.primaryMuted}`,
+    borderTopColor: colors.primary,
     animation: 'spin 0.85s linear infinite',
 };
 
 const errorStyle: React.CSSProperties = {
-    color: '#f87171',
+    color: colors.error,
     fontSize: 13,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     margin: 0,
     padding: '12px 0',
 };

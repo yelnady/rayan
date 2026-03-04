@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCaptureStore } from '../../stores/captureStore';
+import { colors, fonts, radii } from '../../config/tokens';
 
 interface ToastItem {
   id: number;
@@ -50,18 +51,21 @@ export function ConceptToast() {
         <div
           key={t.id}
           style={{
-            background: 'rgba(25,118,210,0.92)',
-            color: '#fff',
-            borderRadius: 20,
+            background: colors.glass,
+            color: colors.white,
+            borderRadius: radii.pill,
             padding: '8px 20px',
             fontSize: 14,
             fontWeight: 600,
-            backdropFilter: 'blur(6px)',
+            fontFamily: fonts.body,
+            backdropFilter: 'blur(12px)',
+            border: `1px solid ${colors.primaryBorder}`,
+            boxShadow: `0 4px 20px ${colors.primaryGlow}`,
             animation: 'fadeInUp 0.3s ease',
           }}
         >
           ✓ {t.concept}{' '}
-          <span style={{ opacity: 0.7, fontWeight: 400 }}>
+          <span style={{ color: colors.textMuted, fontWeight: 400 }}>
             ({Math.round(t.confidence * 100)}%)
           </span>
         </div>

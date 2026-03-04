@@ -9,6 +9,7 @@
  */
 
 import React from 'react';
+import { colors, fonts, radii } from '../../config/tokens';
 
 interface NarrationRelated {
     artifactId: string;
@@ -76,16 +77,16 @@ const containerStyle: React.CSSProperties = {
 };
 
 const emptyStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.25)',
+    color: colors.textMuted,
     fontSize: 12,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     margin: 0,
 };
 
 const cardStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    border: '1px solid rgba(255,255,255,0.07)',
-    borderRadius: 10,
+    background: colors.surfaceHover,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.md,
     padding: '10px 12px',
 };
 
@@ -97,47 +98,47 @@ const cardHeaderStyle: React.CSSProperties = {
 };
 
 const artifactIdStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textMuted,
     fontSize: 10,
-    fontFamily: 'monospace',
+    fontFamily: fonts.mono,
 };
 
 const roomTagStyle: React.CSSProperties = {
-    background: 'rgba(99,102,241,0.15)',
-    color: 'rgba(99,102,241,0.8)',
+    background: colors.primaryMuted,
+    color: colors.primaryLight,
     fontSize: 10,
     fontWeight: 600,
     textTransform: 'capitalize',
     padding: '2px 7px',
-    borderRadius: 5,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    borderRadius: radii.xs,
+    fontFamily: fonts.body,
 };
 
 const reasonStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.6)',
+    color: colors.textSecondary,
     fontSize: 12,
     lineHeight: 1.5,
     margin: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const chipStyle: React.CSSProperties = {
     display: 'inline-flex',
     alignItems: 'center',
     gap: 6,
-    background: 'rgba(255,255,255,0.05)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 8,
+    background: colors.surfaceHover,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.md,
     padding: '6px 10px',
 };
 
 const chipIconStyle: React.CSSProperties = {
-    color: 'rgba(99,102,241,0.7)',
+    color: colors.primary,
     fontSize: 12,
 };
 
 const chipTextStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.45)',
+    color: colors.textMuted,
     fontSize: 11,
-    fontFamily: 'monospace',
+    fontFamily: fonts.mono,
 };
