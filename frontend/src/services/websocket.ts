@@ -106,6 +106,30 @@ export interface PongMessage {
   serverTime: number;
 }
 
+// ── Live streaming message types ────────────────────────────────────────────
+
+export interface LiveSessionStartedMessage {
+  type: "live_session_started";
+}
+
+export interface LiveAudioMessage {
+  type: "live_audio";
+  audioChunk: string;
+}
+
+export interface LiveTextMessage {
+  type: "live_text";
+  text: string;
+}
+
+export interface LiveInterruptedMessage {
+  type: "live_interrupted";
+}
+
+export interface LiveTurnCompleteMessage {
+  type: "live_turn_complete";
+}
+
 export type ServerMessage =
   | CaptureAckMessage
   | CaptureCompleteMessage
@@ -116,7 +140,12 @@ export type ServerMessage =
   | PalaceUpdateMessage
   | RoomSuggestionMessage
   | ErrorMessage
-  | PongMessage;
+  | PongMessage
+  | LiveSessionStartedMessage
+  | LiveAudioMessage
+  | LiveTextMessage
+  | LiveInterruptedMessage
+  | LiveTurnCompleteMessage;
 
 // ── Listener types ───────────────────────────────────────────────────────────
 
@@ -189,6 +218,20 @@ export class RayanWebSocket {
 
   sendRequestConnection(fromRoomId: string, toRoomId: string): void {
     this._send({ type: "request_connection", fromRoomId, toRoomId });
+  }
+
+  // ── Live streaming methods ─────────────────────────────────────────────
+
+  sendLiveSessionStart(context: { currentRoomId: string | null; focusedArtifactId: string | null }): void {
+    this._send({ type: "live_session_start", context });
+  }
+
+  sendAudioChunk(data: string): void {
+    this._send({ type: "audio_chunk", data });
+  }
+
+  sendLiveSessionEnd(): void {
+    this._send({ type: "live_session_end" });
   }
 
   // ── Listener registration ───────────────────────────────────────────────

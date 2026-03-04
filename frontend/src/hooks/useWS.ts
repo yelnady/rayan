@@ -88,7 +88,46 @@ export function useWS(): RayanWebSocket {
         console.error('[WS error]', msg.code, msg.message);
       }),
 
-      // ── T109: Voice response wiring ─────────────────────────────────────
+      // ── Live streaming voice wiring ─────────────────────────────────────
+      ws.on('live_session_started', () => {
+        const voiceStore = useVoiceStore.getState();
+        if (voiceStore.status === 'connecting') {
+          voiceStore.setStatus('connected');
+        }
+      }),
+      ws.on('live_audio', (msg) => {
+        const voiceStore = useVoiceStore.getState();
+        if (voiceStore.status !== 'responding') {
+          voiceStore.setStatus('responding');
+        }
+        if (_playback) {
+          void _playback.enqueue(msg.audioChunk);
+        }
+      }),
+      ws.on('live_text', (msg) => {
+        const voiceStore = useVoiceStore.getState();
+        if (voiceStore.status !== 'responding') {
+          voiceStore.setStatus('responding');
+        }
+        voiceStore.appendTranscript(msg.text);
+      }),
+      ws.on('live_interrupted', () => {
+        _playback?.stop();
+        const voiceStore = useVoiceStore.getState();
+        voiceStore.resetTranscript();
+        voiceStore.setStatus('connected');
+      }),
+      ws.on('live_turn_complete', () => {
+        const voiceStore = useVoiceStore.getState();
+        // Keep transcript visible briefly, then reset
+        setTimeout(() => {
+          if (voiceStore.status === 'responding') {
+            useVoiceStore.getState().setStatus('connected');
+          }
+        }, 2500);
+      }),
+
+      // ── Legacy: response_chunk / response_complete for text_query fallback ─
       ws.on('response_chunk', (msg) => {
         const voiceStore = useVoiceStore.getState();
         voiceStore.setStatus('responding');
@@ -104,12 +143,10 @@ export function useWS(): RayanWebSocket {
         }
       }),
       ws.on('response_complete', (_msg) => {
-        // Mark responding → idle after a short delay so the panel stays
-        // visible just long enough for the user to read the last chunk.
         setTimeout(() => {
           const voiceStore = useVoiceStore.getState();
           if (voiceStore.status === 'responding') {
-            voiceStore.setStatus('idle');
+            voiceStore.setStatus('connected');
           }
         }, 2500);
       }),
@@ -117,7 +154,6 @@ export function useWS(): RayanWebSocket {
         const voiceStore = useVoiceStore.getState();
         voiceStore.setNarration(msg.content);
         voiceStore.setStatus('responding');
-        // Play narration audio if present
         if (msg.content.voiceNarration && _playback) {
           void _playback.enqueue(msg.content.voiceNarration);
         }

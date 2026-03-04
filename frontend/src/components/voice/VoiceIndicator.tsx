@@ -7,24 +7,25 @@
 
 import React from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
 
 export function VoiceIndicator() {
     const status = useVoiceStore((s) => s.status);
 
-    if (status === 'idle') return null;
+    if (status === 'disconnected') return null;
 
     return (
         <div id="voice-indicator" style={containerStyle} role="status" aria-live="polite">
-            {status === 'listening' && (
+            {status === 'connecting' && (
+                <>
+                    <SpinnerRing />
+                    <span style={labelStyle}>Connecting…</span>
+                </>
+            )}
+            {status === 'connected' && (
                 <>
                     <WaveformBars />
                     <span style={labelStyle}>Listening…</span>
-                </>
-            )}
-            {status === 'processing' && (
-                <>
-                    <SpinnerRing />
-                    <span style={labelStyle}>Thinking…</span>
                 </>
             )}
             {status === 'responding' && (
@@ -34,7 +35,7 @@ export function VoiceIndicator() {
                 </>
             )}
             {status === 'error' && (
-                <span style={{ ...labelStyle, color: '#f87171' }}>Voice error. Try again.</span>
+                <span style={{ ...labelStyle, color: colors.error }}>Voice error. Try again.</span>
             )}
         </div>
     );
@@ -55,16 +56,6 @@ function WaveformBars() {
                     }}
                 />
             ))}
-            <style>{`
-        @keyframes voice-bar {
-          0%, 100% { height: 6px; opacity: 0.5; }
-          50% { height: 22px; opacity: 1; }
-        }
-        @keyframes voice-pulse {
-          0%, 100% { box-shadow: 0 0 0 6px rgba(239,68,68,0.3), 0 0 0 12px rgba(239,68,68,0.1); }
-          50% { box-shadow: 0 0 0 10px rgba(239,68,68,0.2), 0 0 0 20px rgba(239,68,68,0.05); }
-        }
-      `}</style>
         </div>
     );
 }
@@ -111,19 +102,20 @@ const containerStyle: React.CSSProperties = {
     display: 'flex',
     alignItems: 'center',
     gap: 10,
-    background: 'rgba(15,15,20,0.75)',
+    background: colors.glass,
     backdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255,255,255,0.08)',
-    borderRadius: 24,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.pill,
     padding: '8px 18px',
     pointerEvents: 'none',
-    zIndex: 200,
+    zIndex: zIndex.voiceIndicator,
+    boxShadow: shadows.sm,
 };
 
 const labelStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.textPrimary,
     fontSize: 13,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     fontWeight: 500,
     letterSpacing: '0.01em',
     whiteSpace: 'nowrap',
@@ -139,8 +131,8 @@ const waveformContainerStyle: React.CSSProperties = {
 const barStyle: React.CSSProperties = {
     width: 3,
     height: 6,
-    borderRadius: 3,
-    background: '#ef4444',
+    borderRadius: radii.sm,
+    background: colors.errorSolid,
     animation: 'voice-bar 0.9s ease-in-out infinite',
 };
 
@@ -148,7 +140,7 @@ const speakingDotStyle: React.CSSProperties = {
     width: 28,
     height: 28,
     borderRadius: '50%',
-    background: 'rgba(34,197,94,0.2)',
+    background: colors.successMuted,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -159,5 +151,5 @@ const innerDotStyle: React.CSSProperties = {
     width: 12,
     height: 12,
     borderRadius: '50%',
-    background: '#22c55e',
+    background: colors.success,
 };

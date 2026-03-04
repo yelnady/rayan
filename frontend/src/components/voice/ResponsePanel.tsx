@@ -9,6 +9,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { colors, fonts, radii, shadows, transitions, zIndex } from '../../config/tokens';
 
 export function ResponsePanel() {
     const status = useVoiceStore((s) => s.status);
@@ -16,7 +17,7 @@ export function ResponsePanel() {
     const narration = useVoiceStore((s) => s.currentNarration);
     const bottomRef = useRef<HTMLDivElement>(null);
 
-    const isVisible = status !== 'idle';
+    const isVisible = status !== 'disconnected';
 
     // Auto-scroll to bottom as new text arrives
     useEffect(() => {
@@ -34,9 +35,10 @@ export function ResponsePanel() {
             <div style={headerStyle}>
                 <span style={avatarDotStyle} />
                 <span style={headerTitleStyle}>Rayan</span>
-                {status === 'processing' && <span style={subtitleStyle}>thinking…</span>}
+                {status === 'connecting' && <span style={subtitleStyle}>connecting…</span>}
+                {status === 'connected' && <span style={subtitleStyle}>listening</span>}
                 {status === 'responding' && <span style={subtitleStyle}>speaking</span>}
-                {status === 'error' && <span style={{ ...subtitleStyle, color: '#f87171' }}>error</span>}
+                {status === 'error' && <span style={{ ...subtitleStyle, color: colors.error }}>error</span>}
             </div>
 
             <div style={bodyStyle}>
@@ -52,8 +54,8 @@ export function ResponsePanel() {
                     <p style={transcriptStyle}>{transcript}</p>
                 )}
 
-                {/* Placeholder while processing */}
-                {status === 'processing' && !transcript && !narration && (
+                {/* Placeholder while connecting */}
+                {status === 'connecting' && !transcript && !narration && (
                     <div style={placeholderStyle}>
                         <ThinkingDots />
                     </div>
@@ -82,12 +84,6 @@ export function ResponsePanel() {
 function ThinkingDots() {
     return (
         <div style={{ display: 'flex', gap: 5, alignItems: 'center' }} aria-hidden="true">
-            <style>{`
-        @keyframes thinking-dot {
-          0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-          40% { transform: scale(1); opacity: 1; }
-        }
-      `}</style>
             {[0, 0.2, 0.4].map((delay, i) => (
                 <div
                     key={i}
@@ -95,7 +91,7 @@ function ThinkingDots() {
                         width: 7,
                         height: 7,
                         borderRadius: '50%',
-                        background: 'rgba(99,102,241,0.8)',
+                        background: colors.primaryGlow,
                         animation: `thinking-dot 1.2s ease-in-out ${delay}s infinite`,
                     }}
                 />
@@ -113,17 +109,17 @@ const panelStyle = (visible: boolean): React.CSSProperties => ({
     transform: 'translateY(-50%)',
     width: 340,
     maxHeight: '65vh',
-    background: 'rgba(12,12,18,0.88)',
+    background: colors.glass,
     backdropFilter: 'blur(20px)',
-    border: '1px solid rgba(255,255,255,0.07)',
+    border: `1px solid ${colors.border}`,
     borderRight: 'none',
-    borderRadius: '16px 0 0 16px',
+    borderRadius: `${radii.lg}px 0 0 ${radii.lg}px`,
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    transition: 'right 0.35s cubic-bezier(0.32,0,0.67,0)',
-    zIndex: 150,
-    boxShadow: '-8px 0 32px rgba(0,0,0,0.4)',
+    transition: `right ${transitions.slow}`,
+    zIndex: zIndex.responsePanel,
+    boxShadow: shadows.panel,
     pointerEvents: visible ? 'auto' : 'none',
 });
 
@@ -145,17 +141,17 @@ const avatarDotStyle: React.CSSProperties = {
 };
 
 const headerTitleStyle: React.CSSProperties = {
-    color: '#fff',
+    color: colors.white,
     fontSize: 14,
     fontWeight: 600,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.heading,
     flex: 1,
 };
 
 const subtitleStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.4)',
+    color: colors.textMuted,
     fontSize: 11,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
 };
@@ -176,19 +172,19 @@ const summaryBlockStyle: React.CSSProperties = {
 };
 
 const summaryTextStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.textPrimary,
     fontSize: 13,
     lineHeight: 1.6,
     margin: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const transcriptStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.75)',
+    color: colors.textSecondary,
     fontSize: 13,
     lineHeight: 1.65,
     margin: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const placeholderStyle: React.CSSProperties = {
@@ -206,23 +202,23 @@ const relatedSectionStyle: React.CSSProperties = {
 };
 
 const relatedTitleStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.35)',
+    color: colors.textMuted,
     fontSize: 10,
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: '0.08em',
     margin: 0,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
 
 const relatedChipStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.04)',
-    borderRadius: 8,
+    background: colors.surfaceHover,
+    borderRadius: radii.md,
     padding: '6px 10px',
 };
 
 const relatedReasonStyle: React.CSSProperties = {
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.textSecondary,
     fontSize: 12,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
 };
