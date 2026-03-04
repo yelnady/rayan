@@ -16,6 +16,7 @@ export interface GetPalaceResponse {
   palace: Palace;
   layout: Layout;
   rooms: Room[];
+  artifacts: Record<string, Artifact[]>;
 }
 
 export interface CreatePalaceResponse {

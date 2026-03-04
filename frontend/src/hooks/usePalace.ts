@@ -9,7 +9,7 @@ interface UsePalaceReturn {
 }
 
 export function usePalace(): UsePalaceReturn {
-  const { setPalace, setLayout, setRooms, setLoading, setError, loading, error } =
+  const { setPalace, setLayout, setRooms, setAllArtifacts, setLoading, setError, loading, error } =
     usePalaceStore();
   const [version, setVersion] = useState(0);
 
@@ -25,6 +25,7 @@ export function usePalace(): UsePalaceReturn {
         setPalace(data.palace);
         setLayout(data.layout);
         setRooms(data.rooms);
+        setAllArtifacts(data.artifacts);
       })
       .catch(async (err: unknown) => {
         if (cancelled) return;

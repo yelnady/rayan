@@ -210,15 +210,12 @@ async def _synthesise_voice(narration_text: str) -> Optional[bytes]:
     audio_buf = bytearray()
     try:
         async with client.aio.live.connect(model=LIVE_MODEL, config=config) as gemini:
-            await gemini.send(
-                genai_types.LiveClientRealtimeInput(
-                    media_chunks=[
-                        genai_types.Blob(
-                            data=narration_text.encode("utf-8"),
-                            mime_type="text/plain",
-                        )
-                    ]
-                )
+            await gemini.send_client_content(
+                turns=genai_types.Content(
+                    role="user",
+                    parts=[genai_types.Part.from_text(narration_text)],
+                ),
+                turn_complete=True,
             )
             async for response in gemini.receive():
                 if hasattr(response, "data") and response.data:

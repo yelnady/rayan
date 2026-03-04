@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { Text, useGLTF } from '@react-three/drei';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
@@ -35,7 +36,7 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
 }
 
 export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
-  const roomMap = new Map(rooms.map((r) => [r.id, r]));
+  const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
   const micGLTF = useGLTF('/models/microphone.glb');
 
   return (
@@ -74,6 +75,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
         <mesh
           key={side}
           position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, side === 'north' ? 0 : LOBBY_SIZE]}
+          onPointerDown={(e) => console.log(`[Lobby] Wall Hit: ${side}`, e.point)}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
           <meshStandardMaterial color="#383870" side={2} roughness={0.7} />
@@ -86,6 +88,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
           key={side}
           rotation={[0, Math.PI / 2, 0]}
           position={[side === 'east' ? LOBBY_SIZE : 0, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
+          onPointerDown={(e) => console.log(`[Lobby] Wall Hit: ${side}`, e.point)}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
           <meshStandardMaterial color="#383870" side={2} roughness={0.7} />

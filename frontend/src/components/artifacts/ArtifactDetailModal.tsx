@@ -214,7 +214,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                     )}
 
                     {/* T131: Enrichments section — web research from enrichment agent */}
-                    {!loading && (
+                    {!loading && !error && (
                         <section style={sectionStyle}>
                             <h3 style={sectionTitleStyle}>🔮 Web Enrichments</h3>
                             <EnrichmentPanel artifactId={artifactId} />

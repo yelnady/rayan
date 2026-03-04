@@ -23,9 +23,11 @@ interface EnrichmentPanelProps {
     artifactId: string;
 }
 
+const EMPTY_ENRICHMENTS: never[] = [];
+
 export function EnrichmentPanel({ artifactId }: EnrichmentPanelProps) {
     const enrichments = useEnrichmentStore(
-        (s) => s.byArtifactId[artifactId] ?? [],
+        (s) => s.byArtifactId[artifactId] ?? EMPTY_ENRICHMENTS,
     );
     const clearNewFlag = useEnrichmentStore((s) => s.clearNewFlag);
 

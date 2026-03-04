@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
 import type { Group, Mesh } from 'three';
 
@@ -16,7 +17,7 @@ const FRAME_DEPTH = 0.02;
 const BORDER = 0.04;
 const PULSE_SPEED = 1.8;
 
-export function HologramFrame({
+export const HologramFrame = memo(function HologramFrame({
   position,
   color = '#00BFFF',
   onClick,
@@ -51,7 +52,9 @@ export function HologramFrame({
   }
 
   return (
-    <group position={position}>
+    // T155: LOD — full detail < 12 units, flat plane 12–28 units, hidden > 28 units
+    <Detailed distances={[0, 12, 28]} position={position}>
+      {/* LOD 0: Full detail — 4 border bars + screen + scanline + light (within 12 units) */}
       <group ref={groupRef}>
         {/* Top bar */}
         <mesh position={[0, FRAME_H / 2 + BORDER / 2, 0]}>
@@ -105,6 +108,24 @@ export function HologramFrame({
 
         <pointLight color={color} intensity={0.5} distance={1.5} decay={2} />
       </group>
-    </group>
+
+      {/* LOD 1: Mid-range — single emissive plane only (12–28 units) */}
+      <group>
+        <mesh onClick={onClick}>
+          <planeGeometry args={[FRAME_W + BORDER * 2, FRAME_H + BORDER * 2]} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={0.4}
+            opacity={0.6}
+            transparent
+            depthWrite={false}
+          />
+        </mesh>
+      </group>
+
+      {/* LOD 2: Far — invisible placeholder (> 28 units) */}
+      <group />
+    </Detailed>
   );
-}
+});

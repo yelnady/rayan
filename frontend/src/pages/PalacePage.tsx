@@ -32,6 +32,7 @@ export function PalacePage() {
   /** T115 — send artifact_click WS message and open the detail modal. */
   function handleArtifactClick(artifact: Artifact) {
     const roomId = artifact.roomId ?? currentRoomId ?? '';
+    console.log(`[PalacePage] Artifact Click: id=${artifact.id}, roomId=${roomId}, visual=${artifact.visual}`);
     ws.sendArtifactClick(artifact.id, roomId);
     setSelectedArtifact({ id: artifact.id, roomId });
   }

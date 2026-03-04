@@ -1,5 +1,6 @@
-import { useRef } from 'react';
+import { memo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
 import type { Group } from 'three';
 
@@ -16,7 +17,7 @@ const BOOK_D = 0.06;
 const FLOAT_AMPLITUDE = 0.06;
 const FLOAT_SPEED = 1.2;
 
-export function FloatingBook({
+export const FloatingBook = memo(function FloatingBook({
   position,
   color = '#4A90D9',
   onClick,
@@ -45,9 +46,10 @@ export function FloatingBook({
   }
 
   return (
-    <group position={position}>
+    // T155: LOD — full detail < 8 units, simplified 8–20 units, hidden > 20 units
+    <Detailed distances={[0, 8, 20]} position={position}>
+      {/* LOD 0: Full detail — book body + spine + glow (within 8 units) */}
       <group ref={groupRef}>
-        {/* Book body */}
         <mesh
           castShadow
           onClick={onClick}
@@ -67,6 +69,17 @@ export function FloatingBook({
         {/* Glow halo */}
         <pointLight color={color} intensity={0.4} distance={1.2} decay={2} />
       </group>
-    </group>
+
+      {/* LOD 1: Mid-range — book body only, no spine/light (8–20 units) */}
+      <group>
+        <mesh castShadow onClick={onClick}>
+          <boxGeometry args={[BOOK_W, BOOK_H, BOOK_D]} />
+          <meshStandardMaterial color={color} roughness={0.8} />
+        </mesh>
+      </group>
+
+      {/* LOD 2: Far — invisible placeholder (> 20 units) */}
+      <group />
+    </Detailed>
   );
-}
+});
