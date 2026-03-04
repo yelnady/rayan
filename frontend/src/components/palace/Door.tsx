@@ -44,14 +44,14 @@ export function Door({ position, targetRoomName, onEnter }: DoorProps) {
           onPointerOut={() => setHovered(false)}
         >
           <boxGeometry args={[DOOR_WIDTH, DOOR_HEIGHT, 0.06]} />
-          <meshStandardMaterial color={hovered ? '#c8a97a' : '#8b6914'} />
+          <meshStandardMaterial color={hovered ? '#EAE0D3' : '#D1BFAe'} roughness={0.9} />
         </mesh>
       </group>
 
       {/* Door frame */}
       <mesh position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, -0.04]}>
         <boxGeometry args={[DOOR_WIDTH + 0.1, DOOR_HEIGHT + 0.1, 0.04]} />
-        <meshStandardMaterial color="#5a3d1e" />
+        <meshStandardMaterial color="#C1AA9A" roughness={0.8} />
       </mesh>
 
       {/* Room label above door */}
@@ -59,7 +59,7 @@ export function Door({ position, targetRoomName, onEnter }: DoorProps) {
         <Text
           position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.25, 0]}
           fontSize={0.18}
-          color="#ffffff"
+          color="#8B7355"
           anchorX="center"
           anchorY="bottom"
         >

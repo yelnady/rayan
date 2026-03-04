@@ -170,7 +170,7 @@ export class RayanWebSocket {
     private readonly wsUrl: string,
     private readonly userId: string,
     private readonly getToken: () => Promise<string>,
-  ) {}
+  ) { }
 
   /** Open the connection (idempotent). */
   connect(): void {
@@ -263,8 +263,15 @@ export class RayanWebSocket {
 
     this.ws.onopen = async () => {
       this.reconnectAttempts = 0;
+      // Capture the current ws instance in the closure.
+      // After the async getToken() resolves, this.ws may have been replaced
+      // by a reconnect cycle, causing _send()'s readyState check to fail.
+      // Sending directly on the captured instance avoids the stale-ref bug.
+      const socket = this.ws;
       const token = await this.getToken();
-      this._send({ type: "auth", token });
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ type: "auth", token }));
+      }
       this._startHeartbeat();
     };
 

@@ -8,6 +8,7 @@ const defaultState = {
     roomSuggestion: null,
     roomSuggestionResolver: null,
     error: null,
+    activeStream: null,
 };
 export const useCaptureStore = create((set) => ({
     ...defaultState,
@@ -18,5 +19,6 @@ export const useCaptureStore = create((set) => ({
     setSummary: (summary) => set({ summary }),
     setRoomSuggestion: (roomSuggestion, roomSuggestionResolver = undefined) => set({ roomSuggestion, roomSuggestionResolver: roomSuggestionResolver ?? null }),
     setError: (error) => set({ error }),
+    setActiveStream: (activeStream) => set({ activeStream }),
     reset: () => set(defaultState),
 }));

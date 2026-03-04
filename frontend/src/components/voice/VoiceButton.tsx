@@ -14,27 +14,26 @@ import { useVoice } from '../../hooks/useVoice';
 import { colors, radii, shadows, transitions } from '../../config/tokens';
 
 export function VoiceButton({ className = '' }: { className?: string }) {
-    const { status, muted, toggleMute, interrupt, connect } = useVoice();
+    const { status, muted, interrupt, connect, disconnect } = useVoice();
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') {
             await connect();
         } else if (status === 'connected') {
-            toggleMute();
+            disconnect();
         } else if (status === 'responding') {
-            // Mute + interrupt playback
-            if (!muted) toggleMute();
             interrupt();
+            disconnect();
         }
     };
 
     const label =
-        status === 'disconnected' ? 'Connect voice'
+        status === 'disconnected' ? 'Chat with memory'
             : status === 'connecting' ? 'Connecting…'
                 : status === 'connected'
-                    ? (muted ? 'Unmute microphone' : 'Mute microphone')
+                    ? 'End voice session'
                     : status === 'responding'
-                        ? 'Interrupt response'
+                        ? 'Stop and disconnect'
                         : 'Voice error – retry';
 
     return (

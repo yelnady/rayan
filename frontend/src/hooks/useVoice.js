@@ -9,42 +9,34 @@
  *
  * The hook exposes a mute/unmute toggle (pauses sending chunks, keeps session open).
  */
-
 import { useCallback, useEffect, useRef } from 'react';
 import { AudioStreamer } from '../services/audioCapture';
 import { useVoiceStore } from '../stores/voiceStore';
 import { useWS } from './useWS';
-
 export function useVoice() {
     const ws = useWS();
     const wsRef = useRef(ws);
     wsRef.current = ws;
-
     const store = useVoiceStore();
-
-    const streamerRef = useRef<AudioStreamer | null>(null);
+    const streamerRef = useRef(null);
     const mutedRef = useRef(false);
     // Track whether we've already started to prevent double-start in StrictMode
     const startedRef = useRef(false);
-
     /** Start the live session and audio streaming. */
     const connect = useCallback(async () => {
-        if (startedRef.current) return;
+        if (startedRef.current)
+            return;
         startedRef.current = true;
-
         const voiceStore = useVoiceStore.getState();
         voiceStore.setStatus('connecting');
-
         // Send live_session_start to backend
         wsRef.current.sendLiveSessionStart({
             currentRoomId: null,
             focusedArtifactId: null,
         });
-
         // Start audio capture
         const streamer = new AudioStreamer();
         streamerRef.current = streamer;
-
         try {
             await streamer.start((base64Pcm) => {
                 if (!mutedRef.current) {
@@ -52,22 +44,22 @@ export function useVoice() {
                 }
             });
             voiceStore.setStatus('connected');
-        } catch (err) {
+        }
+        catch (err) {
             voiceStore.setError(err instanceof Error ? err.message : 'Microphone access denied');
             startedRef.current = false;
         }
     }, []);
-
     /** Close the live session and stop streaming. */
     const disconnect = useCallback(() => {
-        if (!startedRef.current) return; // no active session — nothing to close
+        if (!startedRef.current)
+            return; // no active session — nothing to close
         streamerRef.current?.stop();
         streamerRef.current = null;
         wsRef.current.sendLiveSessionEnd();
         useVoiceStore.getState().setStatus('disconnected');
         startedRef.current = false;
     }, []);
-
     /** Toggle mute — pauses sending audio chunks but keeps session alive. */
     const toggleMute = useCallback(() => {
         const voiceStore = useVoiceStore.getState();
@@ -75,12 +67,10 @@ export function useVoice() {
         mutedRef.current = newMuted;
         voiceStore.setMuted(newMuted);
     }, []);
-
     /** Interrupt — stop Gemini's current response. */
     const interrupt = useCallback(() => {
         wsRef.current.sendInterrupt();
     }, []);
-
     // Clean up on unmount only — stable deps so this never re-fires mid-session
     useEffect(() => {
         return () => {
@@ -93,7 +83,6 @@ export function useVoice() {
             }
         };
     }, []);
-
     return {
         status: store.status,
         muted: store.muted,

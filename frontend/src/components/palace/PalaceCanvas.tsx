@@ -7,15 +7,18 @@ import { Corridor } from './Corridor';
 import { Artifact } from '../artifacts/Artifact';
 import { ArtifactTooltip } from '../artifacts/ArtifactTooltip';
 import { usePalaceStore } from '../../stores/palaceStore';
+import { useCameraStore } from '../../stores/cameraStore';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import type { DoorSpec } from '../../types/three';
+import type { LobbyDoor, WallPosition } from '../../types/palace';
 
 const CANVAS_STYLE: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: '#060614',
-  cursor: 'crosshair',
 };
+
+const WALL_CYCLE: WallPosition[] = ['north', 'east', 'south', 'west'];
 
 interface PalaceCanvasProps {
   onArtifactClick?: (artifact: ArtifactData) => void;
@@ -25,12 +28,24 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
   const { palace, layout, rooms, artifacts } = usePalaceStore();
   const [hoveredArtifact, setHoveredArtifact] = useState<ArtifactData | null>(null);
 
-  if (!palace || !layout) {
-    return (
-      <div style={{ ...CANVAS_STYLE, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-        Loading palace…
-      </div>
-    );
+  // Show nothing until the palace record itself exists (very brief flash at most)
+  if (!palace) {
+    return <div style={CANVAS_STYLE} />;
+  }
+
+  // layout may be null if the palace was just created (no rooms yet) — render the
+  // lobby anyway so the user never sees a black void.
+  let lobbyDoors = layout?.lobbyDoors ?? [];
+
+  // Auto-generate lobby doors when the layout has none but rooms exist.
+  // This handles the common case where rooms were seeded but lobbyDoors
+  // weren't written back to the layout document.
+  if (lobbyDoors.length === 0 && rooms.length > 0) {
+    lobbyDoors = rooms.map((room, i): LobbyDoor => ({
+      roomId: room.id,
+      wallPosition: WALL_CYCLE[i % WALL_CYCLE.length],
+      doorIndex: Math.floor(i / WALL_CYCLE.length),
+    }));
   }
 
   return (
@@ -43,15 +58,26 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       <fog attach="fog" args={['#060614', 20, 80]} />
 
       <Suspense fallback={null}>
-        {/* Lobby */}
+        {/* Lobby — always rendered; doors are empty when layout hasn't loaded yet */}
         <Lobby
-          lobbyDoors={layout.lobbyDoors}
+          lobbyDoors={lobbyDoors}
           rooms={rooms}
-          onEnterRoom={(roomId) => usePalaceStore.getState().setCurrentRoomId(roomId)}
+          onEnterRoom={(roomId) => {
+            const state = usePalaceStore.getState();
+            state.setCurrentRoomId(roomId);
+            const targetRoom = state.rooms.find(r => r.id === roomId);
+            if (targetRoom) {
+              useCameraStore.getState().teleport({
+                x: targetRoom.position.x + targetRoom.dimensions.w / 2, // Centre of the room
+                y: targetRoom.position.y,
+                z: targetRoom.position.z + targetRoom.dimensions.d - 1 // Near the door inside
+              });
+            }
+          }}
         />
 
         {/* Rooms with their artifacts */}
-        {rooms.map((room) => {
+        {rooms.map((room, index) => {
           const doors: DoorSpec[] = (room.connections ?? []).map((targetId, i) => ({
             wall: 'north',
             index: i,
@@ -59,7 +85,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
           }));
           const roomArtifacts = artifacts[room.id] ?? [];
           return (
-            <Room key={room.id} room={room} doors={doors}>
+            <Room key={room.id} room={room} index={index} doors={doors}>
               {roomArtifacts.map((artifact) => (
                 <Artifact
                   key={artifact.id}
@@ -76,7 +102,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
         {hoveredArtifact && <ArtifactTooltip artifact={hoveredArtifact} />}
 
         {/* Corridors */}
-        {layout.corridors?.map((c, i) => {
+        {layout?.corridors?.map((c, i) => {
           const from = rooms.find((r) => r.id === c.fromRoomId)?.position;
           const to = rooms.find((r) => r.id === c.toRoomId)?.position;
           if (!from || !to) return null;

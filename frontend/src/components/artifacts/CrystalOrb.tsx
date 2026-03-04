@@ -2,10 +2,14 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { gsap } from 'gsap';
 import type { Group, Mesh } from 'three';
+import { useEnrichmentStore } from '../../stores/enrichmentStore';
 
 interface CrystalOrbProps {
   position: [number, number, number];
   color?: string;
+  /** artifactId — when provided, auto-pulses when a new enrichment arrives */
+  artifactId?: string;
+  /** Override pulse manually (useful when artifactId is unknown) */
   pulsing?: boolean;
   onClick?: () => void;
   onHover?: (hovered: boolean) => void;
@@ -21,10 +25,15 @@ const PARTICLE_COUNT = 6;
 export function CrystalOrb({
   position,
   color = '#9B59B6',
+  artifactId,
   pulsing = false,
   onClick,
   onHover,
 }: CrystalOrbProps) {
+  const newIds = useEnrichmentStore((s) => s.newEnrichmentArtifactIds);
+  /** Orb pulses if caller passes pulsing=true OR a new enrichment arrived for this artifact */
+  const isNewEnrichment = artifactId ? newIds.has(artifactId) : false;
+  const shouldPulse = pulsing || isNewEnrichment;
   const groupRef = useRef<Group>(null);
   const orbRef = useRef<Mesh>(null);
   const particlesRef = useRef<Group>(null);
@@ -50,7 +59,7 @@ export function CrystalOrb({
     }
 
     // Pulsing effect when enrichment arrives
-    if (pulsing && orbRef.current) {
+    if (shouldPulse && orbRef.current) {
       const scale = 1 + Math.sin(timeRef.current * 4) * 0.1;
       orbRef.current.scale.setScalar(scale);
     }

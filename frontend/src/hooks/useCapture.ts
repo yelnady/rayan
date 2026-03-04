@@ -37,6 +37,9 @@ export function useCapture() {
           store.setStatus('error');
         },
       });
+
+      // Save stream to store so UI can render the floating preview
+      store.setActiveStream(capture.getStream());
     },
     [ws, store],
   );
@@ -50,6 +53,7 @@ export function useCapture() {
 
     ws.sendCaptureEnd(sessionId);
     store.setStatus('processing');
+    store.setActiveStream(null);
   }, [ws, store]);
 
   /** Returns a promise that resolves when the user responds to the modal. */

@@ -82,9 +82,9 @@ export interface Layout {
 export interface Room {
   id: string;
   name: string;
+  style?: RoomStyle;
   position: Position3D;
   dimensions: Dimensions3D;
-  style: RoomStyle;
   connections: string[];
   createdAt?: string;
   lastAccessedAt?: string;
