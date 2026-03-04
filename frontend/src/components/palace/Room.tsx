@@ -56,10 +56,7 @@ export function Room({ room, index, doors = [], artifacts = [], onArtifactClick,
       <OrbInstancedRenderer artifacts={orbArtifacts} onClick={onArtifactClick} />
 
       {/* Non-instanced artifacts (hologram_frame, framed_image, speech_bubble) */}
-      {/* Plus any Room children (kept for backward compat) */}
-      <group position={[w / 2, 0, d / 2]}>
-        {children}
-      </group>
+      {children}
     </group>
   );
 }
