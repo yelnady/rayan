@@ -1,0 +1,177 @@
+/* =============================================================================
+   Global Stylesheet — Rayan Memory Palace
+   Reset, base styles, global @keyframes, scrollbar styling
+   ============================================================================= */
+
+/* ── Reset ─────────────────────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background-color: #060614;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.6;
+  min-height: 100dvh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  height: 100dvh;
+  width: 100%;
+}
+
+/* ── Typography ─────────────────────────────────────────────────────────────── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+/* ── Buttons ─────────────────────────────────────────────────────────────────── */
+button {
+  font-family: 'Inter', system-ui, sans-serif;
+  cursor: pointer;
+  outline: none;
+  border: none;
+  background: none;
+}
+
+button:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+/* ── Inputs ──────────────────────────────────────────────────────────────────── */
+input, select, textarea {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+/* ── Global @keyframes ───────────────────────────────────────────────────────── */
+
+/* Spinner — referenced in ArtifactDetailModal spinnerStyle and VoiceButton */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Toast / modal entrance */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade in without translate */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Scale in for modals */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Voice waveform bars — used by VoiceIndicator */
+@keyframes voice-bar {
+  0%, 100% { height: 5px;  opacity: 0.45; }
+  50%       { height: 22px; opacity: 1;    }
+}
+
+/* Pulse ring — used by VoiceButton and VoiceIndicator in listening state */
+@keyframes voice-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 6px  rgba(239, 68, 68, 0.28),
+      0 0 0 12px rgba(239, 68, 68, 0.1);
+  }
+  50% {
+    box-shadow:
+      0 0 0 10px rgba(239, 68, 68, 0.18),
+      0 0 0 20px rgba(239, 68, 68, 0.05);
+  }
+}
+
+/* Thinking dots — used by ResponsePanel ThinkingDots */
+@keyframes thinking-dot {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40%           { transform: scale(1);   opacity: 1;   }
+}
+
+/* Login page — ambient glow pulse */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1);    }
+  50%       { opacity: 0.7; transform: scale(1.05); }
+}
+
+/* Login page — subtle grain noise overlay */
+@keyframes grain {
+  0%, 100% { transform: translate(0, 0);   }
+  10%       { transform: translate(-2%, -4%); }
+  20%       { transform: translate(-5%, 2%);  }
+  30%       { transform: translate(3%, -1%);  }
+  40%       { transform: translate(-1%, 5%);  }
+  50%       { transform: translate(-4%, 1%);  }
+  60%       { transform: translate(2%, 4%);   }
+  70%       { transform: translate(5%, -2%);  }
+  80%       { transform: translate(-2%, 3%);  }
+  90%       { transform: translate(1%, -3%);  }
+}
+
+/* Linear gradient shimmer on login button border */
+@keyframes border-shimmer {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
+}
