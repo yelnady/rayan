@@ -14,6 +14,7 @@
 
 import React, { useState } from 'react';
 import { Html } from '@react-three/drei';
+import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
 
 // ── 3D version (inside <Canvas>) ─────────────────────────────────────────────
 
@@ -71,24 +72,66 @@ interface GeneratedDiagramCardProps {
 
 export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagramCardProps) {
     const [loaded, setLoaded] = useState(false);
+    const [isExpanded, setIsExpanded] = useState(false);
 
     return (
-        <div style={cardContainerStyle(loaded)}>
-            {onDismiss && (
-                <button onClick={onDismiss} style={closeButtonStyle} aria-label="Dismiss" title="Dismiss">
-                    ×
-                </button>
+        <>
+            <div style={cardContainerStyle(loaded)} onClick={() => setIsExpanded(true)}>
+                {onDismiss && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onDismiss();
+                        }}
+                        style={closeButtonStyle}
+                        aria-label="Dismiss"
+                        title="Dismiss"
+                    >
+                        ×
+                    </button>
+                )}
+                <img
+                    src={url}
+                    alt={caption ?? 'Generated diagram'}
+                    onLoad={() => setLoaded(true)}
+                    style={{ ...imageStyle(loaded), cursor: 'pointer' }}
+                    draggable={false}
+                />
+                {caption && <p style={captionStyle}>{caption}</p>}
+                {!loaded && <div style={skeletonStyle} />}
+            </div>
+
+            {/* Fullscreen Expand Modal */}
+            {isExpanded && (
+                <div
+                    style={fullscreenOverlayStyle}
+                    onClick={() => setIsExpanded(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Expanded diagram"
+                >
+                    <button
+                        onClick={() => setIsExpanded(false)}
+                        style={fullscreenCloseBtnStyle}
+                        aria-label="Close fullscreen"
+                    >
+                        ✕
+                    </button>
+                    <img
+                        src={url}
+                        alt={caption ?? 'Expanded diagram'}
+                        style={fullscreenImageStyle}
+                        onClick={(e) => e.stopPropagation()} // Prevent close when clicking image
+                        draggable={false}
+                    />
+                    {caption && (
+                        <div style={fullscreenCaptionContainerStyle} onClick={(e) => e.stopPropagation()}>
+                            <p style={fullscreenCaptionStyle}>{caption}</p>
+                        </div>
+                    )}
+                </div>
             )}
-            <img
-                src={url}
-                alt={caption ?? 'Generated diagram'}
-                onLoad={() => setLoaded(true)}
-                style={imageStyle(loaded)}
-                draggable={false}
-            />
-            {caption && <p style={captionStyle}>{caption}</p>}
-            {!loaded && <div style={skeletonStyle} />}
-        </div>
+        </>
     );
 }
 
@@ -96,13 +139,13 @@ export function GeneratedDiagramCard({ url, caption, onDismiss }: GeneratedDiagr
 
 const containerStyle = (loaded: boolean): React.CSSProperties => ({
     position: 'relative',
-    background: 'rgba(10,10,18,0.92)',
+    background: colors.glass,
     backdropFilter: 'blur(16px)',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 12,
+    border: `1px solid ${colors.border}`,
+    borderRadius: radii.md,
     overflow: 'hidden',
     maxWidth: 280,
-    boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+    boxShadow: shadows.md,
     opacity: loaded ? 1 : 0.6,
     transition: 'opacity 0.3s ease',
 });
@@ -124,16 +167,16 @@ const imageStyle = (loaded: boolean): React.CSSProperties => ({
 const skeletonStyle: React.CSSProperties = {
     position: 'absolute',
     inset: 0,
-    background: 'linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%)',
+    background: `linear-gradient(90deg, ${colors.surfaceAlt} 25%, ${colors.surfaceHover} 50%, ${colors.surfaceAlt} 75%)`,
     backgroundSize: '200% 100%',
     animation: 'skeleton-shimmer 1.5s ease-in-out infinite',
 };
 
 const captionStyle: React.CSSProperties = {
     margin: '6px 12px 10px',
-    color: 'rgba(255,255,255,0.55)',
+    color: colors.textSecondary,
     fontSize: 11,
-    fontFamily: 'Inter, system-ui, sans-serif',
+    fontFamily: fonts.body,
     lineHeight: 1.4,
     textAlign: 'center',
 };
@@ -142,12 +185,12 @@ const closeButtonStyle: React.CSSProperties = {
     position: 'absolute',
     top: 6,
     right: 8,
-    background: 'rgba(0,0,0,0.4)',
-    border: 'none',
+    background: colors.surfaceHover,
+    border: `1px solid ${colors.borderLight}`,
     borderRadius: '50%',
     width: 22,
     height: 22,
-    color: 'rgba(255,255,255,0.7)',
+    color: colors.textMuted,
     cursor: 'pointer',
     fontSize: 16,
     lineHeight: 1,
@@ -155,4 +198,66 @@ const closeButtonStyle: React.CSSProperties = {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1,
+};
+
+// ── Fullscreen Overlay Styles ─────────────────────────────────────────────────
+
+const fullscreenOverlayStyle: React.CSSProperties = {
+    position: 'fixed',
+    inset: 0,
+    background: colors.overlay,
+    backdropFilter: 'blur(8px)',
+    zIndex: zIndex.modal + 10, // Must be above the artifact detail modal
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+    animation: 'fadeIn 0.2s ease',
+    cursor: 'zoom-out',
+};
+
+const fullscreenImageStyle: React.CSSProperties = {
+    maxWidth: '90vw',
+    maxHeight: '80vh',
+    objectFit: 'contain',
+    borderRadius: radii.md,
+    boxShadow: shadows.lg,
+    cursor: 'default',
+};
+
+const fullscreenCloseBtnStyle: React.CSSProperties = {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    background: colors.surface,
+    border: 'none',
+    borderRadius: '50%',
+    width: 40,
+    height: 40,
+    color: colors.textPrimary,
+    cursor: 'pointer',
+    fontSize: 20,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxShadow: shadows.md,
+    transition: 'transform 0.2s',
+};
+
+const fullscreenCaptionContainerStyle: React.CSSProperties = {
+    marginTop: 16,
+    background: colors.surface,
+    padding: '8px 16px',
+    borderRadius: radii.pill,
+    boxShadow: shadows.md,
+    maxWidth: '80vw',
+};
+
+const fullscreenCaptionStyle: React.CSSProperties = {
+    margin: 0,
+    color: colors.textPrimary,
+    fontSize: 14,
+    fontFamily: fonts.body,
+    textAlign: 'center',
 };

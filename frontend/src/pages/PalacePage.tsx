@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
+import { useVoice } from '../hooks/useVoice';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
 import { CaptureOverlay } from '../components/capture/CaptureOverlay';
 import { ConceptToast } from '../components/capture/ConceptToast';
@@ -9,10 +10,10 @@ import { CapturePreview } from '../components/capture/CapturePreview';
 import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
 import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
 import { ActionBar } from '../components/hud/ActionBar';
-import { VoiceIndicator } from '../components/voice/VoiceIndicator';
 import { ResponsePanel } from '../components/voice/ResponsePanel';
 import { usePalaceStore } from '../stores/palaceStore';
 import { useCaptureStore } from '../stores/captureStore';
+import { useVoiceStore } from '../stores/voiceStore';
 import type { Artifact } from '../types/palace';
 import { colors, fonts, zIndex } from '../config/tokens';
 
@@ -25,14 +26,24 @@ export function PalacePage() {
   const { loading, error, reload } = usePalace();
 
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
-
-  // ── T115: Artifact detail modal state ──────────────────────────────────────
+  const currentRoom = usePalaceStore((s) => s.rooms.find(r => r.id === s.currentRoomId));
   const [selectedArtifact, setSelectedArtifact] = useState<{ id: string; roomId: string } | null>(null);
+
+  // Auto-connect the mic the first time the user enters any room
+  const { status: voiceStatus, connect: connectVoice } = useVoice();
+  const voiceConnectedRef = useRef(false);
+  useEffect(() => {
+    if (currentRoomId && !voiceConnectedRef.current && voiceStatus === 'disconnected') {
+      voiceConnectedRef.current = true;
+      void connectVoice();
+    }
+  }, [currentRoomId, voiceStatus, connectVoice]);
 
   /** T115 — send artifact_click WS message and open the detail modal. */
   function handleArtifactClick(artifact: Artifact) {
+    // Clear old narration before fetching the new one
+    useVoiceStore.getState().resetTranscript();
     const roomId = artifact.roomId ?? currentRoomId ?? '';
-    console.log(`[PalacePage] Artifact Click: id=${artifact.id}, roomId=${roomId}, visual=${artifact.visual}`);
     ws.sendArtifactClick(artifact.id, roomId);
     setSelectedArtifact({ id: artifact.id, roomId });
   }
@@ -86,7 +97,7 @@ export function PalacePage() {
               fontFamily: fonts.heading,
               fontSize: 20,
               fontWeight: 600,
-              color: colors.white,
+              color: colors.textPrimary,
               margin: '0 0 8px',
             }}
           >
@@ -126,7 +137,7 @@ export function PalacePage() {
             style={{
               padding: '11px 28px',
               background: colors.primary,
-              color: colors.white,
+              color: colors.textPrimary,
               border: 'none',
               borderRadius: 10,
               cursor: 'pointer',
@@ -239,7 +250,7 @@ export function PalacePage() {
             pointerEvents: 'none',
           }}
         >
-          {currentRoomId}
+          {currentRoom?.name ?? currentRoomId}
         </div>
       )}
 
@@ -251,7 +262,6 @@ export function PalacePage() {
       <RoomSuggestionModal />
 
       {/* Voice UI (T105, T106, T107) */}
-      <VoiceIndicator />
       <ResponsePanel />
 
       {/* Artifact detail modal (T113) */}
