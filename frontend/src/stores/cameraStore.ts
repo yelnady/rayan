@@ -10,6 +10,10 @@ interface CameraState {
     teleportTarget: { x: number, y: number, z: number } | null;
     teleportToken: number;
     teleport: (position: { x: number, y: number, z: number }) => void;
+    /** Triggers camera rotation to look at a world-space position */
+    lookAtTarget: { x: number; y: number; z: number } | null;
+    lookAtToken: number;
+    lookAt: (position: { x: number; y: number; z: number }) => void;
 }
 
 export const useCameraStore = create<CameraState>((set) => ({
@@ -20,5 +24,11 @@ export const useCameraStore = create<CameraState>((set) => ({
     teleport: (position) => set((s) => ({
         teleportTarget: position,
         teleportToken: s.teleportToken + 1
+    })),
+    lookAtTarget: null,
+    lookAtToken: 0,
+    lookAt: (position) => set((s) => ({
+        lookAtTarget: position,
+        lookAtToken: s.lookAtToken + 1,
     })),
 }));

@@ -1,142 +1,183 @@
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
-import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useCameraStore } from '../../stores/cameraStore';
 
-const MOVE_SPEED = 30; // Base acceleration
-const MAX_VELOCITY = 6; // Used for FOV scaling
-const CAMERA_HEIGHT = 1.7; // metres
-const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6); // lobby start position
+const MOVE_SPEED = 30;
+const MAX_VELOCITY = 6;
+const CAMERA_HEIGHT = 1.7;
+const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6);
 const DEFAULT_FOV = 75;
 const MAX_SPEED_FOV_BOOST = 10;
-const DAMPING = 8.0; // Friction
+const DAMPING = 8.0;
+const MOUSE_SENSITIVITY = 0.002;
 
 interface FirstPersonControlsProps {
-  /** Called every frame with the current world position */
-  onPositionChange?: (pos: THREE.Vector3) => void;
+    onPositionChange?: (pos: THREE.Vector3) => void;
 }
 
 export function FirstPersonControls({ onPositionChange }: FirstPersonControlsProps) {
-  const { camera } = useThree();
-  const keysRef = useRef({ w: false, a: false, s: false, d: false });
-  const velocity = useRef(new THREE.Vector3());
-  const direction = useRef(new THREE.Vector3());
-  const bobTimer = useRef(0);
-  const controlsRef = useRef<any>(null);
+    const { camera, gl } = useThree();
+    const keysRef = useRef({ w: false, a: false, s: false, d: false });
+    const velocity = useRef(new THREE.Vector3());
+    const direction = useRef(new THREE.Vector3());
+    const bobTimer = useRef(0);
 
-  // Set initial camera position and force look-direction to straight-ahead (-Z)
-  useEffect(() => {
-    camera.position.copy(SPAWN);
-    camera.lookAt(SPAWN.x, SPAWN.y, SPAWN.z - 1); // look toward -Z (straight into the lobby)
-    (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
-    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-  }, [camera]);
+    // Mouse-drag look state (right-click drag)
+    const isDragging = useRef(false);
+    const yaw = useRef(Math.PI); // start looking toward -Z (into the lobby)
+    const pitch = useRef(0);
 
-  // ── Reset view whenever resetToken is bumped ─────────────────────────────────
-  const resetToken = useCameraStore((s) => s.resetToken);
-  useEffect(() => {
-    if (resetToken === 0) return; // skip initial mount
-    camera.position.copy(SPAWN);
-    camera.lookAt(SPAWN.x, SPAWN.y, SPAWN.z - 1);
-    (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
-    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-    velocity.current.set(0, 0, 0);
-  }, [resetToken, camera]);
+    // Apply initial camera orientation
+    useEffect(() => {
+        camera.position.copy(SPAWN);
+        (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+        (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+        camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
+    }, [camera]);
 
-  // ── Teleport view whenever teleportToken is bumped ───────────────────────────
-  const teleportToken = useCameraStore((s) => s.teleportToken);
-  const teleportTarget = useCameraStore((s) => s.teleportTarget);
-  useEffect(() => {
-    if (teleportToken === 0 || !teleportTarget) return;
-    camera.position.set(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z);
-    camera.lookAt(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z - 1);
-    velocity.current.set(0, 0, 0);
-  }, [teleportToken, teleportTarget, camera]);
+    // Reset view
+    const resetToken = useCameraStore((s) => s.resetToken);
+    useEffect(() => {
+        if (resetToken === 0) return;
+        camera.position.copy(SPAWN);
+        yaw.current = Math.PI;
+        pitch.current = 0;
+        camera.quaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0, 'YXZ'));
+        (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+        (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+        velocity.current.set(0, 0, 0);
+    }, [resetToken, camera]);
 
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      const k = e.key.toLowerCase();
-      if (k === 'w' || k === 'arrowup') keysRef.current.w = true;
-      if (k === 'a' || k === 'arrowleft') keysRef.current.a = true;
-      if (k === 's' || k === 'arrowdown') keysRef.current.s = true;
-      if (k === 'd' || k === 'arrowright') keysRef.current.d = true;
-    }
-    function onKeyUp(e: KeyboardEvent) {
-      const k = e.key.toLowerCase();
-      if (k === 'w' || k === 'arrowup') keysRef.current.w = false;
-      if (k === 'a' || k === 'arrowleft') keysRef.current.a = false;
-      if (k === 's' || k === 'arrowdown') keysRef.current.s = false;
-      if (k === 'd' || k === 'arrowright') keysRef.current.d = false;
-    }
+    // Teleport
+    const teleportToken = useCameraStore((s) => s.teleportToken);
+    const teleportTarget = useCameraStore((s) => s.teleportTarget);
+    useEffect(() => {
+        if (teleportToken === 0 || !teleportTarget) return;
+        camera.position.set(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z);
+        velocity.current.set(0, 0, 0);
+    }, [teleportToken, teleportTarget, camera]);
 
-    document.addEventListener('keydown', onKeyDown);
-    document.addEventListener('keyup', onKeyUp);
+    // LookAt — rotate camera toward a world-space position
+    const lookAtToken = useCameraStore((s) => s.lookAtToken);
+    const lookAtTarget = useCameraStore((s) => s.lookAtTarget);
+    useEffect(() => {
+        if (lookAtToken === 0 || !lookAtTarget) return;
+        const dx = lookAtTarget.x - camera.position.x;
+        const dy = lookAtTarget.y - camera.position.y;
+        const dz = lookAtTarget.z - camera.position.z;
+        const horizontalDist = Math.sqrt(dx * dx + dz * dz);
+        yaw.current = Math.atan2(dx, dz);
+        pitch.current = Math.max(
+            -Math.PI / 2 + 0.05,
+            Math.min(Math.PI / 2 - 0.05, -Math.atan2(dy, horizontalDist)),
+        );
+        camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
+    }, [lookAtToken, lookAtTarget, camera]);
 
-    // Initial click to lock on the body instead of canvas, allowing better capture
-    function onClick() {
-      if (controlsRef.current && !controlsRef.current.isLocked) {
-        controlsRef.current.lock();
-      }
-    }
-    document.addEventListener('click', onClick);
+    // Keyboard + mouse drag listeners
+    useEffect(() => {
+        const canvas = gl.domElement;
 
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('keyup', onKeyUp);
-      document.removeEventListener('click', onClick);
-    };
-  }, []);
+        function onKeyDown(e: KeyboardEvent) {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') keysRef.current.w = true;
+            if (k === 'a' || k === 'arrowleft') keysRef.current.a = true;
+            if (k === 's' || k === 'arrowdown') keysRef.current.s = true;
+            if (k === 'd' || k === 'arrowright') keysRef.current.d = true;
+        }
+        function onKeyUp(e: KeyboardEvent) {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') keysRef.current.w = false;
+            if (k === 'a' || k === 'arrowleft') keysRef.current.a = false;
+            if (k === 's' || k === 'arrowdown') keysRef.current.s = false;
+            if (k === 'd' || k === 'arrowright') keysRef.current.d = false;
+        }
 
-  useFrame((_, delta) => {
-    if (!controlsRef.current) return;
+        function onMouseDown(e: MouseEvent) {
+            // Right-click or left-click on canvas to drag-look
+            if (e.button === 0 || e.button === 2) {
+                isDragging.current = true;
+            }
+        }
+        function onMouseUp() {
+            isDragging.current = false;
+        }
+        function onMouseMove(e: MouseEvent) {
+            if (!isDragging.current) return;
+            yaw.current -= e.movementX * MOUSE_SENSITIVITY;
+            pitch.current -= e.movementY * MOUSE_SENSITIVITY;
+            // Clamp pitch to avoid flipping
+            pitch.current = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch.current));
+        }
+        function onContextMenu(e: Event) {
+            e.preventDefault(); // suppress right-click menu on canvas
+        }
 
-    if (!controlsRef.current.isLocked) {
-      // Only apply damping if not locked, to glide to a stop instead of instant stop
-      velocity.current.x -= velocity.current.x * DAMPING * delta;
-      velocity.current.z -= velocity.current.z * DAMPING * delta;
-    } else {
-      const { w, a, s, d } = keysRef.current;
+        document.addEventListener('keydown', onKeyDown);
+        document.addEventListener('keyup', onKeyUp);
+        canvas.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mouseup', onMouseUp);
+        document.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('contextmenu', onContextMenu);
 
-      // Apply damping (friction)
-      velocity.current.x -= velocity.current.x * DAMPING * delta;
-      velocity.current.z -= velocity.current.z * DAMPING * delta;
+        return () => {
+            document.removeEventListener('keydown', onKeyDown);
+            document.removeEventListener('keyup', onKeyUp);
+            canvas.removeEventListener('mousedown', onMouseDown);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.removeEventListener('mousemove', onMouseMove);
+            canvas.removeEventListener('contextmenu', onContextMenu);
+        };
+    }, [gl]);
 
-      // Calculate direction along X and Z
-      direction.current.z = Number(w) - Number(s);
-      direction.current.x = Number(d) - Number(a);
-      direction.current.normalize(); // Ensure consistent diagonal movement
+    useFrame((_, delta) => {
+        // Apply camera rotation from yaw/pitch
+        camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
 
-      // Apply acceleration based on input keys
-      if (w || s) velocity.current.z -= direction.current.z * MOVE_SPEED * delta;
-      if (a || d) velocity.current.x -= direction.current.x * MOVE_SPEED * delta;
-    }
+        const { w, a, s, d } = keysRef.current;
 
-    // Apply velocity to controls (moves camera in its local horizontal space)
-    controlsRef.current.moveRight(-velocity.current.x * delta);
-    controlsRef.current.moveForward(-velocity.current.z * delta);
+        // Damping
+        velocity.current.x -= velocity.current.x * DAMPING * delta;
+        velocity.current.z -= velocity.current.z * DAMPING * delta;
 
-    // Force camera vertical position to account for bobbing
-    const speed = Math.sqrt(velocity.current.x ** 2 + velocity.current.z ** 2);
+        // Direction
+        direction.current.z = Number(w) - Number(s);
+        direction.current.x = Number(d) - Number(a);
+        direction.current.normalize();
 
-    // threshold for applying bobbing (prevents micro bobbing when nearly stopped)
-    if (speed > 0.5) {
-      bobTimer.current += delta * speed * 2.5;
-      camera.position.y = CAMERA_HEIGHT + Math.sin(bobTimer.current) * 0.05;
-    } else {
-      // Smoothly return to center height
-      camera.position.y = THREE.MathUtils.lerp(camera.position.y, CAMERA_HEIGHT, delta * 5);
-      bobTimer.current = 0; // reset phase when stopped
-    }
+        if (w || s) velocity.current.z -= direction.current.z * MOVE_SPEED * delta;
+        if (a || d) velocity.current.x -= direction.current.x * MOVE_SPEED * delta;
 
-    // Dynamic FOV based on speed
-    const targetFov = DEFAULT_FOV + Math.min(speed / MAX_VELOCITY, 1.0) * MAX_SPEED_FOV_BOOST;
-    const cam = camera as THREE.PerspectiveCamera;
-    cam.fov = THREE.MathUtils.lerp(cam.fov, targetFov, delta * 5);
-    cam.updateProjectionMatrix();
+        // Move along camera's horizontal facing direction
+        const forward = new THREE.Vector3();
+        camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
+        const right = new THREE.Vector3();
+        right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
 
-    onPositionChange?.(camera.position);
-  });
+        camera.position.addScaledVector(forward, -velocity.current.z * delta);
+        camera.position.addScaledVector(right, -velocity.current.x * delta);
 
-  return <PointerLockControls ref={controlsRef} selector="#root" />;
+        // Head bob
+        const speed = Math.sqrt(velocity.current.x ** 2 + velocity.current.z ** 2);
+        if (speed > 0.5) {
+            bobTimer.current += delta * speed * 2.5;
+            camera.position.y = CAMERA_HEIGHT + Math.sin(bobTimer.current) * 0.05;
+        } else {
+            camera.position.y = THREE.MathUtils.lerp(camera.position.y, CAMERA_HEIGHT, delta * 5);
+            bobTimer.current = 0;
+        }
+
+        // Dynamic FOV
+        const targetFov = DEFAULT_FOV + Math.min(speed / MAX_VELOCITY, 1.0) * MAX_SPEED_FOV_BOOST;
+        const cam = camera as THREE.PerspectiveCamera;
+        cam.fov = THREE.MathUtils.lerp(cam.fov, targetFov, delta * 5);
+        cam.updateProjectionMatrix();
+
+        onPositionChange?.(camera.position);
+    });
+
+    return null;
 }

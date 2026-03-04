@@ -1,12 +1,4 @@
-/**
- * EnrichmentImage — a single web-sourced image with caption.
- *
- * T129: Displays an enrichment image with source caption. Used inside
- * EnrichmentPanel for each image in an enrichment data package.
- */
-
 import React from 'react';
-import { colors, fonts, radii } from '../../config/tokens';
 
 interface EnrichmentImageProps {
     url: string;
@@ -18,64 +10,25 @@ export function EnrichmentImage({ url, caption }: EnrichmentImageProps) {
 
     if (errored) {
         return (
-            <div style={placeholderStyle}>
-                <span style={placeholderIconStyle}>🖼</span>
-                <span style={captionStyle}>{caption}</span>
+            <div className="flex flex-col items-center justify-center gap-1.5 py-5 px-3 bg-[rgba(255,255,255,0.04)] rounded-md">
+                <span className="text-[28px]">🖼</span>
+                <span className="text-text-faint text-[11px] font-body leading-[1.4]">{caption}</span>
             </div>
         );
     }
 
     return (
-        <figure style={figureStyle}>
+        <figure className="m-0 flex flex-col gap-1">
             <img
                 src={url}
                 alt={caption}
-                style={imgStyle}
+                className="w-full aspect-video object-cover rounded-md bg-[rgba(255,255,255,0.04)]"
                 onError={() => setErrored(true)}
                 loading="lazy"
             />
             {caption && (
-                <figcaption style={captionStyle}>{caption}</figcaption>
+                <figcaption className="text-text-faint text-[11px] font-body leading-[1.4]">{caption}</figcaption>
             )}
         </figure>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const figureStyle: React.CSSProperties = {
-    margin: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 4,
-};
-
-const imgStyle: React.CSSProperties = {
-    width: '100%',
-    aspectRatio: '16/9',
-    objectFit: 'cover',
-    borderRadius: radii.md,
-    background: 'rgba(255,255,255,0.04)',
-};
-
-const captionStyle: React.CSSProperties = {
-    color: colors.textFaint,
-    fontSize: 11,
-    fontFamily: fonts.body,
-    lineHeight: 1.4,
-};
-
-const placeholderStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    padding: '20px 12px',
-    background: 'rgba(255,255,255,0.04)',
-    borderRadius: radii.md,
-};
-
-const placeholderIconStyle: React.CSSProperties = {
-    fontSize: 28,
-};

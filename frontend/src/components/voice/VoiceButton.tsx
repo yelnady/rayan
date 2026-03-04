@@ -1,17 +1,4 @@
-/**
- * VoiceButton — mute/unmute toggle for persistent live voice session.
- *
- * Visual states:
- *   disconnected → mic-off icon, click to reconnect
- *   connecting   → spinner
- *   connected    → green mic icon (unmuted) / mic-off icon (muted)
- *   responding   → speaking icon (click to mute/interrupt)
- *   error        → red exclamation, click to retry
- */
-
-import React from 'react';
 import { useVoice } from '../../hooks/useVoice';
-import { colors, radii, shadows, transitions } from '../../config/tokens';
 
 export function VoiceButton({ className = '' }: { className?: string }) {
     const { status, muted, interrupt, connect, disconnect } = useVoice();
@@ -36,17 +23,35 @@ export function VoiceButton({ className = '' }: { className?: string }) {
                         ? 'Stop and disconnect'
                         : 'Voice error – retry';
 
+    const getBgColorClass = () => {
+        if (status === 'connected' && muted) return 'bg-[rgba(255,255,255,0.15)]';
+        if (status === 'connected') return 'bg-success';
+        if (status === 'responding') return 'bg-primary';
+        if (status === 'connecting') return 'bg-primary';
+        if (status === 'error') return 'bg-[rgba(239,68,68,0.7)]';
+        return 'bg-[rgba(255,255,255,0.15)]';
+    };
+
+    const getShadowClass = () => {
+        if (status === 'connected' && !muted) return 'shadow-[0_0_0_6px_rgba(34,197,94,0.2),0_0_0_12px_rgba(34,197,94,0.05)]';
+        return 'shadow-sm';
+    };
+
+    const getAnimationClass = () => {
+        if (status === 'responding') return 'animate-[voice-pulse_1.2s_ease-in-out_infinite]';
+        return '';
+    };
+
     return (
         <button
             id="voice-button"
             onClick={handleClick}
             aria-label={label}
             title={label}
-            className={`voice-button voice-button--${status} ${className}`}
-            style={styles.button(status, muted)}
+            className={`flex items-center justify-center w-[52px] h-[52px] rounded-full border-none text-white transition-all duration-250 ${status === 'connecting' ? 'cursor-wait' : 'cursor-pointer'} ${getBgColorClass()} ${getShadowClass()} ${getAnimationClass()} ${className}`}
             disabled={status === 'connecting'}
         >
-            <span style={styles.icon} aria-hidden="true">
+            <span className="flex items-center justify-center" aria-hidden="true">
                 {status === 'disconnected' && <MicOffIcon />}
                 {status === 'connecting' && <SpinnerIcon />}
                 {status === 'connected' && !muted && <MicIcon />}
@@ -110,41 +115,3 @@ function ErrorIcon() {
         </svg>
     );
 }
-
-// ── Inline styles ─────────────────────────────────────────────────────────────
-
-type StatusType = 'disconnected' | 'connecting' | 'connected' | 'responding' | 'error';
-
-const BG_COLOR = (status: StatusType, muted: boolean): string => {
-    if (status === 'connected' && muted) return 'rgba(255,255,255,0.15)';
-    if (status === 'connected') return colors.success;
-    if (status === 'responding') return colors.primary;
-    if (status === 'connecting') return colors.primary;
-    if (status === 'error') return 'rgba(239,68,68,0.7)';
-    return 'rgba(255,255,255,0.15)';
-};
-
-const styles = {
-    button: (status: StatusType, muted: boolean): React.CSSProperties => ({
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 52,
-        height: 52,
-        borderRadius: radii.pill,
-        border: 'none',
-        cursor: status === 'connecting' ? 'wait' : 'pointer',
-        background: BG_COLOR(status, muted),
-        color: colors.white,
-        boxShadow: status === 'connected' && !muted
-            ? `0 0 0 6px rgba(34,197,94,0.2), 0 0 0 12px rgba(34,197,94,0.05)`
-            : shadows.sm,
-        transition: `background ${transitions.normal}, box-shadow ${transitions.normal}`,
-        animation: status === 'responding' ? 'voice-pulse 1.2s ease-in-out infinite' : 'none',
-    }),
-    icon: {
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    } satisfies React.CSSProperties,
-};

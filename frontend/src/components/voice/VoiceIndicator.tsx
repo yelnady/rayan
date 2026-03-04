@@ -1,13 +1,4 @@
-/**
- * VoiceIndicator — animated HUD overlay showing the current recording state.
- *
- * Renders bars when listening, a spinner ring when processing, and is
- * invisible when idle.  Typically placed near the bottom of the 3D canvas.
- */
-
-import React from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
-import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
 
 export function VoiceIndicator() {
     const status = useVoiceStore((s) => s.status);
@@ -15,27 +6,32 @@ export function VoiceIndicator() {
     if (status === 'disconnected') return null;
 
     return (
-        <div id="voice-indicator" style={containerStyle} role="status" aria-live="polite">
+        <div
+            id="voice-indicator"
+            className="fixed bottom-[88px] left-1/2 -translate-x-1/2 flex items-center gap-2.5 bg-glass backdrop-blur-md border border-border rounded-full px-4.5 py-2 pointer-events-none z-voice-indicator shadow-sm"
+            role="status"
+            aria-live="polite"
+        >
             {status === 'connecting' && (
                 <>
                     <SpinnerRing />
-                    <span style={labelStyle}>Connecting…</span>
+                    <span className="text-text-primary text-[13px] font-body font-medium tracking-wide whitespace-nowrap">Connecting…</span>
                 </>
             )}
             {status === 'connected' && (
                 <>
                     <WaveformBars />
-                    <span style={labelStyle}>Listening…</span>
+                    <span className="text-text-primary text-[13px] font-body font-medium tracking-wide whitespace-nowrap">Listening…</span>
                 </>
             )}
             {status === 'responding' && (
                 <>
                     <SpeakingPulse />
-                    <span style={labelStyle}>Rayan is speaking…</span>
+                    <span className="text-text-primary text-[13px] font-body font-medium tracking-wide whitespace-nowrap">Rayan is speaking…</span>
                 </>
             )}
             {status === 'error' && (
-                <span style={{ ...labelStyle, color: colors.error }}>Voice error. Try again.</span>
+                <span className="text-error text-[13px] font-body font-medium tracking-wide whitespace-nowrap">Voice error. Try again.</span>
             )}
         </div>
     );
@@ -46,14 +42,12 @@ export function VoiceIndicator() {
 function WaveformBars() {
     const BAR_COUNT = 7;
     return (
-        <div style={waveformContainerStyle} aria-hidden="true">
+        <div className="flex items-center gap-[3px] h-7" aria-hidden="true">
             {Array.from({ length: BAR_COUNT }, (_, i) => (
                 <div
                     key={i}
-                    style={{
-                        ...barStyle,
-                        animationDelay: `${(i * 0.12).toFixed(2)}s`,
-                    }}
+                    className="w-[3px] h-1.5 rounded-sm bg-error-solid animate-[voice-bar_0.9s_ease-in-out_infinite]"
+                    style={{ animationDelay: `${(i * 0.12).toFixed(2)}s` }}
                 />
             ))}
         </div>
@@ -62,7 +56,7 @@ function WaveformBars() {
 
 function SpinnerRing() {
     return (
-        <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" style={{ flexShrink: 0 }}>
+        <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true" className="shrink-0">
             <circle cx="14" cy="14" r="11" fill="none" stroke="rgba(99,102,241,0.3)" strokeWidth="2.5" />
             <path
                 d="M14 3 A11 11 0 0 1 25 14"
@@ -86,70 +80,8 @@ function SpinnerRing() {
 
 function SpeakingPulse() {
     return (
-        <div style={speakingDotStyle} aria-hidden="true">
-            <div style={innerDotStyle} />
+        <div className="w-7 h-7 rounded-full bg-success-muted flex items-center justify-center animate-[voice-pulse_1.4s_ease-in-out_infinite]" aria-hidden="true">
+            <div className="w-3 h-3 rounded-full bg-success" />
         </div>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const containerStyle: React.CSSProperties = {
-    position: 'fixed',
-    bottom: 88,
-    left: '50%',
-    transform: 'translateX(-50%)',
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    background: colors.glass,
-    backdropFilter: 'blur(12px)',
-    border: `1px solid ${colors.border}`,
-    borderRadius: radii.pill,
-    padding: '8px 18px',
-    pointerEvents: 'none',
-    zIndex: zIndex.voiceIndicator,
-    boxShadow: shadows.sm,
-};
-
-const labelStyle: React.CSSProperties = {
-    color: colors.textPrimary,
-    fontSize: 13,
-    fontFamily: fonts.body,
-    fontWeight: 500,
-    letterSpacing: '0.01em',
-    whiteSpace: 'nowrap',
-};
-
-const waveformContainerStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 3,
-    height: 28,
-};
-
-const barStyle: React.CSSProperties = {
-    width: 3,
-    height: 6,
-    borderRadius: radii.sm,
-    background: colors.errorSolid,
-    animation: 'voice-bar 0.9s ease-in-out infinite',
-};
-
-const speakingDotStyle: React.CSSProperties = {
-    width: 28,
-    height: 28,
-    borderRadius: '50%',
-    background: colors.successMuted,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    animation: 'voice-pulse 1.4s ease-in-out infinite',
-};
-
-const innerDotStyle: React.CSSProperties = {
-    width: 12,
-    height: 12,
-    borderRadius: '50%',
-    background: colors.success,
-};

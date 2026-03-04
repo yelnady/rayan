@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useCaptureStore } from '../../stores/captureStore';
-import { colors, fonts, radii } from '../../config/tokens';
 
 interface ToastItem {
   id: number;
@@ -34,38 +33,14 @@ export function ConceptToast() {
   if (toasts.length === 0) return null;
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 100,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        zIndex: 1100,
-        pointerEvents: 'none',
-      }}
-    >
+    <div className="fixed bottom-[100px] left-1/2 -translate-x-1/2 flex flex-col gap-2 z-toast pointer-events-none">
       {toasts.map((t) => (
         <div
           key={t.id}
-          style={{
-            background: colors.glass,
-            color: colors.white,
-            borderRadius: radii.pill,
-            padding: '8px 20px',
-            fontSize: 14,
-            fontWeight: 600,
-            fontFamily: fonts.body,
-            backdropFilter: 'blur(12px)',
-            border: `1px solid ${colors.primaryBorder}`,
-            boxShadow: `0 4px 20px ${colors.primaryGlow}`,
-            animation: 'fadeInUp 0.3s ease',
-          }}
+          className="bg-glass text-text-primary rounded-full px-5 py-2 text-sm font-semibold font-body backdrop-blur-md border border-primary-border shadow-[0_4px_20px_rgba(251,191,36,0.3)] animate-[fadeInUp_0.3s_ease]"
         >
           ✓ {t.concept}{' '}
-          <span style={{ color: colors.textMuted, fontWeight: 400 }}>
+          <span className="text-text-muted font-normal">
             ({Math.round(t.confidence * 100)}%)
           </span>
         </div>

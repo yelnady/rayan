@@ -1,11 +1,4 @@
-/**
- * SourceAttribution — renders a clickable source link with domain name.
- *
- * T130: Used inside EnrichmentPanel to credit the web source of enrichment data.
- */
-
 import React from 'react';
-import { colors, fonts, radii } from '../../config/tokens';
 
 interface SourceAttributionProps {
     url: string;
@@ -26,42 +19,12 @@ export function SourceAttribution({ url, sourceName }: SourceAttributionProps) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            style={linkStyle}
+            className="inline-flex items-center gap-[5px] text-primary text-[11px] font-body no-underline bg-[rgba(99,102,241,0.1)] border border-[rgba(99,102,241,0.2)] rounded-sm py-[3px] px-2 transition-colors duration-150 hover:bg-[rgba(99,102,241,0.2)]"
             title={url}
         >
-            <span style={iconStyle}>🔗</span>
-            <span style={textStyle}>{domain}</span>
-            <span style={arrowStyle}>↗</span>
+            <span className="text-[10px]">🔗</span>
+            <span className="font-medium">{domain}</span>
+            <span className="text-[10px] opacity-70">↗</span>
         </a>
     );
 }
-
-// ── Styles ────────────────────────────────────────────────────────────────────
-
-const linkStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 5,
-    color: colors.primary,
-    fontSize: 11,
-    fontFamily: fonts.body,
-    textDecoration: 'none',
-    background: 'rgba(99,102,241,0.1)',
-    border: '1px solid rgba(99,102,241,0.2)',
-    borderRadius: radii.sm,
-    padding: '3px 8px',
-    transition: 'background 0.15s ease',
-};
-
-const iconStyle: React.CSSProperties = {
-    fontSize: 10,
-};
-
-const textStyle: React.CSSProperties = {
-    fontWeight: 500,
-};
-
-const arrowStyle: React.CSSProperties = {
-    fontSize: 10,
-    opacity: 0.7,
-};

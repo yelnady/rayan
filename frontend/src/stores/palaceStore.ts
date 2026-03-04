@@ -9,6 +9,8 @@ interface PalaceState {
   currentRoomId: string | null;
   loading: boolean;
   error: string | null;
+  highlightedArtifactIds: string[];
+  agentSelectedArtifactId: string | null;
 
   setPalace: (palace: Palace | null) => void;
   setLayout: (layout: Layout | null) => void;
@@ -20,6 +22,8 @@ interface PalaceState {
   setCurrentRoomId: (roomId: string | null) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setHighlightedArtifacts: (ids: string[]) => void;
+  setAgentSelectedArtifactId: (id: string | null) => void;
 }
 
 export const usePalaceStore = create<PalaceState>((set) => ({
@@ -30,6 +34,8 @@ export const usePalaceStore = create<PalaceState>((set) => ({
   currentRoomId: null,
   loading: false,
   error: null,
+  highlightedArtifactIds: [],
+  agentSelectedArtifactId: null,
 
   setPalace: (palace) => set({ palace }),
   setLayout: (layout) => set({ layout }),
@@ -54,4 +60,6 @@ export const usePalaceStore = create<PalaceState>((set) => ({
   setCurrentRoomId: (currentRoomId) => set({ currentRoomId }),
   setLoading: (loading) => set({ loading }),
   setError: (error) => set({ error }),
+  setHighlightedArtifacts: (highlightedArtifactIds) => set({ highlightedArtifactIds }),
+  setAgentSelectedArtifactId: (agentSelectedArtifactId) => set({ agentSelectedArtifactId }),
 }));

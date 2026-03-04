@@ -1,5 +1,4 @@
 import { useCaptureStore } from '../../stores/captureStore';
-import { colors, fonts, radii } from '../../config/tokens';
 
 export function CaptureOverlay() {
   const status = useCaptureStore((s) => s.status);
@@ -15,28 +14,12 @@ export function CaptureOverlay() {
   };
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 16,
-        right: 16,
-        background: colors.glass,
-        color: colors.white,
-        borderRadius: radii.lg,
-        padding: '12px 16px',
-        minWidth: 220,
-        zIndex: 1000,
-        backdropFilter: 'blur(12px)',
-        border: `1px solid ${colors.border}`,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-        animation: 'fadeIn 0.2s ease',
-      }}
-    >
-      <div style={{ fontWeight: 700, marginBottom: 8, fontFamily: fonts.body, fontSize: 13 }}>
+    <div className="fixed top-4 right-4 bg-glass text-white rounded-2xl px-4 py-3 min-w-[220px] z-capture-overlay backdrop-blur-md border border-border shadow-[0_4px_24px_rgba(0,0,0,0.4)] animate-[fadeIn_0.2s_ease]">
+      <div className="font-bold mb-2 font-body text-[13px]">
         {statusLabel[status] ?? status}
       </div>
       {concepts.length > 0 && (
-        <div style={{ fontSize: 12, color: colors.textSecondary, fontFamily: fonts.body }}>
+        <div className="text-xs text-text-secondary font-body">
           {concepts.length} concept{concepts.length !== 1 ? 's' : ''} captured
         </div>
       )}

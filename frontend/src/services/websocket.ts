@@ -38,7 +38,12 @@ export interface ResponseChunkMessage {
     audioChunk: string | null;
     text: string | null;
     generatedImage: { url: string; position: { x: number; y: number; z: number } } | null;
-    navigation: { targetRoomId: string; highlightArtifacts: string[] } | null;
+    navigation: {
+      targetRoomId: string;
+      highlightArtifacts: string[];
+      enterRoom: boolean;
+      selectedArtifactId: string | null;
+    } | null;
     connectionCreated: { fromRoomId: string; toRoomId: string; reason: string } | null;
   };
   isComplete: boolean;
@@ -122,6 +127,11 @@ export interface LiveTextMessage {
   text: string;
 }
 
+export interface LiveUserTextMessage {
+  type: "live_user_text";
+  text: string;
+}
+
 export interface LiveInterruptedMessage {
   type: "live_interrupted";
 }
@@ -144,6 +154,7 @@ export type ServerMessage =
   | LiveSessionStartedMessage
   | LiveAudioMessage
   | LiveTextMessage
+  | LiveUserTextMessage
   | LiveInterruptedMessage
   | LiveTurnCompleteMessage;
 
@@ -174,7 +185,7 @@ export class RayanWebSocket {
 
   /** Open the connection (idempotent). */
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) return;
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) return;
     this._connect();
   }
 
@@ -259,23 +270,21 @@ export class RayanWebSocket {
 
   private _connect(): void {
     const url = `${this.wsUrl}/ws/${this.userId}`;
-    this.ws = new WebSocket(url);
+    const socket = new WebSocket(url);
+    this.ws = socket;
 
-    this.ws.onopen = async () => {
+    socket.onopen = async () => {
       this.reconnectAttempts = 0;
-      // Capture the current ws instance in the closure.
-      // After the async getToken() resolves, this.ws may have been replaced
-      // by a reconnect cycle, causing _send()'s readyState check to fail.
-      // Sending directly on the captured instance avoids the stale-ref bug.
-      const socket = this.ws;
+      // Capture the socket instance from the outer closure to prevent stale-ref bugs
+      // if this.ws gets reassigned while getToken() is still resolving.
       const token = await this.getToken();
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "auth", token }));
       }
       this._startHeartbeat();
     };
 
-    this.ws.onmessage = (event: MessageEvent<string>) => {
+    socket.onmessage = (event: MessageEvent<string>) => {
       try {
         const msg = JSON.parse(event.data) as ServerMessage;
         // Skip auth_success — it's internal to the handshake
@@ -286,11 +295,11 @@ export class RayanWebSocket {
       }
     };
 
-    this.ws.onerror = (event) => {
+    socket.onerror = (event) => {
       console.error("[RayanWS] Error:", event);
     };
 
-    this.ws.onclose = (event) => {
+    socket.onclose = (event) => {
       this._clearTimers();
       if (!this.closed) {
         this._scheduleReconnect();

@@ -83,12 +83,6 @@ const WarmStudyDecor = memo(function WarmStudyDecor({ w, d, h }: { w: number; d:
         <meshStandardMaterial color="#C08B4A" roughness={0.5} metalness={0.05} />
       </mesh>
 
-      {/* Ceiling — off-white plaster */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#F7F3EC" roughness={1} />
-      </mesh>
-
       {/* Ceiling pendant fixture (visual) */}
       <mesh position={[cx, h - 0.05, cz]}>
         <cylinderGeometry args={[0.25, 0.35, 0.12, 16]} />
@@ -174,12 +168,6 @@ const BrightStudioDecor = memo(function BrightStudioDecor({ w, d, h }: { w: numb
         <meshStandardMaterial color="#D8D8D8" roughness={0.25} metalness={0.15} />
       </mesh>
 
-      {/* Ceiling — pure white */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#FFFFFF" roughness={1} />
-      </mesh>
-
       {/* LED panels in ceiling — thin emissive boxes */}
       {ledPanels.map(([px, pz], i) => (
         <mesh key={i} position={[px, h - 0.03, pz]}>
@@ -237,12 +225,6 @@ const NightLabDecor = memo(function NightLabDecor({ w, d, h }: { w: number; d: n
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
         <planeGeometry args={[w, d]} />
         <meshStandardMaterial color="#1E1E30" roughness={0.3} metalness={0.4} />
-      </mesh>
-
-      {/* Ceiling — near black */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#0E0E1A" roughness={1} />
       </mesh>
 
       {/* Teal glow strip along floor — north wall */}
