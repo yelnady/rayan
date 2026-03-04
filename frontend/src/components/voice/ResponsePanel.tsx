@@ -49,9 +49,12 @@ export function ResponsePanel() {
                     </div>
                 )}
 
-                {/* Streaming transcript (from response_chunk) */}
+                {/* Streaming transcript (from response_chunk) — attributed to Rayan */}
                 {transcript && (
-                    <p style={transcriptStyle}>{transcript}</p>
+                    <div>
+                        <p style={speakerLabelStyle}>Rayan</p>
+                        <p style={transcriptStyle}>{transcript}</p>
+                    </div>
                 )}
 
                 {/* Placeholder while connecting */}
@@ -141,7 +144,7 @@ const avatarDotStyle: React.CSSProperties = {
 };
 
 const headerTitleStyle: React.CSSProperties = {
-    color: colors.white,
+    color: colors.textPrimary,
     fontSize: 14,
     fontWeight: 600,
     fontFamily: fonts.heading,
@@ -176,6 +179,16 @@ const summaryTextStyle: React.CSSProperties = {
     fontSize: 13,
     lineHeight: 1.6,
     margin: 0,
+    fontFamily: fonts.body,
+};
+
+const speakerLabelStyle: React.CSSProperties = {
+    color: 'rgba(139,92,246,0.8)', // subtle purple matching Rayan's accent
+    fontSize: 10,
+    fontWeight: 700,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    margin: '0 0 4px',
     fontFamily: fonts.body,
 };
 
