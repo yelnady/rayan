@@ -1,6 +1,5 @@
 import { Suspense, useState } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Stats } from '@react-three/drei';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
@@ -15,6 +14,7 @@ const CANVAS_STYLE: React.CSSProperties = {
   position: 'fixed',
   inset: 0,
   background: '#060614',
+  cursor: 'crosshair',
 };
 
 interface PalaceCanvasProps {
@@ -85,8 +85,6 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       </Suspense>
 
       <FirstPersonControls />
-
-      {import.meta.env.DEV && <Stats />}
     </Canvas>
   );
 }

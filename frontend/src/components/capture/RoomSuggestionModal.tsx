@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useCaptureStore } from '../../stores/captureStore';
 import type { RoomSuggestionChoice } from '../../stores/captureStore';
+import { colors, fonts, radii, shadows } from '../../config/tokens';
 
 export function RoomSuggestionModal() {
   const roomSuggestion = useCaptureStore((s) => s.roomSuggestion);
@@ -28,28 +29,33 @@ export function RoomSuggestionModal() {
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0,0,0,0.65)',
+        background: colors.overlay,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1300,
+        backdropFilter: 'blur(8px)',
+        animation: 'fadeIn 0.2s ease',
       }}
     >
       <div
         style={{
-          background: '#1e1e2e',
-          borderRadius: 16,
+          background: colors.surfaceAlt,
+          borderRadius: radii.lg,
           padding: '28px 36px',
-          color: '#fff',
+          color: colors.white,
           minWidth: 380,
           maxWidth: 500,
+          border: `1px solid ${colors.border}`,
+          boxShadow: shadows.lg,
+          animation: 'scaleIn 0.25s ease',
         }}
       >
-        <h3 style={{ margin: '0 0 8px', fontSize: 18 }}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 18, fontFamily: fonts.heading }}>
           {isNew ? '🏗 Create New Room?' : '📍 Assign to Room?'}
         </h3>
 
-        <p style={{ margin: '0 0 16px', opacity: 0.75, fontSize: 14 }}>
+        <p style={{ margin: '0 0 16px', color: colors.textSecondary, fontSize: 14, fontFamily: fonts.body }}>
           {suggestion.room.reason}
         </p>
 
@@ -57,14 +63,15 @@ export function RoomSuggestionModal() {
           <>
             <div
               style={{
-                background: 'rgba(255,255,255,0.07)',
-                borderRadius: 10,
+                background: colors.surfaceHover,
+                borderRadius: radii.md,
                 padding: '14px 18px',
                 marginBottom: 16,
+                border: `1px solid ${colors.borderLight}`,
               }}
             >
-              <div style={{ fontWeight: 700, fontSize: 16 }}>{suggestedName}</div>
-              <div style={{ opacity: 0.6, fontSize: 13, marginTop: 4 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, fontFamily: fonts.body }}>{suggestedName}</div>
+              <div style={{ color: colors.textMuted, fontSize: 13, marginTop: 4, fontFamily: fonts.body }}>
                 Style: {suggestion.room.style} · Keywords:{' '}
                 {suggestion.room.keywords.slice(0, 3).join(', ')}
               </div>
@@ -72,7 +79,7 @@ export function RoomSuggestionModal() {
 
             {suggestion.alternatives.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, opacity: 0.6, marginBottom: 8 }}>
+                <div style={{ fontSize: 12, color: colors.textMuted, marginBottom: 8, fontFamily: fonts.body }}>
                   Alternatives:
                 </div>
                 {suggestion.alternatives.map((alt) => (
@@ -83,18 +90,19 @@ export function RoomSuggestionModal() {
                       display: 'block',
                       width: '100%',
                       textAlign: 'left',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: 8,
+                      background: colors.surfaceHover,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: radii.md,
                       padding: '8px 12px',
-                      color: '#fff',
+                      color: colors.white,
                       cursor: 'pointer',
                       marginBottom: 6,
                       fontSize: 13,
+                      fontFamily: fonts.body,
                     }}
                   >
                     {alt.name}{' '}
-                    <span style={{ opacity: 0.5 }}>
+                    <span style={{ color: colors.textMuted }}>
                       ({Math.round(alt.similarity * 100)}% match)
                     </span>
                   </button>
@@ -105,7 +113,7 @@ export function RoomSuggestionModal() {
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 onClick={() => resolve({ action: 'accept' })}
-                style={btnStyle('#1976d2')}
+                style={btnStyle(colors.primary)}
               >
                 Accept
               </button>
@@ -115,11 +123,11 @@ export function RoomSuggestionModal() {
                   setEditedStyle(suggestion.room.style);
                   setIsEditing(true);
                 }}
-                style={btnStyle('#555')}
+                style={btnStyle('rgba(255,255,255,0.1)')}
               >
                 Edit
               </button>
-              <button onClick={() => resolve({ action: 'reject' })} style={btnStyle('#c62828')}>
+              <button onClick={() => resolve({ action: 'reject' })} style={btnStyle(colors.errorMuted.replace('0.12', '0.25'))}>
                 Reject
               </button>
             </div>
@@ -148,40 +156,43 @@ export function RoomSuggestionModal() {
                 onClick={() =>
                   resolve({ action: 'edit', editedName, editedStyle })
                 }
-                style={btnStyle('#1976d2')}
+                style={btnStyle(colors.primary)}
               >
                 Confirm
               </button>
-              <button onClick={() => setIsEditing(false)} style={btnStyle('#555')}>
+              <button onClick={() => setIsEditing(false)} style={btnStyle('rgba(255,255,255,0.1)')}>
                 Back
               </button>
             </div>
           </>
         )}
       </div>
-    </div>
+    </div >
   );
 }
 
 const btnStyle = (bg: string): React.CSSProperties => ({
   flex: 1,
   background: bg,
-  color: '#fff',
+  color: colors.white,
   border: 'none',
-  borderRadius: 8,
+  borderRadius: radii.md,
   padding: '10px 0',
   cursor: 'pointer',
   fontWeight: 600,
   fontSize: 14,
+  fontFamily: fonts.body,
+  transition: 'opacity 0.15s ease',
 });
 
 const inputStyle: React.CSSProperties = {
   width: '100%',
-  background: 'rgba(255,255,255,0.08)',
-  border: '1px solid rgba(255,255,255,0.15)',
-  borderRadius: 8,
+  background: colors.surfaceHover,
+  border: `1px solid ${colors.borderLight}`,
+  borderRadius: radii.md,
   padding: '10px 12px',
-  color: '#fff',
+  color: colors.white,
   fontSize: 14,
   boxSizing: 'border-box',
+  fontFamily: fonts.body,
 };
