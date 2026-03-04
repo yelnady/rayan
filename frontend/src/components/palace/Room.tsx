@@ -9,36 +9,36 @@ interface RoomProps {
   children?: React.ReactNode;
 }
 
-export function Room({ room, index, doors = [], children }: RoomProps) {
-  // We determine the room theme based on its index
-  const roomType = index % 3; // 0 = Comfort, 1 = Clarity, 2 = Imagination
+// Three modern themes cycling by room index
+const THEMES = [
+  { wallColor: '#F0EBE3', name: 'warm' },   // 0 – Warm Study
+  { wallColor: '#F4F4F4', name: 'bright' }, // 1 – Bright Studio
+  { wallColor: '#1C1C2E', name: 'dark' },   // 2 – Night Lab
+];
 
-  // Use dimensions from data, but we can override height for specific themes
+export function Room({ room, index, doors = [], children }: RoomProps) {
+  const themeIdx = index % 3;
+  const theme = THEMES[themeIdx];
+
   const w = room.dimensions.w;
   const d = room.dimensions.d;
-  let h = room.dimensions.h;
-
-  if (roomType === 0) h = 4; // Smaller, cocoon-like
-  if (roomType === 1) h = 6; // Taller ceiling
-  if (roomType === 2) h = 5; // Imagination
+  // Give each theme a distinct ceiling height
+  const h = themeIdx === 0 ? 4 : themeIdx === 1 ? 5.5 : 5;
 
   return (
     <group position={[room.position.x, room.position.y, room.position.z]}>
-      {roomType === 0 && <ComfortRoom w={w} d={d} h={h} />}
-      {roomType === 1 && <ClarityRoom w={w} d={d} h={h} />}
-      {roomType === 2 && <ImaginationRoom w={w} d={d} h={h} />}
+      {/* Themed floor / ceiling / lights / decor */}
+      {themeIdx === 0 && <WarmStudyDecor w={w} d={d} h={h} />}
+      {themeIdx === 1 && <BrightStudioDecor w={w} d={d} h={h} />}
+      {themeIdx === 2 && <NightLabDecor w={w} d={d} h={h} />}
 
-      {/* We can still have walls with doors acting as invisible or themed cutouts if needed, but let's reuse normal WallsWithDoors with themed colors */}
+      {/* Walls with door cutouts */}
       <WallsWithDoors
         width={w}
         depth={d}
         height={h}
         doors={doors}
-        wallColor={
-          roomType === 0 ? "#EFE7D8" :
-            roomType === 1 ? "#F9F6F0" :
-              "#EFE7D8" // Subtle change done within Room component
-        }
+        wallColor={theme.wallColor}
       />
 
       {children}
@@ -46,122 +46,228 @@ export function Room({ room, index, doors = [], children }: RoomProps) {
   );
 }
 
-function ComfortRoom({ w, d, h }: { w: number, d: number, h: number }) {
-  // smaller, cocoon-like. 
-  // Creamy fabric walls, warm beige sofa, floor lamp, no ceiling light.
+// ── Theme 0: Warm Study ───────────────────────────────────────────────────────
+// Honey-wood floor, cream ceiling, warm pendant lights, soft bookshelf accent
+function WarmStudyDecor({ w, d, h }: { w: number; d: number; h: number }) {
+  const cx = w / 2;
+  const cz = d / 2;
   return (
     <group>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[w / 2, 0, d / 2]}>
+      {/* Ambient fill */}
+      <ambientLight intensity={1.2} color="#FFF5E6" />
+
+      {/* Main ceiling pendant */}
+      <pointLight position={[cx, h - 0.3, cz]} intensity={12} color="#FFE8C0" distance={w * 2} decay={2} castShadow />
+      {/* Corner fill lights */}
+      <pointLight position={[1, h * 0.6, 1]}       intensity={3} color="#FFD8A0" distance={10} decay={2} />
+      <pointLight position={[w - 1, h * 0.6, d - 1]} intensity={3} color="#FFD8A0" distance={10} decay={2} />
+
+      {/* Floor — warm honey oak */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#D9BA9B" roughness={0.9} />
-      </mesh>
-      {/* Ceiling */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[w / 2, h, d / 2]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#EAE0D3" roughness={1} />
+        <meshStandardMaterial color="#C08B4A" roughness={0.5} metalness={0.05} />
       </mesh>
 
-      {/* Sofa (Abstract) */}
-      <group position={[w / 2, 0, d / 2]}>
-        <mesh position={[0, 0.4, 0]}>
-          <boxGeometry args={[3, 0.8, 1.2]} />
-          <meshStandardMaterial color="#D1BFAe" roughness={1} />
+      {/* Ceiling — off-white plaster */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial color="#F7F3EC" roughness={1} />
+      </mesh>
+
+      {/* Ceiling pendant fixture (visual) */}
+      <mesh position={[cx, h - 0.05, cz]}>
+        <cylinderGeometry args={[0.25, 0.35, 0.12, 16]} />
+        <meshStandardMaterial color="#C8A870" roughness={0.4} metalness={0.5} />
+      </mesh>
+      {/* Pendant cord */}
+      <mesh position={[cx, h - 0.45, cz]}>
+        <cylinderGeometry args={[0.015, 0.015, 0.7, 6]} />
+        <meshStandardMaterial color="#8B6A3E" roughness={0.9} />
+      </mesh>
+      {/* Shade glow */}
+      <mesh position={[cx, h - 0.7, cz]}>
+        <sphereGeometry args={[0.22, 12, 8]} />
+        <meshStandardMaterial color="#FFF0C8" emissive="#FFC060" emissiveIntensity={1.2} roughness={1} transparent opacity={0.85} />
+      </mesh>
+
+      {/* Bookshelf on north wall */}
+      <group position={[cx, 0, 0.12]}>
+        {/* Shelf body */}
+        <mesh position={[0, 1.2, 0]}>
+          <boxGeometry args={[Math.min(w * 0.55, 4), 2.4, 0.3]} />
+          <meshStandardMaterial color="#8B6344" roughness={0.8} />
         </mesh>
-        {/* Backrest */}
-        <mesh position={[0, 0.9, -0.4]}>
-          <boxGeometry args={[3, 1, 0.4]} />
-          <meshStandardMaterial color="#D1BFAe" roughness={1} />
-        </mesh>
+        {/* Books — decorative row */}
+        {[-0.8, -0.4, 0, 0.4, 0.8].map((bx, i) => (
+          <mesh key={i} position={[bx, 0.55, -0.05]}>
+            <boxGeometry args={[0.12, 0.9 + i * 0.08, 0.22]} />
+            <meshStandardMaterial
+              color={['#B85C38', '#4A7A6D', '#D4A843', '#6B5B8B', '#3E6B8B'][i]}
+              roughness={0.9}
+            />
+          </mesh>
+        ))}
       </group>
 
-      {/* Floor lamp */}
-      <group position={[w / 2 - 2, 0, d / 2 - 1]}>
-        <mesh position={[0, 1, 0]}>
-          <cylinderGeometry args={[0.05, 0.05, 2]} />
-          <meshStandardMaterial color="#888" roughness={0.5} />
+      {/* Side table */}
+      <group position={[w - 1.2, 0, cz]}>
+        <mesh position={[0, 0.55, 0]}>
+          <cylinderGeometry args={[0.35, 0.35, 0.06, 24]} />
+          <meshStandardMaterial color="#9B7B52" roughness={0.6} />
         </mesh>
-        <mesh position={[0, 2, 0]}>
-          <cylinderGeometry args={[0.3, 0.4, 0.6]} />
-          <meshStandardMaterial color="#FFF1E6" roughness={1} transparent opacity={0.9} />
+        <mesh position={[0, 0.3, 0]}>
+          <cylinderGeometry args={[0.04, 0.04, 0.5, 8]} />
+          <meshStandardMaterial color="#7A5C38" roughness={0.8} />
         </mesh>
-        <pointLight position={[0, 2, 0]} intensity={3} color="#FFD1A9" distance={10} />
       </group>
-
-      {/* Hidden cove light */}
-      <rectAreaLight width={w} height={h} color="#FFD1A9" intensity={2} position={[w / 2, h - 0.5, d - 0.5]} rotation={[-Math.PI / 2, 0, 0]} />
     </group>
   );
 }
 
-function ClarityRoom({ w, d, h }: { w: number, d: number, h: number }) {
-  // taller ceiling, plaster walls, long wooden desk lit from below, large frosted window
+// ── Theme 1: Bright Studio ────────────────────────────────────────────────────
+// Polished concrete floor, white walls, LED ceiling grid, minimalist desk
+function BrightStudioDecor({ w, d, h }: { w: number; d: number; h: number }) {
+  const cx = w / 2;
+  const cz = d / 2;
+
+  // Build a small grid of LED panel positions
+  const ledRows = 2;
+  const ledCols = 3;
+  const ledPanels: [number, number][] = [];
+  for (let r = 0; r < ledRows; r++) {
+    for (let c = 0; c < ledCols; c++) {
+      ledPanels.push([
+        (w / (ledCols + 1)) * (c + 1),
+        (d / (ledRows + 1)) * (r + 1),
+      ]);
+    }
+  }
+
   return (
     <group>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[w / 2, 0, d / 2]}>
+      {/* Bright clean ambient */}
+      <ambientLight intensity={1.8} color="#F0F6FF" />
+      {/* Central overhead */}
+      <pointLight position={[cx, h - 0.2, cz]} intensity={14} color="#FFFFFF" distance={w * 2.5} decay={2} castShadow />
+      {/* Secondary fills */}
+      <pointLight position={[1.5, h * 0.8, 1.5]}          intensity={4} color="#E8F0FF" distance={12} decay={2} />
+      <pointLight position={[w - 1.5, h * 0.8, d - 1.5]}  intensity={4} color="#E8F0FF" distance={12} decay={2} />
+
+      {/* Floor — polished light concrete */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#E8DACB" roughness={0.8} />
-      </mesh>
-      {/* Ceiling */}
-      <mesh rotation={[Math.PI / 2, 0, 0]} position={[w / 2, h, d / 2]}>
-        <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#F9F6F0" roughness={1} />
+        <meshStandardMaterial color="#D8D8D8" roughness={0.25} metalness={0.15} />
       </mesh>
 
-      {/* Floating Wooden Desk */}
-      <group position={[w / 2, 1.2, d / 2 + 1]}>
-        <mesh>
-          <boxGeometry args={[4, 0.1, 1]} />
-          <meshStandardMaterial color="#BCA38F" roughness={0.7} />
+      {/* Ceiling — pure white */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial color="#FFFFFF" roughness={1} />
+      </mesh>
+
+      {/* LED panels in ceiling — thin emissive boxes */}
+      {ledPanels.map(([px, pz], i) => (
+        <mesh key={i} position={[px, h - 0.03, pz]}>
+          <boxGeometry args={[0.6, 0.04, 0.25]} />
+          <meshStandardMaterial
+            color="#FFFFFF"
+            emissive="#FFFFFF"
+            emissiveIntensity={2.5}
+            roughness={1}
+          />
         </mesh>
-        {/* Lit from below */}
-        <pointLight position={[0, -0.5, 0]} intensity={2} color="#FFF5E1" distance={5} />
+      ))}
+
+      {/* Minimalist floating desk */}
+      <group position={[cx, 0, d - 1.6]}>
+        {/* Desk top */}
+        <mesh position={[0, 0.78, 0]}>
+          <boxGeometry args={[Math.min(w * 0.5, 3.5), 0.05, 0.8]} />
+          <meshStandardMaterial color="#EBEBEB" roughness={0.3} metalness={0.1} />
+        </mesh>
+        {/* Desk legs — two thin bars */}
+        {[-0.6, 0.6].map((lx, i) => (
+          <mesh key={i} position={[lx * Math.min(w * 0.5 / 2.2, 0.85), 0.39, 0]}>
+            <boxGeometry args={[0.05, 0.78, 0.05]} />
+            <meshStandardMaterial color="#C0C0C0" roughness={0.2} metalness={0.8} />
+          </mesh>
+        ))}
       </group>
 
-      {/* Frosted Window (Glowing) */}
-      <mesh position={[w / 2, h / 2, 0.05]}>
-        <planeGeometry args={[w * 0.6, h * 0.5]} />
-        <meshStandardMaterial color="#FFFFFF" transparent opacity={0.6} roughness={0.2} emissive="#FFFFFF" emissiveIntensity={0.5} />
+      {/* Minimalist wall shelf on east wall */}
+      <mesh position={[w - 0.18, h * 0.55, cz]} rotation={[0, Math.PI / 2, 0]}>
+        <boxGeometry args={[1.0, 0.04, 0.2]} />
+        <meshStandardMaterial color="#D0D0D0" roughness={0.4} metalness={0.3} />
       </mesh>
-
-      {/* Diffused daylight */}
-      <ambientLight intensity={1.5} color="#F0F4F8" />
     </group>
   );
 }
 
-function ImaginationRoom({ w, d, h }: { w: number, d: number, h: number }) {
-  // sloping ceiling, abstract sculptures, warm spotlights
+// ── Theme 2: Night Lab ────────────────────────────────────────────────────────
+// Dark charcoal walls, slate floor, teal accent strips, geometric decor
+function NightLabDecor({ w, d, h }: { w: number; d: number; h: number }) {
+  const cx = w / 2;
+  const cz = d / 2;
   return (
     <group>
-      {/* Floor */}
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[w / 2, 0, d / 2]}>
+      {/* Dim ambient so the accent lights stand out */}
+      <ambientLight intensity={0.4} color="#8BBFFF" />
+      {/* Dramatic overhead */}
+      <pointLight position={[cx, h - 0.4, cz]} intensity={8} color="#A0C8FF" distance={w * 2} decay={2} castShadow />
+      {/* Teal accent fill */}
+      <pointLight position={[1, 1.5, 1]}       intensity={5} color="#00D4CC" distance={8} decay={2} />
+      <pointLight position={[w - 1, 1.5, d - 1]} intensity={5} color="#7060FF" distance={8} decay={2} />
+
+      {/* Floor — dark slate with slight shimmer */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
         <planeGeometry args={[w, d]} />
-        <meshStandardMaterial color="#E5C4A0" roughness={0.9} />
+        <meshStandardMaterial color="#1E1E30" roughness={0.3} metalness={0.4} />
       </mesh>
 
-      {/* Sloping Ceiling (Attic like) */}
-      <mesh rotation={[Math.PI / 2, -Math.PI / 12, 0]} position={[w / 2, h, d / 2]}>
-        <planeGeometry args={[w, d + 2]} />
-        <meshStandardMaterial color="#FADBD8" roughness={1} />
+      {/* Ceiling — near black */}
+      <mesh rotation={[Math.PI / 2, 0, 0]} position={[cx, h, cz]}>
+        <planeGeometry args={[w, d]} />
+        <meshStandardMaterial color="#0E0E1A" roughness={1} />
       </mesh>
 
-      {/* Abstract Sculpture */}
-      <group position={[w / 2 + 1, 1.5, d / 2 - 1]}>
+      {/* Teal glow strip along floor — north wall */}
+      <mesh position={[cx, 0.04, 0.12]}>
+        <boxGeometry args={[w * 0.85, 0.06, 0.04]} />
+        <meshStandardMaterial color="#00D4CC" emissive="#00D4CC" emissiveIntensity={3} roughness={1} />
+      </mesh>
+      {/* Teal glow strip along floor — south wall */}
+      <mesh position={[cx, 0.04, d - 0.12]}>
+        <boxGeometry args={[w * 0.85, 0.06, 0.04]} />
+        <meshStandardMaterial color="#7060FF" emissive="#7060FF" emissiveIntensity={3} roughness={1} />
+      </mesh>
+
+      {/* Ceiling accent strip */}
+      <mesh position={[cx, h - 0.08, 0.2]}>
+        <boxGeometry args={[w * 0.7, 0.04, 0.06]} />
+        <meshStandardMaterial color="#40A0FF" emissive="#40A0FF" emissiveIntensity={2} roughness={1} />
+      </mesh>
+
+      {/* Geometric sculpture — corner accent */}
+      <group position={[w - 1.2, 1.2, 1.2]}>
         <mesh rotation={[Math.PI / 4, Math.PI / 4, 0]}>
-          <torusGeometry args={[0.5, 0.1, 16, 32]} />
-          <meshStandardMaterial color="#D4A373" roughness={0.4} metalness={0.6} />
+          <torusGeometry args={[0.45, 0.06, 16, 32]} />
+          <meshStandardMaterial color="#00D4CC" emissive="#00D4CC" emissiveIntensity={0.6} roughness={0.2} metalness={0.8} />
         </mesh>
-        <mesh rotation={[-Math.PI / 4, 0, Math.PI / 4]} position={[0.2, 0.3, 0]}>
-          <octahedronGeometry args={[0.4]} />
-          <meshStandardMaterial color="#FAEDCD" roughness={0.2} />
+        <mesh>
+          <octahedronGeometry args={[0.28]} />
+          <meshStandardMaterial color="#7060FF" emissive="#7060FF" emissiveIntensity={0.4} roughness={0.1} metalness={0.9} />
         </mesh>
       </group>
 
-      {/* Warm Spotlights */}
-      <spotLight position={[w / 2 - 2, h - 1, d / 2]} intensity={4} color="#FFC8A2" angle={0.5} penumbra={1} castShadow />
-      <spotLight position={[w / 2 + 2, h - 1, d / 2 + 1]} intensity={3} color="#FFDAB9" angle={0.6} penumbra={1} castShadow />
+      {/* Floating display panel on west wall */}
+      <mesh position={[0.12, h * 0.5, cz]}>
+        <boxGeometry args={[0.06, h * 0.4, w * 0.28]} />
+        <meshStandardMaterial color="#0A2040" roughness={0.1} metalness={0.7} emissive="#001830" emissiveIntensity={0.5} />
+      </mesh>
+      <mesh position={[0.09, h * 0.5, cz]}>
+        <boxGeometry args={[0.02, h * 0.38, w * 0.26]} />
+        <meshStandardMaterial color="#00D4CC" emissive="#00D4CC" emissiveIntensity={0.4} roughness={1} transparent opacity={0.6} />
+      </mesh>
     </group>
   );
 }

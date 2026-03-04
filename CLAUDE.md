@@ -102,4 +102,5 @@ ADK agents are orchestrated via the Memory Architect. Each agent has a specific 
 
 <!-- MANUAL ADDITIONS START -->
 <!-- Add project-specific notes here that should persist across updates -->
+- Do not create or include `.js` files for React components (especially palace items) when a corresponding `.tsx` file exists. Always default to updating the `.tsx` versions.
 <!-- MANUAL ADDITIONS END -->
