@@ -288,16 +288,6 @@
 
 **Purpose**: Demo preparation, deployment, optimization
 
-### Infrastructure & Deployment
-
-- [ ] T146 [P] Create infrastructure/firestore.rules with security rules per firestore.md
-- [ ] T147 [P] Create infrastructure/firestore.indexes.json with composite indexes per firestore.md
-- [ ] T148 [P] Create infrastructure/cloudbuild.yaml for CI/CD per research.md
-- [ ] T149 Create infrastructure/terraform.tfvars.example with required variables
-- [ ] T150 Deploy Firestore rules using `gcloud firestore deploy`
-- [ ] T151 Deploy backend to Cloud Run per quickstart.md
-- [ ] T152 Deploy frontend to Firebase Hosting per quickstart.md
-
 ### Performance Optimization
 
 - [ ] T153 Add InstancedMesh for repeated geometry (books, orbs) in artifact components

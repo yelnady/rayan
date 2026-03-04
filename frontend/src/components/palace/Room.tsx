@@ -41,7 +41,11 @@ export function Room({ room, index, doors = [], children }: RoomProps) {
         wallColor={theme.wallColor}
       />
 
-      {children}
+      {/* Artifacts are generated around (0,0) origin with r=2.5.
+          Offset to room center so they appear inside the room. */}
+      <group position={[w / 2, 0, d / 2]}>
+        {children}
+      </group>
     </group>
   );
 }
