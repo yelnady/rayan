@@ -30,6 +30,8 @@ export function useCapture() {
                 store.setStatus('error');
             },
         });
+        // Save stream to store so UI can render the floating preview
+        store.setActiveStream(capture.getStream());
     }, [ws, store]);
     const stopCapture = useCallback(() => {
         const { sessionId } = useCaptureStore.getState();
@@ -39,6 +41,7 @@ export function useCapture() {
         captureRef.current = null;
         ws.sendCaptureEnd(sessionId);
         store.setStatus('processing');
+        store.setActiveStream(null);
     }, [ws, store]);
     /** Returns a promise that resolves when the user responds to the modal. */
     const waitForRoomSuggestionResponse = useCallback(() => new Promise((resolve) => {

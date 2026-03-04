@@ -1,11 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { PointerLockControls } from '@react-three/drei';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { PointerLockControls as PointerLockControlsType } from 'three-stdlib';
+import { useCameraStore } from '../../stores/cameraStore';
 
 const MOVE_SPEED = 5; // m/s
 const CAMERA_HEIGHT = 1.7; // metres
+const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6); // lobby start position
 
 interface FirstPersonControlsProps {
   /** Called every frame with the current world position */
@@ -13,14 +13,36 @@ interface FirstPersonControlsProps {
 }
 
 export function FirstPersonControls({ onPositionChange }: FirstPersonControlsProps) {
-  const { camera } = useThree();
-  const controlsRef = useRef<PointerLockControlsType>(null);
+  const { camera, gl } = useThree();
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
+  const isDragging = useRef(false);
+  const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
 
-  // Set initial camera height
+  // Set initial camera position and force look-direction to straight-ahead (-Z)
   useEffect(() => {
-    camera.position.y = CAMERA_HEIGHT;
+    camera.position.copy(SPAWN);
+    euler.current.set(0, 0, 0); // look toward -Z (straight into the lobby)
+    camera.quaternion.setFromEuler(euler.current);
   }, [camera]);
+
+  // ── Reset view whenever resetToken is bumped ─────────────────────────────────
+  const resetToken = useCameraStore((s) => s.resetToken);
+  useEffect(() => {
+    if (resetToken === 0) return; // skip initial mount
+    camera.position.copy(SPAWN);
+    euler.current.set(0, 0, 0);
+    camera.quaternion.setFromEuler(euler.current);
+  }, [resetToken, camera]);
+
+  // ── Teleport view whenever teleportToken is bumped ───────────────────────────
+  const teleportToken = useCameraStore((s) => s.teleportToken);
+  const teleportTarget = useCameraStore((s) => s.teleportTarget);
+  useEffect(() => {
+    if (teleportToken === 0 || !teleportTarget) return;
+    camera.position.set(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z);
+    euler.current.set(0, 0, 0); // optional: reset look direction, or you can point towards center
+    camera.quaternion.setFromEuler(euler.current);
+  }, [teleportToken, teleportTarget, camera]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -37,26 +59,70 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
       if (k === 's' || k === 'arrowdown') keysRef.current.s = false;
       if (k === 'd' || k === 'arrowright') keysRef.current.d = false;
     }
+
+    // Drag-to-look handlers
+    // Note: we do NOT use setPointerCapture here. setPointerCapture routes all
+    // future pointer events to this element, which prevents Three.js's raycaster
+    // from resolving onClick on 3D meshes (like doors). Instead we track dragging
+    // manually and use a movement threshold to distinguish clicks from drags.
+    let totalMovement = 0;
+    function onPointerDown(e: PointerEvent) {
+      if (e.button === 0) {
+        isDragging.current = false; // will only become true after movement threshold
+        totalMovement = 0;
+      }
+    }
+    function onPointerUp(_e: PointerEvent) {
+      isDragging.current = false;
+      totalMovement = 0;
+    }
+    function onPointerMove(e: PointerEvent) {
+      if (e.buttons !== 1) return; // left button must be held
+
+      const movementX = e.movementX || 0;
+      const movementY = e.movementY || 0;
+      totalMovement += Math.abs(movementX) + Math.abs(movementY);
+
+      // Only start rotating after 4px of movement (avoids eating click events)
+      if (totalMovement < 4) return;
+      isDragging.current = true;
+
+      euler.current.y -= movementX * 0.002;
+      euler.current.x -= movementY * 0.002;
+
+      // Clamp vertical look to not break your neck
+      euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x));
+
+      camera.quaternion.setFromEuler(euler.current);
+    }
+
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+
+    const canvas = gl.domElement;
+    canvas.addEventListener('pointerdown', onPointerDown);
+    canvas.addEventListener('pointerup', onPointerUp);
+    canvas.addEventListener('pointermove', onPointerMove);
+
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+
+      canvas.removeEventListener('pointerdown', onPointerDown);
+      canvas.removeEventListener('pointerup', onPointerUp);
+      canvas.removeEventListener('pointermove', onPointerMove);
     };
-  }, []);
+  }, [camera, gl]);
 
   const dirVec = useRef(new THREE.Vector3());
   const sideVec = useRef(new THREE.Vector3());
 
   useFrame((_, delta) => {
-    const controls = controlsRef.current;
-    if (!controls?.isLocked) return;
-
     const { w, a, s, d } = keysRef.current;
     if (!w && !a && !s && !d) return;
 
     // Forward direction (ignore vertical component)
-    controls.getDirection(dirVec.current);
+    camera.getWorldDirection(dirVec.current);
     dirVec.current.y = 0;
     dirVec.current.normalize();
 
@@ -74,5 +140,5 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     onPositionChange?.(camera.position);
   });
 
-  return <PointerLockControls ref={controlsRef} />;
+  return null;
 }

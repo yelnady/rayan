@@ -16,8 +16,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { useEnrichmentStore } from '../../stores/enrichmentStore';
 import { RelatedArtifacts } from './RelatedArtifacts';
 import { GeneratedDiagramCard } from '../voice/GeneratedDiagram';
+import { EnrichmentPanel } from '../enrichment/EnrichmentPanel';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { colors, fonts, radii, shadows, zIndex } from '../../config/tokens';
@@ -64,7 +66,34 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                 });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const json = await res.json();
-                if (!cancelled) setArtifact(json.artifact as ArtifactDetailData);
+                if (!cancelled) {
+                    setArtifact(json.artifact as ArtifactDetailData);
+                    // Seed enrichmentStore from REST response
+                    if (json.enrichments?.length) {
+                        useEnrichmentStore.getState().setEnrichments(
+                            artifactId,
+                            (json.enrichments as Array<{
+                                id: string;
+                                sourceName: string;
+                                sourceUrl: string;
+                                extractedContent: string;
+                                images: Array<{ url: string; caption: string }>;
+                                relevanceScore: number;
+                                createdAt: string;
+                                verified?: boolean | null;
+                            }>).map((e) => ({
+                                id: e.id,
+                                sourceName: e.sourceName,
+                                sourceUrl: e.sourceUrl,
+                                preview: e.extractedContent,
+                                images: e.images,
+                                relevanceScore: e.relevanceScore,
+                                createdAt: e.createdAt,
+                                verified: e.verified,
+                            })),
+                        );
+                    }
+                }
             } catch (err) {
                 if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load artifact');
             } finally {
@@ -181,6 +210,14 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                                 relatedArtifactIds={[]}
                                 narrationRelated={narration!.relatedArtifacts}
                             />
+                        </section>
+                    )}
+
+                    {/* T131: Enrichments section — web research from enrichment agent */}
+                    {!loading && (
+                        <section style={sectionStyle}>
+                            <h3 style={sectionTitleStyle}>🔮 Web Enrichments</h3>
+                            <EnrichmentPanel artifactId={artifactId} />
                         </section>
                     )}
 

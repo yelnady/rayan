@@ -2,13 +2,18 @@ import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { gsap } from 'gsap';
+import { useEnrichmentStore } from '../../stores/enrichmentStore';
 const ORB_RADIUS = 0.18;
 const FLOAT_SPEED = 1.1;
 const FLOAT_AMPLITUDE = 0.05;
 const ORBIT_RADIUS = 0.3;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
-export function CrystalOrb({ position, color = '#9B59B6', pulsing = false, onClick, onHover, }) {
+export function CrystalOrb({ position, color = '#9B59B6', artifactId, pulsing = false, onClick, onHover, }) {
+    const newIds = useEnrichmentStore((s) => s.newEnrichmentArtifactIds);
+    /** Orb pulses if caller passes pulsing=true OR a new enrichment arrived for this artifact */
+    const isNewEnrichment = artifactId ? newIds.has(artifactId) : false;
+    const shouldPulse = pulsing || isNewEnrichment;
     const groupRef = useRef(null);
     const orbRef = useRef(null);
     const particlesRef = useRef(null);
@@ -30,7 +35,7 @@ export function CrystalOrb({ position, color = '#9B59B6', pulsing = false, onCli
             particlesRef.current.rotation.x += delta * ORBIT_SPEED * 0.5;
         }
         // Pulsing effect when enrichment arrives
-        if (pulsing && orbRef.current) {
+        if (shouldPulse && orbRef.current) {
             const scale = 1 + Math.sin(timeRef.current * 4) * 0.1;
             orbRef.current.scale.setScalar(scale);
         }

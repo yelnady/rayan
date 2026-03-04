@@ -13,6 +13,7 @@ interface CaptureState {
   /** Resolves when the user responds to a room suggestion */
   roomSuggestionResolver: ((choice: RoomSuggestionChoice) => void) | null;
   error: string | null;
+  activeStream: MediaStream | null;
 
   setSessionId: (id: string | null) => void;
   setStatus: (status: CaptureStatus) => void;
@@ -24,6 +25,7 @@ interface CaptureState {
     resolver?: (choice: RoomSuggestionChoice) => void,
   ) => void;
   setError: (error: string | null) => void;
+  setActiveStream: (stream: MediaStream | null) => void;
   reset: () => void;
 }
 
@@ -42,6 +44,7 @@ const defaultState = {
   roomSuggestion: null,
   roomSuggestionResolver: null,
   error: null,
+  activeStream: null,
 };
 
 export const useCaptureStore = create<CaptureState>((set) => ({
@@ -56,5 +59,6 @@ export const useCaptureStore = create<CaptureState>((set) => ({
   setRoomSuggestion: (roomSuggestion, roomSuggestionResolver = undefined) =>
     set({ roomSuggestion, roomSuggestionResolver: roomSuggestionResolver ?? null }),
   setError: (error) => set({ error }),
+  setActiveStream: (activeStream) => set({ activeStream }),
   reset: () => set(defaultState),
 }));

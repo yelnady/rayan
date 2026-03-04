@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
-import { CaptureButton } from '../components/capture/CaptureButton';
 import { CaptureOverlay } from '../components/capture/CaptureOverlay';
 import { ConceptToast } from '../components/capture/ConceptToast';
 import { CaptureComplete } from '../components/capture/CaptureComplete';
+import { CapturePreview } from '../components/capture/CapturePreview';
 import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
 import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
-import { VoiceButton } from '../components/voice/VoiceButton';
+import { ActionBar } from '../components/hud/ActionBar';
 import { VoiceIndicator } from '../components/voice/VoiceIndicator';
 import { ResponsePanel } from '../components/voice/ResponsePanel';
 import { usePalaceStore } from '../stores/palaceStore';
@@ -187,22 +187,8 @@ export function PalacePage() {
         </div>
       )}
 
-      {/* HUD — bottom-center: capture + voice buttons */}
-      <div
-        style={{
-          position: 'fixed',
-          bottom: 32,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          zIndex: zIndex.hud,
-          display: 'flex',
-          gap: 12,
-          alignItems: 'center',
-        }}
-      >
-        <CaptureButton source="webcam" />
-        <VoiceButton />
-      </div>
+      {/* HUD — bottom-center: unified action bar */}
+      <ActionBar />
 
       {/* Click-to-explore hint — shown when palace is loaded but pointer is not yet locked */}
       {!loading && !error && (
@@ -257,6 +243,7 @@ export function PalacePage() {
       )}
 
       {/* Capture status overlays */}
+      <CapturePreview />
       <CaptureOverlay />
       <ConceptToast />
       <CaptureComplete onClose={() => useCaptureStore.getState().reset()} />
