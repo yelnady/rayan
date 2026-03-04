@@ -11,7 +11,7 @@ from typing import Any
 
 from app.models.artifact import ArtifactType
 from app.services.artifact_service import create_artifact
-from app.services.room_service import create_room, increment_artifact_count
+from app.services.room_service import create_room, increment_artifact_count, recompute_room_summary
 
 logger = logging.getLogger(__name__)
 
@@ -288,6 +288,8 @@ async def seed_palace(user_id: str) -> dict:
             await increment_artifact_count(user_id, room.id)
             artifacts_created += 1
             artifact_index += 1
+
+        await recompute_room_summary(user_id, room.id)
 
     # ── Wire lobby doors so the front-end can render portals ────────────────────
     # Cycle through wall positions for the first 4 rooms; remaining rooms get

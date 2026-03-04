@@ -31,6 +31,7 @@ OnAudioChunk = Callable[[str], Awaitable[None]]        # base64 audio
 OnTextChunk = Callable[[str], Awaitable[None]]          # transcript text
 OnInterrupted = Callable[[], Awaitable[None]]
 OnTurnComplete = Callable[[], Awaitable[None]]
+OnUserText = Callable[[str], Awaitable[None]]           # user speech transcript
 
 
 @dataclass
@@ -99,6 +100,7 @@ class LiveSessionManager:
         on_text: OnTextChunk,
         on_interrupted: OnInterrupted,
         on_turn_complete: OnTurnComplete,
+        on_user_text: Optional[OnUserText] = None,
     ) -> None:
         """Open a persistent Gemini Live connection for the user."""
         # Close any existing session first
@@ -111,7 +113,7 @@ class LiveSessionManager:
         system_prompt = _build_system_prompt(results)
 
         config = genai_types.LiveConnectConfig(
-            response_modalities=["AUDIO"],
+            response_modalities=["AUDIO", "TEXT"],
             system_instruction=system_prompt,
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
@@ -125,6 +127,7 @@ class LiveSessionManager:
                     disabled=False
                 )
             ),
+            input_audio_transcription=genai_types.AudioTranscriptionConfig(),
         )
 
         close_event = asyncio.Event()
@@ -143,7 +146,7 @@ class LiveSessionManager:
         # Launch the background task that holds the `async with` context alive
         task = asyncio.create_task(
             self._session_lifecycle(
-                live, config, on_audio, on_text, on_interrupted, on_turn_complete,
+                live, config, on_audio, on_text, on_interrupted, on_turn_complete, on_user_text,
             ),
             name=f"live-session-{user_id}",
         )
@@ -207,6 +210,7 @@ class LiveSessionManager:
         on_text: OnTextChunk,
         on_interrupted: OnInterrupted,
         on_turn_complete: OnTurnComplete,
+        on_user_text: Optional[OnUserText] = None,
     ) -> None:
         """Run inside the `async with connect()` block to keep the WS alive."""
         client = get_genai_client()
@@ -218,7 +222,7 @@ class LiveSessionManager:
 
                 # Run the receive loop until close_event is signaled
                 await self._receive_loop(
-                    live, session, on_audio, on_text, on_interrupted, on_turn_complete,
+                    live, session, on_audio, on_text, on_interrupted, on_turn_complete, on_user_text,
                 )
         except asyncio.CancelledError:
             logger.debug("Session lifecycle cancelled for userId=%s", live.user_id)
@@ -235,6 +239,7 @@ class LiveSessionManager:
         on_text: OnTextChunk,
         on_interrupted: OnInterrupted,
         on_turn_complete: OnTurnComplete,
+        on_user_text: Optional[OnUserText] = None,
     ) -> None:
         """Read from Gemini and dispatch events until close_event is set.
 
@@ -257,6 +262,14 @@ class LiveSessionManager:
                         await on_interrupted()
                         continue
 
+                    # User speech transcription
+                    if on_user_text:
+                        input_trans = getattr(server_content, "input_transcription", None)
+                        if input_trans:
+                            user_text = getattr(input_trans, "text", None)
+                            if user_text:
+                                await on_user_text(user_text)
+
                     # Model turn — audio/text chunks
                     model_turn = getattr(server_content, "model_turn", None)
                     if model_turn and model_turn.parts:
@@ -266,7 +279,7 @@ class LiveSessionManager:
                             if inline_data and inline_data.data:
                                 audio_b64 = base64.b64encode(inline_data.data).decode()
                                 await on_audio(audio_b64)
-                            # Text
+                            # Inline text (rare with AUDIO modality)
                             text = getattr(part, "text", None)
                             if text:
                                 await on_text(text)

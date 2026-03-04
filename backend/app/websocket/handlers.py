@@ -368,6 +368,9 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
     async def on_text(text: str) -> None:
         await manager.send(user_id, {"type": "live_text", "text": text})
 
+    async def on_user_text(text: str) -> None:
+        await manager.send(user_id, {"type": "live_user_text", "text": text})
+
     async def on_interrupted() -> None:
         await manager.send(user_id, {"type": "live_interrupted"})
 
@@ -382,6 +385,7 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
             on_text=on_text,
             on_interrupted=on_interrupted,
             on_turn_complete=on_turn_complete,
+            on_user_text=on_user_text,
         )
         await manager.send(user_id, {"type": "live_session_started"})
     except Exception:

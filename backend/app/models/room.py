@@ -20,3 +20,4 @@ class Room(BaseModel):
     artifactCount: int = 0
     topicKeywords: list[str] = []
     topicEmbedding: list[float] = []
+    summary: str = ""  # derived from artifact summaries; updated after each artifact add/delete
