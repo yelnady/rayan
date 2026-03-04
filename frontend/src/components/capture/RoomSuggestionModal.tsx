@@ -43,7 +43,7 @@ export function RoomSuggestionModal() {
           background: colors.surfaceAlt,
           borderRadius: radii.lg,
           padding: '28px 36px',
-          color: colors.white,
+          color: colors.textPrimary,
           minWidth: 380,
           maxWidth: 500,
           border: `1px solid ${colors.border}`,
@@ -94,7 +94,7 @@ export function RoomSuggestionModal() {
                       border: `1px solid ${colors.border}`,
                       borderRadius: radii.md,
                       padding: '8px 12px',
-                      color: colors.white,
+                      color: colors.textPrimary,
                       cursor: 'pointer',
                       marginBottom: 6,
                       fontSize: 13,
@@ -102,7 +102,7 @@ export function RoomSuggestionModal() {
                     }}
                   >
                     {alt.name}{' '}
-                    <span style={{ color: colors.textMuted }}>
+                    <span style={{ color: colors.textSecondary }}>
                       ({Math.round(alt.similarity * 100)}% match)
                     </span>
                   </button>
@@ -123,7 +123,7 @@ export function RoomSuggestionModal() {
                   setEditedStyle(suggestion.room.style);
                   setIsEditing(true);
                 }}
-                style={btnStyle('rgba(255,255,255,0.1)')}
+                style={btnStyle('rgba(0,0,0,0.05)')}
               >
                 Edit
               </button>
@@ -160,7 +160,7 @@ export function RoomSuggestionModal() {
               >
                 Confirm
               </button>
-              <button onClick={() => setIsEditing(false)} style={btnStyle('rgba(255,255,255,0.1)')}>
+              <button onClick={() => setIsEditing(false)} style={btnStyle('rgba(0,0,0,0.05)')}>
                 Back
               </button>
             </div>
@@ -174,7 +174,7 @@ export function RoomSuggestionModal() {
 const btnStyle = (bg: string): React.CSSProperties => ({
   flex: 1,
   background: bg,
-  color: colors.white,
+  color: colors.textPrimary,
   border: 'none',
   borderRadius: radii.md,
   padding: '10px 0',
@@ -191,7 +191,7 @@ const inputStyle: React.CSSProperties = {
   border: `1px solid ${colors.borderLight}`,
   borderRadius: radii.md,
   padding: '10px 12px',
-  color: colors.white,
+  color: colors.textPrimary,
   fontSize: 14,
   boxSizing: 'border-box',
   fontFamily: fonts.body,

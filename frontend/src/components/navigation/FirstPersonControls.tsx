@@ -1,14 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
+import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { useCameraStore } from '../../stores/cameraStore';
 
-const MOVE_SPEED = 5; // m/s
+const MOVE_SPEED = 30; // Base acceleration
+const MAX_VELOCITY = 6; // Used for FOV scaling
 const CAMERA_HEIGHT = 1.7; // metres
 const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6); // lobby start position
 const DEFAULT_FOV = 75;
-const MIN_FOV = 20;
-const MAX_FOV = 100;
+const MAX_SPEED_FOV_BOOST = 10;
+const DAMPING = 8.0; // Friction
 
 interface FirstPersonControlsProps {
   /** Called every frame with the current world position */
@@ -16,16 +18,17 @@ interface FirstPersonControlsProps {
 }
 
 export function FirstPersonControls({ onPositionChange }: FirstPersonControlsProps) {
-  const { camera, gl } = useThree();
+  const { camera } = useThree();
   const keysRef = useRef({ w: false, a: false, s: false, d: false });
-  const isDragging = useRef(false);
-  const euler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const velocity = useRef(new THREE.Vector3());
+  const direction = useRef(new THREE.Vector3());
+  const bobTimer = useRef(0);
+  const controlsRef = useRef<any>(null);
 
   // Set initial camera position and force look-direction to straight-ahead (-Z)
   useEffect(() => {
     camera.position.copy(SPAWN);
-    euler.current.set(0, 0, 0); // look toward -Z (straight into the lobby)
-    camera.quaternion.setFromEuler(euler.current);
+    camera.lookAt(SPAWN.x, SPAWN.y, SPAWN.z - 1); // look toward -Z (straight into the lobby)
     (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
     (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
   }, [camera]);
@@ -35,10 +38,10 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
   useEffect(() => {
     if (resetToken === 0) return; // skip initial mount
     camera.position.copy(SPAWN);
-    euler.current.set(0, 0, 0);
-    camera.quaternion.setFromEuler(euler.current);
+    camera.lookAt(SPAWN.x, SPAWN.y, SPAWN.z - 1);
     (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
     (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+    velocity.current.set(0, 0, 0);
   }, [resetToken, camera]);
 
   // ── Teleport view whenever teleportToken is bumped ───────────────────────────
@@ -47,8 +50,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
   useEffect(() => {
     if (teleportToken === 0 || !teleportTarget) return;
     camera.position.set(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z);
-    euler.current.set(0, 0, 0); // optional: reset look direction, or you can point towards center
-    camera.quaternion.setFromEuler(euler.current);
+    camera.lookAt(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z - 1);
+    velocity.current.set(0, 0, 0);
   }, [teleportToken, teleportTarget, camera]);
 
   useEffect(() => {
@@ -67,95 +70,73 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
       if (k === 'd' || k === 'arrowright') keysRef.current.d = false;
     }
 
-    // Drag-to-look handlers
-    // Note: we do NOT use setPointerCapture here. setPointerCapture routes all
-    // future pointer events to this element, which prevents Three.js's raycaster
-    // from resolving onClick on 3D meshes (like doors). Instead we track dragging
-    // manually and use a movement threshold to distinguish clicks from drags.
-    let totalMovement = 0;
-    function onPointerDown(e: PointerEvent) {
-      console.log(`[Controls] Pointer Down: button=${e.button}, target=${(e.target as any)?.tagName}`);
-      if (e.button === 0) {
-        isDragging.current = false; // will only become true after movement threshold
-        totalMovement = 0;
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keyup', onKeyUp);
+
+    // Initial click to lock on the body instead of canvas, allowing better capture
+    function onClick() {
+      if (controlsRef.current && !controlsRef.current.isLocked) {
+        controlsRef.current.lock();
       }
     }
-    function onPointerUp(_e: PointerEvent) {
-      isDragging.current = false;
-      totalMovement = 0;
-    }
-    function onPointerMove(e: PointerEvent) {
-      if (e.buttons !== 1) return; // left button must be held
-
-      const movementX = e.movementX || 0;
-      const movementY = e.movementY || 0;
-      totalMovement += Math.abs(movementX) + Math.abs(movementY);
-
-      // Only start rotating after 8px of movement (avoids eating click events on artifacts)
-      if (totalMovement < 8) return;
-      isDragging.current = true;
-
-      euler.current.y -= movementX * 0.002;
-      euler.current.x -= movementY * 0.002;
-
-      // Clamp vertical look to not break your neck
-      euler.current.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, euler.current.x));
-
-      camera.quaternion.setFromEuler(euler.current);
-    }
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      const cam = camera as THREE.PerspectiveCamera;
-      cam.fov = Math.max(MIN_FOV, Math.min(MAX_FOV, cam.fov + e.deltaY * 0.05));
-      cam.updateProjectionMatrix();
-    }
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-
-    const canvas = gl.domElement;
-    canvas.addEventListener('pointerdown', onPointerDown);
-    canvas.addEventListener('pointerup', onPointerUp);
-    canvas.addEventListener('pointermove', onPointerMove);
-    canvas.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('click', onClick);
 
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-
-      canvas.removeEventListener('pointerdown', onPointerDown);
-      canvas.removeEventListener('pointerup', onPointerUp);
-      canvas.removeEventListener('pointermove', onPointerMove);
-      canvas.removeEventListener('wheel', onWheel);
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('click', onClick);
     };
-  }, [camera, gl]);
-
-  const dirVec = useRef(new THREE.Vector3());
-  const sideVec = useRef(new THREE.Vector3());
+  }, []);
 
   useFrame((_, delta) => {
-    const { w, a, s, d } = keysRef.current;
-    if (!w && !a && !s && !d) return;
+    if (!controlsRef.current) return;
 
-    // Forward direction (ignore vertical component)
-    camera.getWorldDirection(dirVec.current);
-    dirVec.current.y = 0;
-    dirVec.current.normalize();
+    if (!controlsRef.current.isLocked) {
+      // Only apply damping if not locked, to glide to a stop instead of instant stop
+      velocity.current.x -= velocity.current.x * DAMPING * delta;
+      velocity.current.z -= velocity.current.z * DAMPING * delta;
+    } else {
+      const { w, a, s, d } = keysRef.current;
 
-    sideVec.current.crossVectors(dirVec.current, new THREE.Vector3(0, 1, 0));
+      // Apply damping (friction)
+      velocity.current.x -= velocity.current.x * DAMPING * delta;
+      velocity.current.z -= velocity.current.z * DAMPING * delta;
 
-    const speed = MOVE_SPEED * delta;
-    if (w) camera.position.addScaledVector(dirVec.current, speed);
-    if (s) camera.position.addScaledVector(dirVec.current, -speed);
-    if (d) camera.position.addScaledVector(sideVec.current, speed);
-    if (a) camera.position.addScaledVector(sideVec.current, -speed);
+      // Calculate direction along X and Z
+      direction.current.z = Number(w) - Number(s);
+      direction.current.x = Number(d) - Number(a);
+      direction.current.normalize(); // Ensure consistent diagonal movement
 
-    // Lock vertical height
-    camera.position.y = CAMERA_HEIGHT;
+      // Apply acceleration based on input keys
+      if (w || s) velocity.current.z -= direction.current.z * MOVE_SPEED * delta;
+      if (a || d) velocity.current.x -= direction.current.x * MOVE_SPEED * delta;
+    }
+
+    // Apply velocity to controls (moves camera in its local horizontal space)
+    controlsRef.current.moveRight(-velocity.current.x * delta);
+    controlsRef.current.moveForward(-velocity.current.z * delta);
+
+    // Force camera vertical position to account for bobbing
+    const speed = Math.sqrt(velocity.current.x ** 2 + velocity.current.z ** 2);
+
+    // threshold for applying bobbing (prevents micro bobbing when nearly stopped)
+    if (speed > 0.5) {
+      bobTimer.current += delta * speed * 2.5;
+      camera.position.y = CAMERA_HEIGHT + Math.sin(bobTimer.current) * 0.05;
+    } else {
+      // Smoothly return to center height
+      camera.position.y = THREE.MathUtils.lerp(camera.position.y, CAMERA_HEIGHT, delta * 5);
+      bobTimer.current = 0; // reset phase when stopped
+    }
+
+    // Dynamic FOV based on speed
+    const targetFov = DEFAULT_FOV + Math.min(speed / MAX_VELOCITY, 1.0) * MAX_SPEED_FOV_BOOST;
+    const cam = camera as THREE.PerspectiveCamera;
+    cam.fov = THREE.MathUtils.lerp(cam.fov, targetFov, delta * 5);
+    cam.updateProjectionMatrix();
 
     onPositionChange?.(camera.position);
   });
 
-  return null;
+  return <PointerLockControls ref={controlsRef} selector="#root" />;
 }

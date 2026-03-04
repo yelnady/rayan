@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Text, useGLTF } from '@react-three/drei';
+import * as THREE from 'three';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
 
@@ -39,6 +40,21 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
   const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
   const micGLTF = useGLTF('/models/microphone.glb');
 
+  const micScene = useMemo(() => {
+    const clone = micGLTF.scene.clone();
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh;
+        const oldMat = mesh.material as THREE.MeshStandardMaterial;
+        mesh.material = new THREE.MeshBasicMaterial({
+          color: oldMat.color,
+          map: oldMat.map,
+        });
+      }
+    });
+    return clone;
+  }, [micGLTF.scene]);
+
   return (
     <group>
       {/* ── Lights first so everything picks them up ─────────────────────── */}
@@ -75,7 +91,6 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
         <mesh
           key={side}
           position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, side === 'north' ? 0 : LOBBY_SIZE]}
-          onPointerDown={(e) => console.log(`[Lobby] Wall Hit: ${side}`, e.point)}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
           <meshStandardMaterial color="#383870" side={2} roughness={0.7} />
@@ -88,7 +103,6 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
           key={side}
           rotation={[0, Math.PI / 2, 0]}
           position={[side === 'east' ? LOBBY_SIZE : 0, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
-          onPointerDown={(e) => console.log(`[Lobby] Wall Hit: ${side}`, e.point)}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
           <meshStandardMaterial color="#383870" side={2} roughness={0.7} />
@@ -114,8 +128,8 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
       <group position={[LOBBY_SIZE / 2, 1.2, 3]}>
         {/* Slowly rotate or just place statically. For now, static in center of lobby */}
         <primitive
-          object={micGLTF.scene.clone()}
-          scale={0.6} // Reduced from 5 to 0.6 to make it much smaller
+          object={micScene}
+          scale={0.6}
           rotation={[0, Math.PI / 4, 0]}
         />
         <pointLight color="#8a5af9" intensity={3} distance={5} decay={2} />
