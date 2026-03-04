@@ -90,8 +90,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
       const movementY = e.movementY || 0;
       totalMovement += Math.abs(movementX) + Math.abs(movementY);
 
-      // Only start rotating after 4px of movement (avoids eating click events)
-      if (totalMovement < 4) return;
+      // Only start rotating after 8px of movement (avoids eating click events on artifacts)
+      if (totalMovement < 8) return;
       isDragging.current = true;
 
       euler.current.y -= movementX * 0.002;
