@@ -199,6 +199,7 @@ async def _synthesise_voice(narration_text: str) -> Optional[bytes]:
     client = get_genai_client()
     config = genai_types.LiveConnectConfig(
         response_modalities=["AUDIO"],
+        enable_affective_dialog=True,
         speech_config=genai_types.SpeechConfig(
             voice_config=genai_types.VoiceConfig(
                 prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
