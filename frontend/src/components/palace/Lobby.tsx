@@ -1,6 +1,9 @@
 import { useMemo } from 'react';
-import { Text, useGLTF } from '@react-three/drei';
+import { Text, useGLTF, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
+import { useCameraStore } from '../../stores/cameraStore';
+import { usePalaceStore } from '../../stores/palaceStore';
+import { useTransitionStore } from '../../stores/transitionStore';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
 
@@ -14,6 +17,7 @@ interface LobbyProps {
   lobbyDoors: LobbyDoor[];
   rooms: Room[];
   onEnterRoom: (roomId: string) => void;
+  onEnterLobby?: () => void;
 }
 
 // Compute door position on a wall, supporting multiple doors per wall via doorIndex.
@@ -36,9 +40,21 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
   }
 }
 
-export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
+export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyProps) {
+  const isOverviewMode = useCameraStore(s => s.isOverviewMode);
   const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
   const micGLTF = useGLTF('/models/microphone.glb');
+
+  // Load the grand ornate ceiling texture
+  const ceilingTex = useTexture('/textures/lobby_ceiling_texture.png');
+  // Load the simple stone floor texture
+  const floorTex = useTexture('/textures/lobby_floor_texture.png');
+
+  // Set tiling on floor texture
+  if (floorTex) {
+    floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+    floorTex.repeat.set(4, 4);
+  }
 
   const micScene = useMemo(() => {
     const clone = micGLTF.scene.clone();
@@ -58,32 +74,54 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
   return (
     <group>
       {/* ── Lights first so everything picks them up ─────────────────────── */}
-      {/* Bright white-ish ambient so nothing is pitch black */}
-      <ambientLight intensity={2.5} color="#c8c0ff" />
-      {/* Central overhead point light */}
+      <ambientLight intensity={2.0} color="#b0b8ff" />
+
+      {/* Grand central overhead point light to catch ceiling details */}
       <pointLight
-        position={[LOBBY_SIZE / 2, LOBBY_HEIGHT - 0.4, LOBBY_SIZE / 2]}
-        intensity={8}
-        color="#b8a8ff"
-        distance={40}
+        position={[LOBBY_SIZE / 2, LOBBY_HEIGHT - 1.0, LOBBY_SIZE / 2]}
+        intensity={40}
+        color="#ffffff"
+        distance={30}
+        decay={1.2}
+        castShadow
+      />
+
+      {/* Dedicated floor fill light to ensure floor texture is visible */}
+      <pointLight
+        position={[LOBBY_SIZE / 2, 0.5, LOBBY_SIZE / 2]}
+        intensity={15}
+        color="#ffffff"
+        distance={20}
         decay={2}
       />
-      {/* Fill lights at each corner so walls are evenly lit */}
-      <pointLight position={[1, 3, 1]} intensity={3} color="#9090ff" distance={20} decay={2} />
-      <pointLight position={[11, 3, 1]} intensity={3} color="#9090ff" distance={20} decay={2} />
-      <pointLight position={[1, 3, 11]} intensity={3} color="#9090ff" distance={20} decay={2} />
-      <pointLight position={[11, 3, 11]} intensity={3} color="#9090ff" distance={20} decay={2} />
+
+      {/* Atmospheric corner rim lights - boosted */}
+      <pointLight position={[0.5, 4, 0.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
+      <pointLight position={[11.5, 4, 0.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
+      <pointLight position={[0.5, 4, 11.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
+      <pointLight position={[11.5, 4, 11.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
 
       {/* ── Floor ─────────────────────────────────────────────────────────── */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[LOBBY_SIZE / 2, 0, LOBBY_SIZE / 2]} receiveShadow>
         <planeGeometry args={[LOBBY_SIZE, LOBBY_SIZE]} />
-        <meshStandardMaterial color="#2a2a5a" roughness={0.5} metalness={0.4} />
+        <meshStandardMaterial
+          map={floorTex}
+          color="#ffffff" // Fully white multiplier for max texture visibility
+          roughness={0.6}
+          metalness={0.1}
+        />
       </mesh>
 
       {/* ── Ceiling ───────────────────────────────────────────────────────── */}
       <mesh rotation={[Math.PI / 2, 0, 0]} position={[LOBBY_SIZE / 2, LOBBY_HEIGHT, LOBBY_SIZE / 2]}>
         <planeGeometry args={[LOBBY_SIZE, LOBBY_SIZE]} />
-        <meshStandardMaterial color="#1a1a38" />
+        <meshStandardMaterial
+          map={ceilingTex}
+          metalness={0.9}
+          roughness={0.1}
+          emissive="#1a1a38"
+          emissiveIntensity={0.2}
+        />
       </mesh>
 
       {/* ── Walls (north / south) ─────────────────────────────────────────── */}
@@ -93,7 +131,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
           position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, side === 'north' ? 0 : LOBBY_SIZE]}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
-          <meshStandardMaterial color="#383870" side={2} roughness={0.7} />
+          <meshStandardMaterial color="#1a1a45" side={2} roughness={0.6} metalness={0.1} />
         </mesh>
       ))}
 
@@ -105,21 +143,21 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
           position={[side === 'east' ? LOBBY_SIZE : 0, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
-          <meshStandardMaterial color="#383870" side={2} roughness={0.7} />
+          <meshStandardMaterial color="#1a1a45" side={2} roughness={0.6} metalness={0.1} />
         </mesh>
       ))}
 
-      {/* ── Title text — at eye level, facing north (toward -Z) ──────────── */}
-      {/* Positioned on the south wall (z=12) so you see it when looking ahead */}
+      {/* ── Title text — facing camera ──────────── */}
       <Text
-        position={[LOBBY_SIZE / 2, 3.5, LOBBY_SIZE - 0.1]}
-        rotation={[0, Math.PI, 0]}   // face the camera (-Z direction)
-        fontSize={0.7}
-        color="#d0b8ff"
+        position={[LOBBY_SIZE / 2, 3.8, LOBBY_SIZE - 0.15]}
+        rotation={[0, Math.PI, 0]}
+        fontSize={0.85}
+        color="#f0e0ff"
         anchorX="center"
         anchorY="middle"
-        outlineColor="#6040c0"
-        outlineWidth={0.02}
+        font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
+        outlineColor="#d4af37" // Golden outline
+        outlineWidth={0.03}
       >
         Memory Palace
       </Text>
@@ -149,6 +187,47 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom }: LobbyProps) {
           />
         );
       })}
+
+      {/* Bird's-eye Labeled Island visuals for Lobby */}
+      {isOverviewMode && (
+        <>
+          <Text
+            position={[LOBBY_SIZE / 2, LOBBY_HEIGHT + 2.5, LOBBY_SIZE / 2]}
+            fontSize={1.5}
+            letterSpacing={0.2}
+            color="#FFFFFF"
+            anchorX="center"
+            anchorY="middle"
+            font="https://fonts.gstatic.com/s/cinzel/v11/qnVl4DHEMmaAdG4zW_vR5S-v.woff2"
+            outlineWidth={0.07}
+            outlineColor="#000000"
+          >
+            LOBBY
+          </Text>
+
+          <mesh
+            position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onEnterLobby) onEnterLobby();
+              else {
+                // Default transition to lobby center
+                const { startTransition } = useTransitionStore.getState();
+                startTransition('enter', () => {
+                  usePalaceStore.getState().setCurrentRoomId(null);
+                  useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
+                  useCameraStore.getState().exitOverview();
+                });
+              }
+            }}
+            onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+            onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+          >
+            <boxGeometry args={[LOBBY_SIZE + 1, LOBBY_HEIGHT + 2, LOBBY_SIZE + 1]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        </>
+      )}
     </group>
   );
 }
