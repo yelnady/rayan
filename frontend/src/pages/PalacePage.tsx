@@ -10,7 +10,9 @@ import { CapturePreview } from '../components/capture/CapturePreview';
 import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
 import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
 import { ActionBar } from '../components/hud/ActionBar';
+import { ToolActivityToast } from '../components/hud/ToolActivityToast';
 import { ResponsePanel } from '../components/voice/ResponsePanel';
+import { TransitionOverlay } from '../components/hud/TransitionOverlay';
 import { usePalaceStore } from '../stores/palaceStore';
 import { useCameraStore } from '../stores/cameraStore';
 import { useCaptureStore } from '../stores/captureStore';
@@ -38,6 +40,20 @@ export function PalacePage() {
       void connectVoice();
     }
   }, [currentRoomId, voiceStatus, connectVoice]);
+
+  // Send context update to live session whenever the user enters a different room
+  const prevRoomIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (prevRoomIdRef.current === undefined) {
+      // Skip the very first render (session not open yet)
+      prevRoomIdRef.current = currentRoomId;
+      return;
+    }
+    if (currentRoomId !== prevRoomIdRef.current) {
+      prevRoomIdRef.current = currentRoomId;
+      ws.sendContextUpdate(currentRoomId);
+    }
+  }, [currentRoomId, ws]);
 
   // React to agent-selected artifact: open modal + rotate camera toward it
   const agentSelectedArtifactId = usePalaceStore((s) => s.agentSelectedArtifactId);
@@ -135,6 +151,9 @@ export function PalacePage() {
       {/* HUD — bottom-center: unified action bar */}
       <ActionBar />
 
+      {/* Tool activity toast — appears when Gemini calls a tool */}
+      <ToolActivityToast />
+
       {/* Click-to-explore hint — shown when palace is loaded but pointer is not yet locked */}
       {!loading && !error && (
         <div className="fixed bottom-[110px] left-1/2 -translate-x-1/2 z-hud pointer-events-none">
@@ -168,6 +187,9 @@ export function PalacePage() {
           onClose={() => setSelectedArtifact(null)}
         />
       )}
+
+      {/* Magical Transition Overlay */}
+      <TransitionOverlay />
     </>
   );
 }

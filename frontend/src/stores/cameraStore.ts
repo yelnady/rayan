@@ -14,6 +14,10 @@ interface CameraState {
     lookAtTarget: { x: number; y: number; z: number } | null;
     lookAtToken: number;
     lookAt: (position: { x: number; y: number; z: number }) => void;
+    /** Bird's-eye overview mode */
+    isOverviewMode: boolean;
+    enterOverview: () => void;
+    exitOverview: () => void;
 }
 
 export const useCameraStore = create<CameraState>((set) => ({
@@ -31,4 +35,7 @@ export const useCameraStore = create<CameraState>((set) => ({
         lookAtTarget: position,
         lookAtToken: s.lookAtToken + 1,
     })),
+    isOverviewMode: false,
+    enterOverview: () => set({ isOverviewMode: true }),
+    exitOverview: () => set({ isOverviewMode: false }),
 }));
