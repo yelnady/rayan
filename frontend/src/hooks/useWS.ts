@@ -15,6 +15,8 @@ import { useCameraStore } from '../stores/cameraStore';
 import { useVoiceStore } from '../stores/voiceStore';
 import { AudioPlayback } from '../services/audioPlayback';
 import { useEnrichmentStore } from '../stores/enrichmentStore';
+import { useTransitionStore } from '../stores/transitionStore';
+import { stopVoiceSession } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;
 /** Singleton AudioPlayback shared across listeners (reset on disconnect). */
@@ -118,57 +120,61 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       }, 2500);
     }),
+    ws.on('live_tool_call', (msg) => {
+      // Add inline event to conversation log
+      useVoiceStore.getState().addToolEvent(msg.label, msg.tool);
+      // Show activity toast
+      useVoiceStore.getState().setToolActivity({ tool: msg.tool, label: msg.label });
+      setTimeout(() => useVoiceStore.getState().setToolActivity(null), 4_000);
 
-    // ── Legacy: response_chunk / response_complete for text_query fallback ─
-    ws.on('response_chunk', (msg) => {
-      const voiceStore = useVoiceStore.getState();
-      voiceStore.setStatus('responding');
-
-      if (msg.content.text) {
-        voiceStore.appendTranscript(msg.content.text);
-        voiceStore.appendRayanText(msg.content.text);
-      }
-      if (msg.content.audioChunk && _playback) {
-        void _playback.enqueue(msg.content.audioChunk);
-      }
-      if (msg.content.generatedImage) {
-        voiceStore.addDiagram(msg.content.generatedImage);
-      }
-
-      if (msg.content.navigation) {
-        const nav = msg.content.navigation;
+      // Navigate to room (with transition animation + sound)
+      if (msg.payload.navigation?.enterRoom) {
+        const nav = msg.payload.navigation;
+        const isLobby = nav.targetRoomId === 'lobby';
         const palaceStore = usePalaceStore.getState();
+        const currentRoomId = palaceStore.currentRoomId;
+        const targetRoomId = isLobby ? null : nav.targetRoomId;
+
+        if (currentRoomId !== targetRoomId) {
+          useTransitionStore.getState().startTransition('enter', () => {
+            palaceStore.setCurrentRoomId(targetRoomId);
+            if (!isLobby) {
+              const room = palaceStore.rooms.find((r) => r.id === nav.targetRoomId);
+              if (room) {
+                useCameraStore.getState().teleport({
+                  x: room.position.x + room.dimensions.w / 2,
+                  y: 1.7,
+                  z: room.position.z + room.dimensions.d / 2,
+                });
+              }
+            }
+            // Send context update so Gemini knows the new room's artifacts
+            _instance?.sendContextUpdate(targetRoomId);
+          });
+        }
 
         if (nav.highlightArtifacts?.length) {
           palaceStore.setHighlightedArtifacts(nav.highlightArtifacts);
-          setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5000);
+          setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
         }
-
-        if (nav.enterRoom && nav.targetRoomId && palaceStore.currentRoomId !== nav.targetRoomId) {
-          palaceStore.setCurrentRoomId(nav.targetRoomId);
-          const room = palaceStore.rooms.find((r) => r.id === nav.targetRoomId);
-          if (room) {
-            useCameraStore.getState().teleport({
-              x: room.position.x + room.dimensions.w / 2,
-              y: 1.7,
-              z: room.position.z + room.dimensions.d / 2,
-            });
-          }
-        }
-
         if (nav.selectedArtifactId) {
           palaceStore.setAgentSelectedArtifactId(nav.selectedArtifactId);
         }
       }
+
+      // Highlight a single artifact (no navigation)
+      if (msg.payload.artifactId) {
+        usePalaceStore.getState().setHighlightedArtifacts([msg.payload.artifactId]);
+        setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+      }
+
+      // Server-initiated session end
+      if (msg.tool === 'end_session') {
+        stopVoiceSession();
+      }
     }),
-    ws.on('response_complete', (_msg) => {
-      setTimeout(() => {
-        const voiceStore = useVoiceStore.getState();
-        if (voiceStore.status === 'responding') {
-          voiceStore.setStatus('connected');
-        }
-      }, 2500);
-    }),
+
+    // ── Legacy: artifact_recall ──────────────────────────────────────────
     ws.on('artifact_recall', (msg) => {
       const voiceStore = useVoiceStore.getState();
       voiceStore.setNarration(msg.content);
