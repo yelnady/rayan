@@ -18,8 +18,9 @@ export type VoiceStatus = 'disconnected' | 'connecting' | 'connected' | 'respond
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'rayan';
+  role: 'user' | 'rayan' | 'tool';
   text: string;
+  toolName?: string;
 }
 
 export interface DiagramEntry {
@@ -32,8 +33,7 @@ interface VoiceState {
   status: VoiceStatus;
   /** Whether the microphone is muted (session stays open) */
   muted: boolean;
-  /** UUID of the active query (kept for backward compat with text_query) */
-  activeQueryId: string | null;
+
   /** Accumulated transcript text from live_text messages (legacy) */
   transcript: string;
   /** Chat conversation messages (user + rayan turns) */
@@ -44,19 +44,24 @@ interface VoiceState {
   currentNarration: ArtifactRecallMessage['content'] | null;
   /** Human-readable error message */
   error: string | null;
+  /** Active tool call notification — cleared after display */
+  toolActivity: { tool: string; label: string } | null;
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setStatus: (status: VoiceStatus) => void;
   setMuted: (muted: boolean) => void;
-  setActiveQueryId: (queryId: string | null) => void;
+
   appendTranscript: (text: string) => void;
   /** Append text to the last rayan message, or create a new one */
   appendRayanText: (text: string) => void;
   /** Append text to the last user message, or create a new one */
   appendUserText: (text: string) => void;
+  /** Add an inline tool-call event to the conversation log */
+  addToolEvent: (text: string, toolName: string) => void;
   addDiagram: (diagram: DiagramEntry) => void;
   setNarration: (narration: ArtifactRecallMessage['content'] | null) => void;
   setError: (error: string | null) => void;
+  setToolActivity: (activity: { tool: string; label: string } | null) => void;
   /** Reset transient state (transcript, diagrams) but keep session status */
   resetTranscript: () => void;
   /** Full reset to disconnected state */
@@ -68,12 +73,13 @@ interface VoiceState {
 const defaultState = {
   status: 'disconnected' as VoiceStatus,
   muted: false,
-  activeQueryId: null,
+
   transcript: '',
   messages: [] as ChatMessage[],
   diagrams: [] as DiagramEntry[],
   currentNarration: null,
   error: null,
+  toolActivity: null as { tool: string; label: string } | null,
 };
 
 export const useVoiceStore = create<VoiceState>((set) => ({
@@ -81,7 +87,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
 
   setStatus: (status) => set({ status }),
   setMuted: (muted) => set({ muted }),
-  setActiveQueryId: (activeQueryId) => set({ activeQueryId }),
+
   appendTranscript: (text) =>
     set((state) => ({ transcript: state.transcript ? `${state.transcript}${text}` : text })),
   appendRayanText: (text) =>
@@ -106,10 +112,15 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       }
       return { messages: msgs };
     }),
+  addToolEvent: (text, toolName) =>
+    set((state) => ({
+      messages: [...state.messages, { id: `tool-${Date.now()}`, role: 'tool', text, toolName }],
+    })),
   addDiagram: (diagram) =>
     set((state) => ({ diagrams: [...state.diagrams, diagram] })),
   setNarration: (currentNarration) => set({ currentNarration }),
   setError: (error) => set({ error, status: 'error' }),
+  setToolActivity: (toolActivity) => set({ toolActivity }),
   resetTranscript: () => set({ transcript: '', diagrams: [], currentNarration: null }),
   reset: () => set(defaultState),
 }));
