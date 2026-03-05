@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo } from 'react';
+import { Suspense, useCallback, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
@@ -7,6 +7,7 @@ import { Corridor } from './Corridor';
 import { Artifact } from '../artifacts/Artifact';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useCameraStore } from '../../stores/cameraStore';
+import { useTransitionStore } from '../../stores/transitionStore';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import type { DoorSpec } from '../../types/three';
 import type { LobbyDoor, WallPosition } from '../../types/palace';
@@ -17,7 +18,10 @@ import type { LobbyDoor, WallPosition } from '../../types/palace';
 //   Add to <Canvas> gl prop: { onCreated: ({ gl }) => { gl.initGLContext?.(); } }
 //   Then use: const floorTex = useKTX2('/textures/floor.ktx2') in theme decorators.
 
-import { BakeShadows } from '@react-three/drei';
+import { BakeShadows, useTexture, OrbitControls } from '@react-three/drei';
+import { EffectComposer, N8AO } from '@react-three/postprocessing';
+import * as THREE from 'three';
+import { useThree } from '@react-three/fiber';
 
 const CANVAS_STYLE: React.CSSProperties = {
   position: 'fixed',
@@ -25,15 +29,72 @@ const CANVAS_STYLE: React.CSSProperties = {
   background: '#060614',
 };
 
-
 const WALL_CYCLE: WallPosition[] = ['north', 'east', 'south', 'west'];
 
 interface PalaceCanvasProps {
   onArtifactClick?: (artifact: ArtifactData) => void;
 }
 
+// Global massive ground plane that sits slightly below all rooms
+function PalaceGround() {
+  const groundTex = useTexture('/textures/palace_ground_texture.png');
+  const groundMaterial = useMemo(() => {
+    const tex = groundTex.clone();
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(50, 50); // Tile it heavily so it looks detailed across a massive area
+    tex.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({
+      map: tex,
+      color: '#A0A0A0', // Slightly darken it so it's a moody background, not overly bright
+      roughness: 0.6,
+      metalness: 0.2, // Give it a slight sheen
+    });
+  }, [groundTex]);
+
+  return (
+    <mesh
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, -0.1, 0]} // Just below the floors of the rooms (y=0)
+      receiveShadow
+    >
+      <planeGeometry args={[500, 500]} />
+      <primitive object={groundMaterial} attach="material" />
+    </mesh>
+  );
+}
+
+// Positions the camera bird's-eye style when overview mode is entered
+function OverviewCameraRig({ centerX, centerZ }: { centerX: number; centerZ: number }) {
+  const { camera } = useThree();
+  const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+
+  useEffect(() => {
+    if (!isOverviewMode) return;
+    // Cinematic tilted perspective: elevated and pulled back along Z
+    camera.position.set(centerX, 35, centerZ + 45);
+    camera.lookAt(centerX, 0, centerZ);
+    (camera as THREE.PerspectiveCamera).fov = 50;
+    (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+  }, [isOverviewMode, camera, centerX, centerZ]);
+
+  return null;
+}
+
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
   const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
+  const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+
+  // Compute centroid of all rooms (+ lobby at 6,0,6) for overview camera target
+  const overviewCenter = useMemo(() => {
+    if (rooms.length === 0) return { x: 6, z: 6 };
+    const xs = rooms.map((r) => r.position.x + r.dimensions.w / 2);
+    const zs = rooms.map((r) => r.position.z + r.dimensions.d / 2);
+    xs.push(6); zs.push(6); // include lobby center
+    return {
+      x: xs.reduce((a, b) => a + b, 0) / xs.length,
+      z: zs.reduce((a, b) => a + b, 0) / zs.length,
+    };
+  }, [rooms]);
 
   // Compute raw lobby doors (used in useMemo below — must happen before any hooks)
   const rawLobbyDoors = (() => {
@@ -53,16 +114,18 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
 
   // T157: Stable callback so Lobby/Door children don't re-render on every PalaceCanvas render
   const handleEnterRoom = useCallback((roomId: string) => {
-    const state = usePalaceStore.getState();
-    state.setCurrentRoomId(roomId);
-    const targetRoom = state.rooms.find(r => r.id === roomId);
-    if (targetRoom) {
-      useCameraStore.getState().teleport({
-        x: targetRoom.position.x + targetRoom.dimensions.w / 2,
-        y: 1.7,
-        z: targetRoom.position.z + targetRoom.dimensions.d / 2,
-      });
-    }
+    useTransitionStore.getState().startTransition('enter', () => {
+      const state = usePalaceStore.getState();
+      state.setCurrentRoomId(roomId);
+      const targetRoom = state.rooms.find(r => r.id === roomId);
+      if (targetRoom) {
+        useCameraStore.getState().teleport({
+          x: targetRoom.position.x + targetRoom.dimensions.w / 2,
+          y: 1.7,
+          z: targetRoom.position.z + targetRoom.dimensions.d / 2,
+        });
+      }
+    });
   }, []);
 
   // Show nothing until the palace record itself exists (very brief flash at most)
@@ -91,6 +154,9 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
 
         <Suspense fallback={null}>
           <BakeShadows />
+          {/* Universal palace ground floor */}
+          <PalaceGround />
+
           {/* Lobby — always rendered; doors are empty when layout hasn't loaded yet */}
           <Lobby
             lobbyDoors={lobbyDoors}
@@ -122,6 +188,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
                 doors={doors}
                 artifacts={roomArtifacts}
                 onArtifactClick={onArtifactClick}
+                onEnter={() => handleEnterRoom(room.id)}
               >
                 {nonInstancedArtifacts.map((artifact) => (
                   <Artifact
@@ -143,27 +210,27 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
             if (!from || !to) return null;
             return <Corridor key={i} from={from} to={to} />;
           })}
+
+          <EffectComposer enableNormalPass={false}>
+            <N8AO aoRadius={0.5} intensity={2} color="black" />
+          </EffectComposer>
         </Suspense>
 
-        <FirstPersonControls />
+        <OverviewCameraRig centerX={overviewCenter.x} centerZ={overviewCenter.z} />
+        {isOverviewMode
+          ? <OrbitControls
+            enablePan={true}
+            enableZoom={true}
+            enableRotate={true}
+            minPolarAngle={0}
+            maxPolarAngle={Math.PI / 2.2}
+            target={[overviewCenter.x, 0, overviewCenter.z]}
+          />
+          : <FirstPersonControls />
+        }
       </Canvas>
 
-      {/* Target Crosshair */}
-      <div
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          width: '6px',
-          height: '6px',
-          backgroundColor: 'white',
-          borderRadius: '50%',
-          transform: 'translate(-50%, -50%)',
-          pointerEvents: 'none',
-          mixBlendMode: 'difference',
-          zIndex: 1000,
-        }}
-      />
+      {/* Target Crosshair Removed */}
     </>
   );
 }
