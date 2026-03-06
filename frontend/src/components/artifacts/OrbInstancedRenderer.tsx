@@ -22,7 +22,6 @@ import { useEnrichmentStore } from '../../stores/enrichmentStore';
 
 const ORB_RADIUS = 0.18;
 const FLOAT_SPEED = 1.1;
-const FLOAT_AMPLITUDE = 0.05;
 const ORBIT_RADIUS = 0.3;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
@@ -111,7 +110,6 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
 
             const { x, z } = entry.artifact.position;
             const baseY = entry.artifact.position.y;
-            const floatY = baseY + Math.sin(timesRef.current[i]) * FLOAT_AMPLITUDE;
 
             const isPulsing = newEnrichmentIds.has(entry.artifact.id);
             const pulseScale = isPulsing
@@ -119,7 +117,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                 : 1;
             const hoverScale = hoveredIdx === i ? 1.2 : 1;
 
-            DUMMY.position.set(x, floatY, z);
+            DUMMY.position.set(x, baseY, z);
             DUMMY.rotation.y = orbSpinsRef.current[i].ry;
             DUMMY.rotation.x = orbSpinsRef.current[i].rx;
             DUMMY.scale.setScalar(pulseScale * hoverScale);
@@ -144,7 +142,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                 const ry2 = ly * cosX - rz2 * sinX;
                 const rz3 = ly * sinX + rz2 * cosX;
 
-                DUMMY.position.set(x + rx2, floatY + ry2, z + rz3);
+                DUMMY.position.set(x + rx2, baseY + ry2, z + rz3);
                 DUMMY.rotation.set(0, 0, 0);
                 DUMMY.scale.setScalar(1);
                 DUMMY.updateMatrix();

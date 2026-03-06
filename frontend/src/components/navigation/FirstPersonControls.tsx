@@ -2,6 +2,10 @@ import { useEffect, useRef } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useCameraStore } from '../../stores/cameraStore';
+import { usePalaceStore } from '../../stores/palaceStore';
+
+const LOBBY_SIZE = 12;
+const WALL_MARGIN = 0.5; // camera stays this far from each wall
 
 const MOVE_SPEED = 30;
 const MAX_VELOCITY = 6;
@@ -19,6 +23,9 @@ interface FirstPersonControlsProps {
 export function FirstPersonControls({ onPositionChange }: FirstPersonControlsProps) {
     const { camera, gl } = useThree();
     const keysRef = useRef({ w: false, a: false, s: false, d: false });
+    const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+    const currentRoomId = usePalaceStore((s) => s.currentRoomId);
+    const rooms = usePalaceStore((s) => s.rooms);
     const velocity = useRef(new THREE.Vector3());
     const direction = useRef(new THREE.Vector3());
     const bobTimer = useRef(0);
@@ -27,12 +34,16 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const isDragging = useRef(false);
     const yaw = useRef(Math.PI); // start looking toward -Z (into the lobby)
     const pitch = useRef(0);
+    // Zoom state
+    const zoomFov = useRef(DEFAULT_FOV);
+    const MIN_FOV = 30; // Max zoom in
+    const MAX_FOV = 100; // Max zoom out
 
     // Apply initial camera orientation
     useEffect(() => {
-        camera.position.copy(SPAWN);
-        (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+        (camera as THREE.PerspectiveCamera).fov = zoomFov.current;
         (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+        // yaw and pitch are already initialized correctly, so we just set camera rotation once
         camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
     }, [camera]);
 
@@ -44,7 +55,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         yaw.current = Math.PI;
         pitch.current = 0;
         camera.quaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0, 'YXZ'));
-        (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
+        zoomFov.current = DEFAULT_FOV;
+        (camera as THREE.PerspectiveCamera).fov = zoomFov.current;
         (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
         velocity.current.set(0, 0, 0);
     }, [resetToken, camera]);
@@ -110,6 +122,14 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             // Clamp pitch to avoid flipping
             pitch.current = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch.current));
         }
+        function onWheel(e: WheelEvent) {
+            // Adjust zoom base FOV depending on scroll delta
+            const zoomSpeed = 0.05;
+            zoomFov.current = Math.max(
+                MIN_FOV,
+                Math.min(MAX_FOV, zoomFov.current + e.deltaY * zoomSpeed)
+            );
+        }
         function onContextMenu(e: Event) {
             e.preventDefault(); // suppress right-click menu on canvas
         }
@@ -119,6 +139,7 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         canvas.addEventListener('mousedown', onMouseDown);
         document.addEventListener('mouseup', onMouseUp);
         document.addEventListener('mousemove', onMouseMove);
+        canvas.addEventListener('wheel', onWheel, { passive: true });
         canvas.addEventListener('contextmenu', onContextMenu);
 
         return () => {
@@ -127,11 +148,15 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             canvas.removeEventListener('mousedown', onMouseDown);
             document.removeEventListener('mouseup', onMouseUp);
             document.removeEventListener('mousemove', onMouseMove);
+            canvas.removeEventListener('wheel', onWheel);
             canvas.removeEventListener('contextmenu', onContextMenu);
         };
     }, [gl]);
 
     useFrame((_, delta) => {
+        // Skip movement in overview mode
+        if (isOverviewMode) return;
+
         // Apply camera rotation from yaw/pitch
         camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
 
@@ -170,11 +195,28 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             bobTimer.current = 0;
         }
 
-        // Dynamic FOV
-        const targetFov = DEFAULT_FOV + Math.min(speed / MAX_VELOCITY, 1.0) * MAX_SPEED_FOV_BOOST;
+        // Dynamic FOV + Scroll Zoom
+        const targetFov = zoomFov.current + Math.min(speed / MAX_VELOCITY, 1.0) * MAX_SPEED_FOV_BOOST;
         const cam = camera as THREE.PerspectiveCamera;
-        cam.fov = THREE.MathUtils.lerp(cam.fov, targetFov, delta * 5);
+        cam.fov = THREE.MathUtils.lerp(cam.fov, targetFov, delta * 10); // slightly faster lerp for zoom responsiveness
         cam.updateProjectionMatrix();
+
+        // ── Collision clamping ──────────────────────────────────────────────────
+        if (currentRoomId) {
+            const room = rooms.find((r) => r.id === currentRoomId);
+            if (room) {
+                const minX = room.position.x + WALL_MARGIN;
+                const maxX = room.position.x + room.dimensions.w - WALL_MARGIN;
+                const minZ = room.position.z + WALL_MARGIN;
+                const maxZ = room.position.z + room.dimensions.d - WALL_MARGIN;
+                camera.position.x = Math.max(minX, Math.min(maxX, camera.position.x));
+                camera.position.z = Math.max(minZ, Math.min(maxZ, camera.position.z));
+            }
+        } else {
+            // In lobby — clamp to lobby bounds
+            camera.position.x = Math.max(WALL_MARGIN, Math.min(LOBBY_SIZE - WALL_MARGIN, camera.position.x));
+            camera.position.z = Math.max(WALL_MARGIN, Math.min(LOBBY_SIZE - WALL_MARGIN, camera.position.z));
+        }
 
         onPositionChange?.(camera.position);
     });

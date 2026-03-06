@@ -1,5 +1,4 @@
 import { memo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
 import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
 import type { Group } from 'three';
@@ -14,8 +13,6 @@ interface FloatingBookProps {
 const BOOK_W = 0.22;
 const BOOK_H = 0.3;
 const BOOK_D = 0.06;
-const FLOAT_AMPLITUDE = 0.06;
-const FLOAT_SPEED = 1.2;
 
 export const FloatingBook = memo(function FloatingBook({
   position,
@@ -24,14 +21,6 @@ export const FloatingBook = memo(function FloatingBook({
   onHover,
 }: FloatingBookProps) {
   const groupRef = useRef<Group>(null);
-  const timeRef = useRef(Math.random() * Math.PI * 2); // phase offset per book
-
-  useFrame((_, delta) => {
-    if (!groupRef.current) return;
-    timeRef.current += delta * FLOAT_SPEED;
-    groupRef.current.position.y = Math.sin(timeRef.current) * FLOAT_AMPLITUDE;
-    groupRef.current.rotation.y += delta * 0.3;
-  });
 
   function handlePointerOver() {
     if (!groupRef.current) return;
