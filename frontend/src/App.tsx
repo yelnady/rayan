@@ -2,8 +2,6 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { GoogleSignIn } from './components/auth/GoogleSignIn';
 import { PalacePage } from './pages/PalacePage';
-import { IsoPalacePage } from './pages/IsoPalacePage';
-import { IslandPalacePage } from './pages/IslandPalacePage';
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 
@@ -92,16 +90,6 @@ function LoginPage() {
   );
 }
 
-// ── Placeholder ───────────────────────────────────────────────────────────────
-
-function PlaceholderPage({ name }: { name: string }) {
-  return (
-    <div className="p-8 font-body text-text-secondary">
-      {name} — coming soon
-    </div>
-  );
-}
-
 // ── App Router ────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -114,30 +102,6 @@ export default function App() {
           element={
             <AuthGuard>
               <PalacePage />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/iso"
-          element={
-            <AuthGuard>
-              <IsoPalacePage />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/island"
-          element={
-            <AuthGuard>
-              <IslandPalacePage />
-            </AuthGuard>
-          }
-        />
-        <Route
-          path="/dashboard"
-          element={
-            <AuthGuard>
-              <PlaceholderPage name="Dashboard" />
             </AuthGuard>
           }
         />

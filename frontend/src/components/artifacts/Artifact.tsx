@@ -27,10 +27,9 @@ interface ArtifactProps {
   artifact: ArtifactData;
   onClick?: (artifact: ArtifactData) => void;
   onHover?: (artifact: ArtifactData | null) => void;
-  isHighlighted?: boolean;
 }
 
-export const Artifact = memo(function Artifact({ artifact, onClick, onHover, isHighlighted }: ArtifactProps) {
+export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
   const [hovered, setHovered] = useState(false);
 
   const pos = useMemo<[number, number, number]>(
@@ -68,9 +67,6 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, isH
 
   return (
     <>
-      {isHighlighted && (
-        <pointLight position={pos} intensity={3} distance={2.5} decay={2} color="#ffffff" />
-      )}
       {visual}
 
       {/* Invisible hover hitbox — much easier to target than the small artifact mesh */}
@@ -154,6 +150,5 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, isH
   );
 }, (prev: ArtifactProps, next: ArtifactProps) =>
   prev.artifact.id === next.artifact.id &&
-  prev.artifact.visual === next.artifact.visual &&
-  prev.isHighlighted === next.isHighlighted,
+  prev.artifact.visual === next.artifact.visual,
 );
