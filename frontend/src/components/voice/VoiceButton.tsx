@@ -1,15 +1,12 @@
 import { useVoice } from '../../hooks/useVoice';
 
 export function VoiceButton({ className = '' }: { className?: string }) {
-    const { status, muted, interrupt, connect, disconnect } = useVoice();
+    const { status, muted, connect, disconnect } = useVoice();
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') {
             await connect();
-        } else if (status === 'connected') {
-            disconnect();
-        } else if (status === 'responding') {
-            interrupt();
+        } else if (status === 'connected' || status === 'responding') {
             disconnect();
         }
     };

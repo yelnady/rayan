@@ -30,29 +30,7 @@ export interface CaptureCompleteMessage {
   voiceSummary: string;
 }
 
-export interface ResponseChunkMessage {
-  type: "response_chunk";
-  queryId: string;
-  chunkIndex: number;
-  content: {
-    audioChunk: string | null;
-    text: string | null;
-    generatedImage: { url: string; position: { x: number; y: number; z: number } } | null;
-    navigation: {
-      targetRoomId: string;
-      highlightArtifacts: string[];
-      enterRoom: boolean;
-      selectedArtifactId: string | null;
-    } | null;
-    connectionCreated: { fromRoomId: string; toRoomId: string; reason: string } | null;
-  };
-  isComplete: boolean;
-}
 
-export interface ResponseCompleteMessage {
-  type: "response_complete";
-  queryId: string;
-}
 
 export interface ArtifactRecallMessage {
   type: "artifact_recall";
@@ -140,11 +118,25 @@ export interface LiveTurnCompleteMessage {
   type: "live_turn_complete";
 }
 
+export interface LiveToolCallMessage {
+  type: "live_tool_call";
+  tool: "navigate_to_room" | "highlight_artifact" | "save_artifact" | "end_session";
+  label: string;
+  payload: {
+    navigation?: {
+      targetRoomId: string;
+      highlightArtifacts: string[];
+      enterRoom: boolean;
+      selectedArtifactId: string | null;
+    };
+    artifactId?: string;
+  };
+}
+
 export type ServerMessage =
   | CaptureAckMessage
   | CaptureCompleteMessage
-  | ResponseChunkMessage
-  | ResponseCompleteMessage
+  | CaptureCompleteMessage
   | ArtifactRecallMessage
   | EnrichmentUpdateMessage
   | PalaceUpdateMessage
@@ -156,7 +148,8 @@ export type ServerMessage =
   | LiveTextMessage
   | LiveUserTextMessage
   | LiveInterruptedMessage
-  | LiveTurnCompleteMessage;
+  | LiveTurnCompleteMessage
+  | LiveToolCallMessage;
 
 // ── Listener types ───────────────────────────────────────────────────────────
 
@@ -211,17 +204,7 @@ export class RayanWebSocket {
     this._send({ type: "capture_end", sessionId });
   }
 
-  sendVoiceQuery(queryId: string, audioData: string, context: { currentRoomId: string | null; focusedArtifactId: string | null }): void {
-    this._send({ type: "voice_query", queryId, audioData, context });
-  }
 
-  sendTextQuery(queryId: string, text: string, context: { currentRoomId: string | null; focusedArtifactId: string | null }): void {
-    this._send({ type: "text_query", queryId, text, context });
-  }
-
-  sendInterrupt(): void {
-    this._send({ type: "interrupt" });
-  }
 
   sendArtifactClick(artifactId: string, roomId: string): void {
     this._send({ type: "artifact_click", artifactId, roomId });
@@ -243,6 +226,10 @@ export class RayanWebSocket {
 
   sendLiveSessionEnd(): void {
     this._send({ type: "live_session_end" });
+  }
+
+  sendContextUpdate(roomId: string | null): void {
+    this._send({ type: "live_context_update", roomId });
   }
 
   // ── Listener registration ───────────────────────────────────────────────
