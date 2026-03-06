@@ -11,14 +11,27 @@ import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
 import { useCameraStore } from '../../stores/cameraStore';
+import { useTransitionStore } from '../../stores/transitionStore';
+import { usePalaceStore } from '../../stores/palaceStore';
 
 // ─── Reset View button ────────────────────────────────────────────────────────
 
 function ResetViewSection() {
     const resetView = useCameraStore((s) => s.resetView);
+    const exitOverview = useCameraStore((s) => s.exitOverview);
+
+    const handleReset = () => {
+        const { startTransition } = useTransitionStore.getState();
+        startTransition('exit', () => {
+            exitOverview();
+            usePalaceStore.getState().setCurrentRoomId(null);
+            resetView();
+        });
+    };
+
     return (
         <button
-            onClick={resetView}
+            onClick={handleReset}
             aria-label="Reset view to palace entrance"
             title="Reset View"
             className="flex flex-col items-center gap-1 py-1.5 px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
@@ -30,6 +43,40 @@ function ResetViewSection() {
             </div>
             <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 Reset
+            </span>
+        </button>
+    );
+}
+
+// ─── Overview button ──────────────────────────────────────────────────────────
+
+function OverviewSection() {
+    const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+    const enterOverview = useCameraStore((s) => s.enterOverview);
+    const exitOverview = useCameraStore((s) => s.exitOverview);
+
+    const handleClick = () => {
+        const { startTransition } = useTransitionStore.getState();
+        startTransition('enter', () => {
+            if (isOverviewMode) exitOverview();
+            else enterOverview();
+        });
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            aria-label={isOverviewMode ? 'Exit overview' : 'Show overview of all rooms'}
+            title={isOverviewMode ? 'Exit Overview' : 'Overview'}
+            className="flex flex-col items-center gap-1 py-1.5 px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+        >
+            <div
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95 ${isOverviewMode ? 'bg-primary' : 'bg-[rgba(0,0,0,0.04)]'}`}
+            >
+                <MapIcon active={isOverviewMode} />
+            </div>
+            <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
+                {isOverviewMode ? 'Exit Map' : 'Overview'}
             </span>
         </button>
     );
@@ -101,15 +148,11 @@ function CaptureSection() {
 // ─── Voice half ───────────────────────────────────────────────────────────────
 
 function VoiceSection() {
-    const { status, muted, toggleMute, interrupt, connect, disconnect } = useVoice();
+    const { status, muted, toggleMute, connect, disconnect } = useVoice();
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') await connect();
-        else if (status === 'connected') toggleMute();
-        else if (status === 'responding') {
-            if (!muted) toggleMute();
-            interrupt();
-        }
+        else if (status === 'connected' || status === 'responding') toggleMute();
     };
 
     const handleStop = () => {
@@ -140,15 +183,14 @@ function VoiceSection() {
         status === 'disconnected' ? 'Tap to connect'
             : status === 'connecting' ? 'Connecting…'
                 : status === 'error' ? 'Connection error'
-                    : isResponding ? 'Tap to interrupt'
+                    : isResponding ? 'Rayan is speaking…'
                         : muted ? 'Muted — tap to unmute'
                             : 'Listening…';
 
     const ariaLabel =
         status === 'disconnected' ? 'Connect voice'
-            : status === 'responding' ? 'Interrupt response'
-                : muted ? 'Unmute microphone'
-                    : 'Mute microphone';
+            : muted ? 'Unmute microphone'
+                : 'Mute microphone';
 
     return (
         <button
@@ -248,6 +290,14 @@ export function ActionBar() {
                     className="w-px h-12 bg-border-light mx-1 shrink-0"
                 />
 
+                <OverviewSection />
+
+                {/* Divider */}
+                <div
+                    aria-hidden="true"
+                    className="w-px h-12 bg-border-light mx-1 shrink-0"
+                />
+
                 <CaptureSection />
 
                 {/* Divider */}
@@ -268,6 +318,15 @@ function HomeIcon() {
     return (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(0,0,0,0.6)">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+        </svg>
+    );
+}
+
+function MapIcon({ active }: { active: boolean }) {
+    const fill = active ? '#ffffff' : 'rgba(0,0,0,0.6)';
+    return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill={fill}>
+            <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z" />
         </svg>
     );
 }
