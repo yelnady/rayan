@@ -18,7 +18,6 @@ interface CrystalOrbProps {
 
 const ORB_RADIUS = 0.18;
 const FLOAT_SPEED = 1.1;
-const FLOAT_AMPLITUDE = 0.05;
 const ORBIT_RADIUS = 0.3;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
@@ -48,9 +47,6 @@ export const CrystalOrb = memo(function CrystalOrb({
   useFrame((_, delta) => {
     if (!groupRef.current) return;
     timeRef.current += delta * FLOAT_SPEED;
-
-    // Float up/down
-    groupRef.current.position.y = Math.sin(timeRef.current) * FLOAT_AMPLITUDE;
 
     // Orb slow spin
     if (orbRef.current) {

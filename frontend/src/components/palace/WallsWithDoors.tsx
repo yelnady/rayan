@@ -155,6 +155,22 @@ export function WallsWithDoors({
     [width, depth, height, doorsPerWall],
   );
 
+  // Load the new roof texture
+  const roofTexture = useTexture('/textures/roof_texture.png');
+  const roofMaterial = useMemo(() => {
+    const tex = roofTexture.clone();
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // Tile the texture dynamically based on room size
+    tex.repeat.set(width / 4, depth / 4);
+    tex.needsUpdate = true;
+    return new THREE.MeshStandardMaterial({
+      color: '#FFFFFF', // Keep base white so we don't muddy the texture colors
+      map: tex,
+      roughness: 0.7,
+      metalness: 0.1,
+    });
+  }, [roofTexture, width, depth]);
+
   return (
     <>
       {walls.map((w) => (
@@ -172,10 +188,9 @@ export function WallsWithDoors({
         position={[width / 2, height + WALL_THICKNESS / 2, depth / 2]}
         castShadow
         receiveShadow
+        material={roofMaterial}
       >
         <boxGeometry args={[width + WALL_THICKNESS * 2, WALL_THICKNESS, depth + WALL_THICKNESS * 2]} />
-        {/* We use a neutral white/gray inner ceiling color if the theme doesn't override it with decor */}
-        <meshStandardMaterial color="#FFFFFF" roughness={0.9} />
       </mesh>
     </>
   );

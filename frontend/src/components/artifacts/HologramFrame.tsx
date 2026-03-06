@@ -28,11 +28,8 @@ export const HologramFrame = memo(function HologramFrame({
   const timeRef = useRef(Math.random() * Math.PI * 2);
 
   useFrame((_, delta) => {
-    if (!groupRef.current || !screenRef.current) return;
+    if (!screenRef.current) return;
     timeRef.current += delta * PULSE_SPEED;
-
-    // Gentle bob
-    groupRef.current.position.y = Math.sin(timeRef.current * 0.7) * 0.04;
 
     // Screen flicker opacity
     const mat = screenRef.current.material as { opacity: number };

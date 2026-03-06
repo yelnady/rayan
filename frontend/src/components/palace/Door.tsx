@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text } from '@react-three/drei';
+import { Text, useTexture } from '@react-three/drei';
+import * as THREE from 'three';
 import type { Group } from 'three';
 import type { WallSide } from '../../types/three';
 
@@ -19,6 +20,31 @@ export function Door({ wall, position, targetRoomName, onEnter }: DoorProps) {
   const groupRef = useRef<Group>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+
+  // Load the "nano banana" door texture
+  const doorTex = useTexture('/textures/door_texture.png');
+  const doorMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      map: doorTex,
+      roughness: 0.4,
+      metalness: 0.1,
+    });
+  }, [doorTex]);
+
+  const frameMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: '#3D2B1F', // Darker wood for the frame
+      roughness: 0.8,
+    });
+  }, []);
+
+  const handleMaterial = useMemo(() => {
+    return new THREE.MeshStandardMaterial({
+      color: '#D4AF37', // Gold/Brass handle
+      metalness: 0.9,
+      roughness: 0.1,
+    });
+  }, []);
 
   // Smoothly animate door open/close
   useFrame((_, delta) => {
@@ -47,29 +73,32 @@ export function Door({ wall, position, targetRoomName, onEnter }: DoorProps) {
       <group position={[-DOOR_WIDTH / 2, 0, 0]}>
         {/* Door panel — pivot at left edge */}
         <group ref={groupRef}>
-          <mesh
-            position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]}
-            onClick={handleClick}
-            onPointerOver={() => setHovered(true)}
-            onPointerOut={() => setHovered(false)}
-          >
-            <boxGeometry args={[DOOR_WIDTH, DOOR_HEIGHT, 0.06]} />
-            <meshStandardMaterial color={hovered ? '#EAE0D3' : '#D1BFAe'} roughness={0.9} />
-          </mesh>
+          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]} onClick={handleClick} onPointerOver={() => setHovered(true)} onPointerOut={() => setHovered(false)}>
+            <mesh castShadow>
+              <boxGeometry args={[DOOR_WIDTH, DOOR_HEIGHT, 0.08]} />
+              <primitive object={doorMaterial} attach="material" />
+            </mesh>
+
+            {/* Brass Handle */}
+            <mesh position={[DOOR_WIDTH / 2 - 0.2, 0, 0.06]} castShadow>
+              <sphereGeometry args={[0.06, 16, 16]} />
+              <primitive object={handleMaterial} attach="material" />
+            </mesh>
+          </group>
         </group>
 
         {/* Door frame */}
         <mesh position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, -0.04]}>
-          <boxGeometry args={[DOOR_WIDTH + 0.1, DOOR_HEIGHT + 0.1, 0.04]} />
-          <meshStandardMaterial color="#C1AA9A" roughness={0.8} />
+          <boxGeometry args={[DOOR_WIDTH + 0.1, DOOR_HEIGHT + 0.1, 0.1]} />
+          <primitive object={frameMaterial} attach="material" />
         </mesh>
 
         {/* Room label above door */}
         {targetRoomName && (
           <Text
-            position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.25, 0]}
-            fontSize={0.18}
-            color="#8B7355"
+            position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.35, 0.05]}
+            fontSize={0.2}
+            color={hovered ? '#D4AF37' : '#C1AA9A'}
             anchorX="center"
             anchorY="bottom"
           >

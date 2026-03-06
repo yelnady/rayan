@@ -1,135 +1,72 @@
 /**
- * T153 – BookInstancedRenderer
+ * BookInstancedRenderer
  *
- * Renders ALL 'Document' (floating book) artifacts in a room using the 
- * provided document.glb model via <Instances /> and <Instance /> from drei.
+ * Renders all 'Document' (floating book) artifacts in a room by cloning the
+ * full document.glb scene per artifact so its original textures and multi-mesh
+ * materials are preserved.
  */
 
 import { useRef, useMemo, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Html, useGLTF, Instances, Instance } from '@react-three/drei';
+import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
-
-const FLOAT_AMPLITUDE = 0.06;
-const FLOAT_SPEED = 1.2;
-const SPIN_SPEED = 0.3;
-
-interface BookEntry {
-    artifact: ArtifactData;
-    color: string;
-    phaseOffset: number;
-}
 
 interface BookInstancedRendererProps {
     artifacts: ArtifactData[];
     onClick?: (artifact: ArtifactData) => void;
 }
 
-const DEFAULT_BOOK_COLOR = '#60A8FF';
+interface DocumentItemProps {
+    artifact: ArtifactData;
+    onClick?: (artifact: ArtifactData) => void;
+}
 
-export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRendererProps) {
-    const count = artifacts.length;
+function DocumentItem({ artifact, onClick }: DocumentItemProps) {
+    const { scene } = useGLTF('/models/document.glb');
+    const groupRef = useRef<THREE.Group>(null);
+    const [hovered, setHovered] = useState(false);
 
-    // Load the provided document model once
-    const { nodes } = useGLTF('/models/document.glb') as any;
-
-    // Stable per-instance data: color + random phase offset (computed once on mount)
-    const entries = useMemo<BookEntry[]>(
-        () =>
-            artifacts.map((artifact) => ({
-                artifact,
-                color: artifact.color ?? DEFAULT_BOOK_COLOR,
-                phaseOffset: Math.random() * Math.PI * 2,
-            })),
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-        [artifacts.map((a) => a.id).join(',')],
-    );
-
-    const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
-    const timesRef = useRef<Float32Array>(new Float32Array(count));
-    const rotationsRef = useRef<Float32Array>(new Float32Array(count));
-
-    // Arrays of ref objects to drive each Instance individually
-    const instanceRefs = useRef<(THREE.Object3D | null)[]>([]);
-
-    // Init phase offsets
-    useMemo(() => {
-        timesRef.current = new Float32Array(entries.map((e) => e.phaseOffset));
-        rotationsRef.current = new Float32Array(count);
-    }, [entries, count]);
-
-
-    // Drive animation for all instances
-    useFrame((_, delta) => {
-        entries.forEach((entry, i) => {
-            const inst = instanceRefs.current[i];
-            if (!inst) return;
-
-            timesRef.current[i] += delta * FLOAT_SPEED;
-            rotationsRef.current[i] += delta * SPIN_SPEED;
-
-            const { x, z } = entry.artifact.position;
-            const baseY = entry.artifact.position.y;
-            const floatY = baseY + Math.sin(timesRef.current[i]) * FLOAT_AMPLITUDE;
-
-            inst.position.set(x, floatY, z);
-            inst.rotation.y = rotationsRef.current[i];
-
-            // Scale up hovered instance
-            const s = hoveredIdx === i ? 0.6 : 0.5; // Base scale is 0.5
-            inst.scale.setScalar(s);
+    // Deep-clone the scene so each instance has its own transform/material state
+    const clonedScene = useMemo(() => {
+        const clone = scene.clone(true);
+        // Ensure all meshes in the clone cast shadows
+        clone.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+                (child as THREE.Mesh).castShadow = true;
+                (child as THREE.Mesh).receiveShadow = true;
+            }
         });
+        return clone;
+    }, [scene]);
+
+    useFrame((_, delta) => {
+        if (!groupRef.current) return;
+        // Scale up slightly on hover
+        const targetScale = hovered ? 0.6 : 0.5;
+        const s = groupRef.current.scale.x;
+        groupRef.current.scale.setScalar(s + (targetScale - s) * Math.min(delta * 10, 1));
     });
-
-    if (count === 0) return null;
-
-    // Find the primary mesh inside the GLTF to use as the base for the Instances component
-    // Assuming the document.glb has at least one mesh child. We use its geometry and material properties.
-    const primaryNode = Object.values(nodes).find((n: any) => n.isMesh) as THREE.Mesh | undefined;
-
-    // Fallback just in case the GLTF fails to load an immediate mesh
-    const geometry = primaryNode?.geometry || new THREE.BoxGeometry(0.2, 0.3, 0.05);
 
     return (
         <>
-            <Instances
-                range={count}
-                geometry={geometry}
-                castShadow
-                receiveShadow
+            <group
+                ref={groupRef}
+                position={[artifact.position.x, artifact.position.y, artifact.position.z]}
+                scale={0.5}
+                onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
+                onPointerOut={() => setHovered(false)}
+                onClick={(e) => { e.stopPropagation(); onClick?.(artifact); }}
             >
-                {/* 
-                  Instead of copying the original material perfectly, we use a StandardMaterial 
-                  on the Instances wrapper to allow per-instance coloring (`color="..."`) to work!
-                */}
-                <meshBasicMaterial />
+                <primitive object={clonedScene} />
+            </group>
 
-                {entries.map((entry, i) => (
-                    <Instance
-                        key={entry.artifact.id}
-                        ref={(el) => (instanceRefs.current[i] = el as THREE.Object3D | null)}
-                        color={entry.color}
-                        onPointerMove={(e) => {
-                            e.stopPropagation();
-                            setHoveredIdx(i);
-                        }}
-                        onPointerLeave={() => setHoveredIdx(null)}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            onClick?.(entry.artifact);
-                        }}
-                    />
-                ))}
-            </Instances>
-
-            {/* Hovering tooltip — rendered at the hovered artifact's base position */}
-            {hoveredIdx !== null && entries[hoveredIdx] && (
+            {hovered && (
                 <Html
                     position={[
-                        entries[hoveredIdx].artifact.position.x,
-                        entries[hoveredIdx].artifact.position.y + 0.75,
-                        entries[hoveredIdx].artifact.position.z,
+                        artifact.position.x,
+                        artifact.position.y + 0.75,
+                        artifact.position.z,
                     ]}
                     center
                     distanceFactor={10}
@@ -140,7 +77,7 @@ export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRende
                         style={{
                             background: 'rgba(10,10,20,0.88)',
                             backdropFilter: 'blur(8px)',
-                            border: `1px solid #60A8FF44`,
+                            border: '1px solid #60A8FF44',
                             borderRadius: '10px',
                             padding: '8px 12px',
                             minWidth: '160px',
@@ -154,7 +91,7 @@ export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRende
                             Document
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.90)', lineHeight: 1.45, marginBottom: '6px' }}>
-                            {entries[hoveredIdx].artifact.summary}
+                            {artifact.summary}
                         </div>
                         <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.04em' }}>
                             Click to explore
@@ -162,6 +99,18 @@ export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRende
                     </div>
                 </Html>
             )}
+        </>
+    );
+}
+
+export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRendererProps) {
+    if (artifacts.length === 0) return null;
+
+    return (
+        <>
+            {artifacts.map((artifact) => (
+                <DocumentItem key={artifact.id} artifact={artifact} onClick={onClick} />
+            ))}
         </>
     );
 }
