@@ -1,5 +1,5 @@
-import { Suspense, useCallback, useEffect, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Suspense, useCallback, useMemo } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
@@ -21,7 +21,7 @@ import type { LobbyDoor, WallPosition } from '../../types/palace';
 import { BakeShadows, useTexture, OrbitControls } from '@react-three/drei';
 import { EffectComposer, N8AO } from '@react-three/postprocessing';
 import * as THREE from 'three';
-import { useThree } from '@react-three/fiber';
+
 
 const CANVAS_STYLE: React.CSSProperties = {
   position: 'fixed',
@@ -63,14 +63,15 @@ function PalaceGround() {
   );
 }
 
-// Positions the camera bird's-eye style when overview mode is entered
+// Positions the camera bird's-eye style when overview mode is entered.
+// Sets camera position during render (useMemo) so OrbitControls' constructor
+// already sees the correct position — useEffect would run too late.
 function OverviewCameraRig({ centerX, centerZ }: { centerX: number; centerZ: number }) {
   const { camera } = useThree();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
 
-  useEffect(() => {
+  useMemo(() => {
     if (!isOverviewMode) return;
-    // Cinematic tilted perspective: elevated and pulled back along Z
     camera.position.set(centerX, 35, centerZ + 45);
     camera.lookAt(centerX, 0, centerZ);
     (camera as THREE.PerspectiveCamera).fov = 50;
@@ -81,7 +82,7 @@ function OverviewCameraRig({ centerX, centerZ }: { centerX: number; centerZ: num
 }
 
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
-  const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
+  const { palace, layout, rooms, artifacts } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
 
   // Compute centroid of all rooms (+ lobby at 6,0,6) for overview camera target
@@ -120,10 +121,31 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       const targetRoom = state.rooms.find(r => r.id === roomId);
       if (targetRoom) {
         useCameraStore.getState().exitOverview();
+
+        const w = targetRoom.dimensions.w;
+        const d = targetRoom.dimensions.d;
+        const h = targetRoom.style === 'library' ? 5 : 4.5; // Roughly match Room.tsx heights
+
+        // Calculate room world bounds
+        const startX = targetRoom.position.x;
+        const startZ = targetRoom.position.z;
+
+        // Position camera at the "back" of the room (opposite the name wall at local Z=0)
+        // We push it back towards local Z=d as much as possible with a small margin
+        const entryX = startX + w / 2;
+        const entryZ = startZ + d - 1.5;
+
         useCameraStore.getState().teleport({
-          x: targetRoom.position.x + targetRoom.dimensions.w / 2,
-          y: 1.7,
-          z: targetRoom.position.z + targetRoom.dimensions.d / 2,
+          x: entryX,
+          y: 1.7, // Human eye level
+          z: entryZ,
+        });
+
+        // Facing the "front" wall (local Z=0) where the room name is
+        useCameraStore.getState().lookAt({
+          x: startX + w / 2,
+          y: h * 0.8, // Look slightly up towards the name plate
+          z: startZ,
         });
       }
     });
@@ -151,7 +173,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
           powerPreference: 'high-performance',
         }}
       >
-        <fog attach="fog" args={['#060614', 20, 80]} />
+        <fog attach="fog" args={['#060614', isOverviewMode ? 60 : 20, isOverviewMode ? 200 : 80]} />
 
         <Suspense fallback={null}>
           <BakeShadows />
@@ -196,7 +218,6 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
                     key={artifact.id}
                     artifact={artifact}
                     onClick={onArtifactClick}
-                    isHighlighted={highlightedArtifactIds.includes(artifact.id)}
                   />
                 ))}
               </Room>

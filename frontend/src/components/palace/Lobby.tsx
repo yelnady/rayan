@@ -162,6 +162,22 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
         Memory Palace
       </Text>
 
+      {/* On-wall "LOBBY" label (North wall) */}
+      {!isOverviewMode && (
+        <Text
+          position={[LOBBY_SIZE / 2, 3.8, 0.15]}
+          fontSize={0.85}
+          color="#f0e0ff"
+          anchorX="center"
+          anchorY="middle"
+          font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
+          outlineColor="#d4af37"
+          outlineWidth={0.03}
+        >
+          LOBBY
+        </Text>
+      )}
+
       {/* ── Centerpiece Microphone ────────────────────────────────────────── */}
       <group position={[LOBBY_SIZE / 2, 1.2, 3]}>
         {/* Slowly rotate or just place statically. For now, static in center of lobby */}
@@ -174,60 +190,64 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
       </group>
 
       {/* ── Doors to rooms ────────────────────────────────────────────────── */}
-      {lobbyDoors.map((ld) => {
-        const room = roomMap.get(ld.roomId);
-        const pos = wallDoorPosition(ld.wallPosition, ld.doorIndex ?? 0);
-        return (
-          <Door
-            key={ld.roomId}
-            wall={ld.wallPosition}
-            position={pos}
-            targetRoomName={room?.name}
-            onEnter={() => onEnterRoom(ld.roomId)}
-          />
-        );
-      })}
+      {
+        lobbyDoors.map((ld) => {
+          const room = roomMap.get(ld.roomId);
+          const pos = wallDoorPosition(ld.wallPosition, ld.doorIndex ?? 0);
+          return (
+            <Door
+              key={ld.roomId}
+              wall={ld.wallPosition}
+              position={pos}
+              targetRoomName={room?.name}
+              onEnter={() => onEnterRoom(ld.roomId)}
+            />
+          );
+        })
+      }
 
       {/* Bird's-eye Labeled Island visuals for Lobby */}
-      {isOverviewMode && (
-        <>
-          <Text
-            position={[LOBBY_SIZE / 2, LOBBY_HEIGHT + 2.5, LOBBY_SIZE / 2]}
-            fontSize={1.5}
-            letterSpacing={0.2}
-            color="#FFFFFF"
-            anchorX="center"
-            anchorY="middle"
-            font="https://fonts.gstatic.com/s/cinzel/v11/qnVl4DHEMmaAdG4zW_vR5S-v.woff2"
-            outlineWidth={0.07}
-            outlineColor="#000000"
-          >
-            LOBBY
-          </Text>
+      {
+        isOverviewMode && (
+          <>
+            <Text
+              position={[LOBBY_SIZE / 2, LOBBY_HEIGHT + 2.5, LOBBY_SIZE / 2]}
+              fontSize={1.5}
+              letterSpacing={0.2}
+              color="#FFFFFF"
+              anchorX="center"
+              anchorY="middle"
+              font="https://fonts.gstatic.com/s/cinzel/v11/qnVl4DHEMmaAdG4zW_vR5S-v.woff2"
+              outlineWidth={0.07}
+              outlineColor="#000000"
+            >
+              LOBBY
+            </Text>
 
-          <mesh
-            position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onEnterLobby) onEnterLobby();
-              else {
-                // Default transition to lobby center
-                const { startTransition } = useTransitionStore.getState();
-                startTransition('enter', () => {
-                  usePalaceStore.getState().setCurrentRoomId(null);
-                  useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
-                  useCameraStore.getState().exitOverview();
-                });
-              }
-            }}
-            onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
-            onPointerOut={() => { document.body.style.cursor = 'auto'; }}
-          >
-            <boxGeometry args={[LOBBY_SIZE + 1, LOBBY_HEIGHT + 2, LOBBY_SIZE + 1]} />
-            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-          </mesh>
-        </>
-      )}
-    </group>
+            <mesh
+              position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onEnterLobby) onEnterLobby();
+                else {
+                  // Default transition to lobby center
+                  const { startTransition } = useTransitionStore.getState();
+                  startTransition('enter', () => {
+                    usePalaceStore.getState().setCurrentRoomId(null);
+                    useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
+                    useCameraStore.getState().exitOverview();
+                  });
+                }
+              }}
+              onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+              onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+            >
+              <boxGeometry args={[LOBBY_SIZE + 1, LOBBY_HEIGHT + 2, LOBBY_SIZE + 1]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </mesh>
+          </>
+        )
+      }
+    </group >
   );
 }
