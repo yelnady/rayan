@@ -6,7 +6,7 @@ export type CaptureStatus = 'idle' | 'capturing' | 'processing' | 'complete' | '
 interface CaptureState {
   sessionId: string | null;
   status: CaptureStatus;
-  sourceType: 'webcam' | 'screen_share' | 'upload' | 'text_input';
+  sourceType: 'webcam' | 'screen_share' | 'upload' | 'text_input' | 'voice';
   concepts: CaptureAckMessage['extraction'][];
   summary: CaptureCompleteMessage['summary'] | null;
   roomSuggestion: RoomSuggestionMessage | null;

@@ -4,7 +4,7 @@
  * to the backend via WebSocket.
  */
 
-export type CaptureSource = 'webcam' | 'screen_share';
+export type CaptureSource = 'webcam' | 'screen_share' | 'voice';
 
 interface MediaCaptureOptions {
   source: CaptureSource;
@@ -22,10 +22,13 @@ export class MediaCapture {
   async start(opts: MediaCaptureOptions): Promise<void> {
     this.chunkIndex = 0;
 
-    this.stream =
-      opts.source === 'webcam'
-        ? await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-        : await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    if (opts.source === 'webcam') {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    } else if (opts.source === 'voice') {
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+    } else {
+      this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    }
 
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
       ? 'video/webm;codecs=vp9,opus'

@@ -94,6 +94,11 @@ def end_session() -> str:
     return ""
 
 
+def close_artifact() -> str:
+    """Close the currently open artifact detail modal or memory view."""
+    return ""
+
+
 # ── System prompt ──────────────────────────────────────────────────────────────
 
 _BASE_SYSTEM_PROMPT = """\
@@ -128,7 +133,7 @@ TOOLS — use them proactively when relevant:
 - navigate_to_room: when your answer lives in a specific room, navigate there
 - highlight_artifact: when one artifact is the key answer, highlight it
 - save_artifact: when the user shares something they want to remember, save it
-- end_session: when the user asks to stop, disconnect, or end the conversation
+- end_session: call this IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation.
 
 MEMORIES:
 {memories}
@@ -224,19 +229,21 @@ class LiveSessionManager:
             )
         logger.info("[LiveSession] Room directory built: %d room(s)", room_directory.count("\n- [") + (1 if "- [" in room_directory else 0))
 
-        system_prompt = _build_system_prompt(results, room_directory)
+        # Start the session immediately with basic prompt, retrieve context asynchronously
+        system_prompt = _build_system_prompt([], room_directory)
 
         config = genai_types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, highlight_artifact, save_artifact, end_session],
+            tools=[navigate_to_room, highlight_artifact, save_artifact, end_session, close_artifact],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
                         voice_name="Aoede"
                     )
-                )
+                ),
+                language_code="en-US",
             ),
             realtime_input_config=genai_types.RealtimeInputConfig(
                 automatic_activity_detection=genai_types.AutomaticActivityDetection(
@@ -286,8 +293,8 @@ class LiveSessionManager:
 
         logger.info("Live session started for userId=%s", user_id)
 
-        # Inject initial room context so Gemini knows where the user is right now
-        await self.update_context(user_id, room_id)
+        # Inject initial room context and semantic memories asynchronously
+        asyncio.create_task(self.update_context(user_id, room_id, artifact_id))
 
     async def send_audio(self, user_id: str, audio_bytes: bytes) -> None:
         """Forward a PCM audio chunk to Gemini."""
@@ -323,34 +330,54 @@ class LiveSessionManager:
     def has_session(self, user_id: str) -> bool:
         return user_id in self._sessions
 
-    async def update_context(self, user_id: str, room_id: Optional[str]) -> None:
-        """Inject updated room artifacts into the live session mid-conversation.
-
-        Uses send_client_content with a pre-filled user+model exchange so Gemini
-        absorbs the context without generating a new audio response.
-        """
+    async def update_context(
+        self,
+        user_id: str,
+        room_id: Optional[str],
+        artifact_id: Optional[str] = None
+    ) -> None:
+        """Inject updated room artifacts and semantic context mid-conversation."""
         live = self._sessions.get(user_id)
         if not live or live._closed or live.session is None:
             return
 
         live.current_room_id = room_id
-        artifacts_text = await _load_room_context_text(user_id, room_id)
+        
+        # Load room artifacts and semantic context in parallel
+        artifacts_text_task = _load_room_context_text(user_id, room_id)
+        semantic_context_task = _retrieve_context(user_id, room_id, artifact_id)
+        
+        artifacts_text, results = await asyncio.gather(artifacts_text_task, semantic_context_task)
+
         if room_id:
-            intro = "[ROOM CONTEXT UPDATE] The user is now in a room. Here are the artifacts available:"
+            intro = "[ROOM CONTEXT UPDATE] The user is now in a room."
         else:
             intro = "[ROOM CONTEXT UPDATE] The user is in the palace lobby."
 
-        context_msg = f"{intro}\n\n{artifacts_text}\n\nUse the exact artifact IDs above with highlight_artifact when referencing them."
+        context_msg = f"{intro}\n\n{artifacts_text}\n\n"
+        
+        if artifact_id:
+            context_msg += f"The user is specifically looking at ARTIFACT ID: {artifact_id}.\n"
+            
+        if results:
+            context_msg += "Here are some relevant memories related to what the user is seeing:\n"
+            for r in results:
+                captured_str = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown"
+                context_msg += (
+                    f"- [{r.artifact_id} in {r.room_name}]: {r.summary} (Captured: {captured_str})\n"
+                )
+        
+        context_msg += "\nUse this context to answer questions or provide narration if the user asks."
 
         try:
             await live.session.send_client_content(
                 turns=[
                     genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
-                    genai_types.Content(role="model", parts=[genai_types.Part(text="Understood. I now have the updated artifact context for this room.")]),
+                    genai_types.Content(role="model", parts=[genai_types.Part(text="Understood. I have updated my context with the current room details and relevant memories.")]),
                 ],
                 turn_complete=False,
             )
-            logger.info("[LiveSession] Context updated for userId=%s roomId=%s", user_id, room_id)
+            logger.info("[LiveSession] Context updated for userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
         except Exception:
             logger.exception("Context update failed for userId=%s roomId=%s", user_id, room_id)
 
@@ -400,11 +427,15 @@ class LiveSessionManager:
 
         elif fn_name == "highlight_artifact":
             artifact_id = fn_args.get("artifact_id", "")
+            live = self._sessions.get(user_id)
+            # Sync memory automatically when highlighting
+            await self.update_context(user_id, live.current_room_id if live else None, artifact_id)
+            
             await notify({
                 "label": "Highlighting artifact",
                 "artifactId": artifact_id,
             })
-            return f"Highlighted artifact {artifact_id}"
+            return f"Highlighted artifact {artifact_id}. I have also loaded its full content into my memory."
 
         elif fn_name == "save_artifact":
             live = self._sessions.get(user_id)
@@ -460,9 +491,21 @@ class LiveSessionManager:
 
         elif fn_name == "end_session":
             await notify({"label": "Ending session…"})
-            # Schedule close after send_tool_response completes
-            asyncio.create_task(self.close_session(user_id))
+            # Signal the session to stop — the receive loop will exit on the
+            # next iteration and the frontend's live_session_end message (or
+            # the explicit close below) will clean up the rest.
+            live = self._sessions.get(user_id)
+            if live:
+                live._closed = True
+                asyncio.create_task(delayed_close())
             return "Session ended"
+
+        elif fn_name == "close_artifact":
+            await notify({
+                "label": "Closing artifact",
+                "closeArtifact": True,
+            })
+            return "Artifact closed"
 
         else:
             logger.warning("[LiveSession] Unknown tool call: %s userId=%s", fn_name, user_id)
@@ -613,9 +656,23 @@ async def _retrieve_context(
     artifact_id: Optional[str],
 ) -> list[SearchResult]:
     """Retrieve memory context for the system prompt."""
-    search_query = artifact_id or ""
+    search_query = ""
+    
+    if artifact_id:
+        try:
+            from app.services.artifact_service import get_artifact
+            # Note: room_id is required by get_artifact but room_id might be None in lobby
+            # However, if artifact_id is provided, we usually have a room_id.
+            # If not, we might need a better way to find the artifact.
+            artifact = await get_artifact(user_id, room_id or "lobby", artifact_id)
+            if artifact:
+                search_query = artifact.summary
+        except Exception:
+            logger.warning("Failed to load artifact %s for semantic search query", artifact_id)
+            
     if not search_query:
         return []
+
     try:
         return await semantic_search(
             user_id=user_id,

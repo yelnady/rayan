@@ -120,7 +120,7 @@ export interface LiveTurnCompleteMessage {
 
 export interface LiveToolCallMessage {
   type: "live_tool_call";
-  tool: "navigate_to_room" | "highlight_artifact" | "save_artifact" | "end_session";
+  tool: "navigate_to_room" | "highlight_artifact" | "save_artifact" | "end_session" | "close_artifact";
   label: string;
   payload: {
     navigation?: {
@@ -130,6 +130,7 @@ export interface LiveToolCallMessage {
       selectedArtifactId: string | null;
     };
     artifactId?: string;
+    closeArtifact?: boolean;
   };
 }
 
@@ -192,7 +193,7 @@ export class RayanWebSocket {
 
   // ── Client → Server helpers ─────────────────────────────────────────────
 
-  sendCaptureStart(sessionId: string, sourceType: "webcam" | "screen_share" | "upload" | "text_input"): void {
+  sendCaptureStart(sessionId: string, sourceType: "webcam" | "screen_share" | "upload" | "text_input" | "voice"): void {
     this._send({ type: "capture_start", sessionId, sourceType });
   }
 

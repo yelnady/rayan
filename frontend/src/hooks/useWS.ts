@@ -41,6 +41,8 @@ function wireListeners(ws: RayanWebSocket): void {
   _listenerUnsubs = [
     ws.on('capture_ack', (msg) => {
       useCaptureStore.getState().addConcept(msg.extraction);
+      // Log extraction in the conversation panel
+      useVoiceStore.getState().addToolEvent(`Memory Captured: ${msg.extraction.concept}`, 'capture_concept');
     }),
     ws.on('capture_complete', (msg) => {
       useCaptureStore.getState().setSummary(msg.summary);
@@ -162,15 +164,15 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       }
 
-      // Highlight a single artifact (no navigation)
+      // Cinematic Highlight: Move camera + Open popup
       if (msg.payload.artifactId) {
-        usePalaceStore.getState().setHighlightedArtifacts([msg.payload.artifactId]);
-        setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+        usePalaceStore.getState().setAgentSelectedArtifactId(msg.payload.artifactId);
       }
 
       // Server-initiated session end
       if (msg.tool === 'end_session') {
         stopVoiceSession();
+        _instance?.sendLiveSessionEnd();
       }
     }),
 
