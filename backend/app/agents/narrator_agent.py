@@ -205,7 +205,8 @@ async def _synthesise_voice(narration_text: str) -> Optional[bytes]:
                 prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
                     voice_name="Aoede"
                 )
-            )
+            ),
+            language_code="en-US",
         ),
     )
     audio_buf = bytearray()

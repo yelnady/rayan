@@ -44,6 +44,8 @@ interface VoiceState {
   currentNarration: ArtifactRecallMessage['content'] | null;
   /** Human-readable error message */
   error: string | null;
+  /** Whether the conversation panel is visible */
+  showPanel: boolean;
   /** Active tool call notification — cleared after display */
   toolActivity: { tool: string; label: string } | null;
 
@@ -62,8 +64,11 @@ interface VoiceState {
   setNarration: (narration: ArtifactRecallMessage['content'] | null) => void;
   setError: (error: string | null) => void;
   setToolActivity: (activity: { tool: string; label: string } | null) => void;
+  setShowPanel: (show: boolean) => void;
   /** Reset transient state (transcript, diagrams) but keep session status */
   resetTranscript: () => void;
+  /** Clear all messages from the conversation log */
+  clearMessages: () => void;
   /** Full reset to disconnected state */
   reset: () => void;
 }
@@ -80,6 +85,7 @@ const defaultState = {
   currentNarration: null,
   error: null,
   toolActivity: null as { tool: string; label: string } | null,
+  showPanel: false,
 };
 
 export const useVoiceStore = create<VoiceState>((set) => ({
@@ -121,6 +127,8 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   setNarration: (currentNarration) => set({ currentNarration }),
   setError: (error) => set({ error, status: 'error' }),
   setToolActivity: (toolActivity) => set({ toolActivity }),
+  setShowPanel: (showPanel) => set({ showPanel }),
   resetTranscript: () => set({ transcript: '', diagrams: [], currentNarration: null }),
+  clearMessages: () => set({ messages: [] }),
   reset: () => set(defaultState),
 }));

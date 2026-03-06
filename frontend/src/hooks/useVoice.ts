@@ -15,6 +15,7 @@ import { AudioStreamer } from '../services/audioCapture';
 import { useVoiceStore } from '../stores/voiceStore';
 import { usePalaceStore } from '../stores/palaceStore';
 import { useWS } from './useWS';
+import { stopCapture } from './useCapture';
 
 // ── Module-level singletons ──────────────────────────────────────────────────
 // Shared across all hook instances so connect/disconnect work regardless of
@@ -43,10 +44,15 @@ export function useVoice() {
     /** Start the live session and audio streaming. */
     const connect = useCallback(async () => {
         if (_started) return;
+
+        // Ensure mutual exclusivity
+        stopCapture();
+
         _started = true;
 
         const voiceStore = useVoiceStore.getState();
         voiceStore.setStatus('connecting');
+        voiceStore.setShowPanel(true);
 
         // Send live_session_start with the room the user is currently in
         const currentRoomId = usePalaceStore.getState().currentRoomId;
