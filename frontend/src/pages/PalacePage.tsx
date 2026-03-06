@@ -12,6 +12,7 @@ import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal
 import { ActionBar } from '../components/hud/ActionBar';
 import { ToolActivityToast } from '../components/hud/ToolActivityToast';
 import { ResponsePanel } from '../components/voice/ResponsePanel';
+import { Joystick } from '../components/navigation/Joystick';
 import { TransitionOverlay } from '../components/hud/TransitionOverlay';
 import { usePalaceStore } from '../stores/palaceStore';
 import { useCameraStore } from '../stores/cameraStore';
@@ -28,7 +29,18 @@ export function PalacePage() {
   const { loading, error, reload } = usePalace();
 
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
-  const currentRoom = usePalaceStore((s) => s.rooms.find(r => r.id === s.currentRoomId));
+  const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.matchMedia('(max-width: 768px)').matches || 'ontouchstart' in window);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
   const [selectedArtifact, setSelectedArtifact] = useState<{ id: string; roomId: string } | null>(null);
 
   // Auto-connect the mic the first time the user enters any room
@@ -73,11 +85,10 @@ export function PalacePage() {
     }
 
     if (!foundRoomId) return;
-
-    setSelectedArtifact({ id: agentSelectedArtifactId, roomId: foundRoomId });
+    const finalRoomId = foundRoomId;
 
     if (artifactPos) {
-      const room = state.rooms.find((r) => r.id === foundRoomId);
+      const room = state.rooms.find((r) => r.id === finalRoomId);
       if (room) {
         useCameraStore.getState().lookAt({
           x: room.position.x + artifactPos.x,
@@ -86,6 +97,11 @@ export function PalacePage() {
         });
       }
     }
+
+    // Delay modal opening to allow for camera rotation
+    setTimeout(() => {
+      setSelectedArtifact({ id: agentSelectedArtifactId, roomId: finalRoomId });
+    }, 1000);
 
     usePalaceStore.getState().setAgentSelectedArtifactId(null);
   }, [agentSelectedArtifactId]);
@@ -154,21 +170,19 @@ export function PalacePage() {
       {/* Tool activity toast — appears when Gemini calls a tool */}
       <ToolActivityToast />
 
+      {/* Mobile Joystick */}
+      {isMobile && !isOverviewMode && <Joystick />}
+
       {/* Click-to-explore hint — shown when palace is loaded but pointer is not yet locked */}
       {!loading && !error && (
         <div className="fixed bottom-[110px] left-1/2 -translate-x-1/2 z-hud pointer-events-none">
           <div className="bg-glass backdrop-blur-md border border-border rounded-[20px] px-4 py-1.5 text-xs font-body text-text-muted tracking-wide whitespace-nowrap">
-            Click to explore · WASD to move
+            {isMobile ? 'Drag to look · Use stick to move' : 'Click to explore · WASD to move'}
           </div>
         </div>
       )}
 
-      {/* Room label — top-center */}
-      {currentRoomId && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-hud text-text-muted text-[13px] font-body tracking-[0.06em] uppercase pointer-events-none">
-          {currentRoom?.name ?? currentRoomId}
-        </div>
-      )}
+
 
       {/* Capture status overlays */}
       <CapturePreview />
@@ -187,6 +201,15 @@ export function PalacePage() {
           onClose={() => setSelectedArtifact(null)}
         />
       )}
+
+      {/* Handle live_tool_call: close_artifact */}
+      {useEffect(() => {
+        return ws.on('live_tool_call', (msg) => {
+          if (msg.tool === 'close_artifact' || msg.payload.closeArtifact) {
+            setSelectedArtifact(null);
+          }
+        });
+      }, [ws])}
 
       {/* Magical Transition Overlay */}
       <TransitionOverlay />

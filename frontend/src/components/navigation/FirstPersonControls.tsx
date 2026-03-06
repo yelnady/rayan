@@ -134,6 +134,43 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             e.preventDefault(); // suppress right-click menu on canvas
         }
 
+        // ─── Touch Support ──────────────────────────────────────────────────────
+        const touchState = {
+            isRotating: false,
+            lastX: 0,
+            lastY: 0
+        };
+
+        function onTouchStart(e: TouchEvent) {
+            // Only handle single-finger touch for rotation
+            if (e.touches.length === 1) {
+                touchState.isRotating = true;
+                touchState.lastX = e.touches[0].clientX;
+                touchState.lastY = e.touches[0].clientY;
+            }
+        }
+
+        function onTouchMove(e: TouchEvent) {
+            if (!touchState.isRotating || e.touches.length !== 1) return;
+
+            const touch = e.touches[0];
+            const dx = touch.clientX - touchState.lastX;
+            const dy = touch.clientY - touchState.lastY;
+
+            // Adjust sensitivity for touch (feels better slightly higher than mouse usually)
+            const TOUCH_SENSITIVITY = 0.003;
+            yaw.current -= dx * TOUCH_SENSITIVITY;
+            pitch.current -= dy * TOUCH_SENSITIVITY;
+            pitch.current = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch.current));
+
+            touchState.lastX = touch.clientX;
+            touchState.lastY = touch.clientY;
+        }
+
+        function onTouchEnd() {
+            touchState.isRotating = false;
+        }
+
         document.addEventListener('keydown', onKeyDown);
         document.addEventListener('keyup', onKeyUp);
         canvas.addEventListener('mousedown', onMouseDown);
@@ -141,6 +178,11 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         document.addEventListener('mousemove', onMouseMove);
         canvas.addEventListener('wheel', onWheel, { passive: true });
         canvas.addEventListener('contextmenu', onContextMenu);
+
+        // Mobile touch listeners
+        canvas.addEventListener('touchstart', onTouchStart);
+        canvas.addEventListener('touchmove', onTouchMove);
+        canvas.addEventListener('touchend', onTouchEnd);
 
         return () => {
             document.removeEventListener('keydown', onKeyDown);
@@ -150,8 +192,14 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             document.removeEventListener('mousemove', onMouseMove);
             canvas.removeEventListener('wheel', onWheel);
             canvas.removeEventListener('contextmenu', onContextMenu);
+
+            canvas.removeEventListener('touchstart', onTouchStart);
+            canvas.removeEventListener('touchmove', onTouchMove);
+            canvas.removeEventListener('touchend', onTouchEnd);
         };
     }, [gl]);
+
+    const mobileMovement = useCameraStore((s) => s.mobileMovement);
 
     useFrame((_, delta) => {
         // Skip movement in overview mode
@@ -166,13 +214,21 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         velocity.current.x -= velocity.current.x * DAMPING * delta;
         velocity.current.z -= velocity.current.z * DAMPING * delta;
 
-        // Direction
-        direction.current.z = Number(w) - Number(s);
-        direction.current.x = Number(d) - Number(a);
-        direction.current.normalize();
+        // Direction - combine keyboard and mobile joystick
+        direction.current.z = (Number(w) - Number(s)) + mobileMovement.z;
+        direction.current.x = (Number(d) - Number(a)) + mobileMovement.x;
 
-        if (w || s) velocity.current.z -= direction.current.z * MOVE_SPEED * delta;
-        if (a || d) velocity.current.x -= direction.current.x * MOVE_SPEED * delta;
+        // Only normalize if we have actual input to avoid NaN
+        if (direction.current.lengthSq() > 0) {
+            direction.current.normalize();
+        }
+
+        if (w || s || Math.abs(mobileMovement.z) > 0.01) {
+            velocity.current.z -= direction.current.z * MOVE_SPEED * delta;
+        }
+        if (a || d || Math.abs(mobileMovement.x) > 0.01) {
+            velocity.current.x -= direction.current.x * MOVE_SPEED * delta;
+        }
 
         // Move along camera's horizontal facing direction
         const forward = new THREE.Vector3();
