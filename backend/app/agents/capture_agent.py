@@ -4,12 +4,11 @@ Manages one long-lived Gemini Live session per capture session.
 Receives audio/video chunks from the WebSocket handler, streams them
 to Gemini, and fires an async callback whenever a concept is extracted.
 
-System prompt instructs Gemini to output single-line JSON on each extraction:
-  {"action":"extract_concept","concept":{...},"voice_ack":"..."}
+Uses Gemini function calling: Gemini calls `capture_concept` whenever it
+identifies a key concept worth remembering.
 """
 
 import asyncio
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -30,17 +29,35 @@ CONFIDENCE_THRESHOLD: float = 0.7
 _SYSTEM_PROMPT = (
     "You are Rayan, an intelligent memory capture assistant. "
     "You observe real-time audio/video from study sessions, lectures, and conversations.\n\n"
-    "When you identify a key concept worth remembering, output a single-line JSON:\n"
-    '{"action":"extract_concept",'
-    '"concept":{"title":"<3-7 words>","summary":"<50-150 words>","type":"lecture|document|visual|conversation",'
-    '"keywords":["k1","k2","k3"],"confidence":<0.0-1.0>},'
-    '"voice_ack":"<brief: Got it - [concept]>"}\n\n'
-    "Rules:\n"
-    "- Minimum 15 seconds between extractions\n"
-    "- Only extract when confidence >= 0.7\n"
-    "- Keep voice_ack very brief and non-disruptive\n"
-    "- Do NOT repeat information already extracted"
+    "ARTIFACT TYPES:\n"
+    "- lecture: spoken explanations, presentations, teachings\n"
+    "- document: written text, papers, slides, notes\n"
+    "- visual: diagrams, charts, images, demonstrations\n"
+    "- conversation: discussions, interviews, Q&A\n\n"
+    "When you identify a key concept worth remembering (confidence >= 0.7, "
+    "at least 15 seconds since the last extraction), call the `capture_concept` tool. "
+    "After calling the tool, give a very brief voice acknowledgement like "
+    "'Got it — [concept name].' Do NOT repeat concepts already captured."
 )
+
+
+def capture_concept(
+    title: str,
+    summary: str,
+    artifact_type: str,
+    keywords: list[str],
+    confidence: float,
+) -> str:
+    """Extract and save a key concept to the memory palace.
+
+    Args:
+        title: Short title for the concept (3-7 words).
+        summary: Detailed summary of the concept (50-150 words).
+        artifact_type: One of: lecture, document, visual, conversation.
+        keywords: 2-4 topic keywords for categorisation.
+        confidence: How confident you are this is worth saving (0.0-1.0).
+    """
+    return ""
 
 
 @dataclass
@@ -109,13 +126,16 @@ class CaptureAgent:
         client = get_genai_client()
         config = genai_types.LiveConnectConfig(
             response_modalities=["AUDIO"],
+            enable_affective_dialog=True,
             system_instruction=_SYSTEM_PROMPT,
+            tools=[capture_concept],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
                         voice_name="Aoede"
                     )
-                )
+                ),
+                language_code="en-US",
             ),
         )
         try:
@@ -143,31 +163,55 @@ class CaptureAgent:
 
     async def _receive_responses(self, gemini) -> None:
         audio_buf = bytearray()
-        text_buf = ""
 
         async for response in gemini.receive():
             if not self._running and self._chunk_queue.empty():
                 break
 
+            # Collect audio for the current turn
             if hasattr(response, "data") and response.data:
                 audio_buf.extend(response.data)
-            if hasattr(response, "text") and response.text:
-                text_buf += response.text
 
-            extraction = _try_parse_extraction(text_buf)
-            if extraction and self._should_extract(extraction["concept"]["confidence"]):
-                self._last_extraction_at = time.monotonic()
-                text_buf = ""
-                event = ExtractionEvent(
-                    concept_title=extraction["concept"]["title"],
-                    concept_summary=extraction["concept"]["summary"],
-                    concept_type=extraction["concept"]["type"],
-                    concept_keywords=extraction["concept"]["keywords"],
-                    confidence=extraction["concept"]["confidence"],
-                    voice_audio=bytes(audio_buf) if audio_buf else None,
-                )
-                audio_buf.clear()
-                await self._handle_extraction(event)
+            # Handle function calls from Gemini
+            if hasattr(response, "tool_call") and response.tool_call:
+                for fc in response.tool_call.function_calls:
+                    if fc.name != "capture_concept":
+                        continue
+                    args = dict(fc.args) if fc.args else {}
+                    confidence = float(args.get("confidence", 0.0))
+                    if not self._should_extract(confidence):
+                        await gemini.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": "skipped — too soon or low confidence"},
+                                )
+                            ]
+                        )
+                        continue
+
+                    self._last_extraction_at = time.monotonic()
+                    event = ExtractionEvent(
+                        concept_title=args.get("title", ""),
+                        concept_summary=args.get("summary", ""),
+                        concept_type=args.get("artifact_type", "lecture"),
+                        concept_keywords=list(args.get("keywords", [])),
+                        confidence=confidence,
+                        voice_audio=bytes(audio_buf) if audio_buf else None,
+                    )
+                    audio_buf.clear()
+                    await self._handle_extraction(event)
+
+                    await gemini.send_tool_response(
+                        function_responses=[
+                            genai_types.FunctionResponse(
+                                name=fc.name,
+                                id=fc.id,
+                                response={"result": "concept captured successfully"},
+                            )
+                        ]
+                    )
 
     async def _handle_extraction(self, event: ExtractionEvent) -> None:
         try:
@@ -197,19 +241,6 @@ class CaptureAgent:
     def _should_extract(self, confidence: float) -> bool:
         elapsed = time.monotonic() - self._last_extraction_at
         return confidence >= CONFIDENCE_THRESHOLD and elapsed >= MIN_EXTRACTION_INTERVAL
-
-
-def _try_parse_extraction(text: str) -> Optional[dict]:
-    for line in reversed(text.splitlines()):
-        line = line.strip()
-        if '"action":"extract_concept"' in line:
-            try:
-                data = json.loads(line)
-                if data.get("action") == "extract_concept" and "concept" in data:
-                    return data
-            except json.JSONDecodeError:
-                continue
-    return None
 
 
 # ── Agent registry (session_id → CaptureAgent) ─────────────────────────────

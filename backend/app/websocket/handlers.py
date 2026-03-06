@@ -9,12 +9,12 @@ Per websocket.md client→server message types:
   capture_start   → start a capture session
   media_chunk     → stream media data to Gemini
   capture_end     → finalize capture session
-  voice_query     → voice-based memory query       [T092]
-  text_query      → text-based memory query (fallback) [T093]
-  interrupt       → stop current agent response    [T095]
   artifact_click  → trigger artifact narration     [T094, T097]
   request_connection → request a semantic corridor between rooms
   ping            → heartbeat
+  live_session_start → open persistent Gemini Live session with tool calling
+  audio_chunk     → stream PCM audio to the live session
+  live_session_end → close the live session
 """
 
 import asyncio
@@ -26,7 +26,7 @@ from typing import Any
 from fastapi import WebSocket
 
 from app.agents import capture_agent as capture_agent_module
-from app.agents import recall_agent as recall_agent_module
+from app.agents import capture_agent as capture_agent_module
 from app.agents import narrator_agent as narrator_agent_module
 from app.agents.capture_agent import CaptureAgent
 from app.models.capture_session import SessionStatus
@@ -155,159 +155,7 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
     logger.info("capture_end: userId=%s sessionId=%s concepts=%d", user_id, session_id, concept_count)
 
 
-# ── US3: Voice Conversation handlers ──────────────────────────────────────────
 
-
-@_handler("voice_query")
-async def handle_voice_query(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """T092 — Process a voice query against stored memories. Streams response_chunk messages."""
-    query_id: str = msg.get("queryId", "")
-    audio_b64: str = msg.get("audioData", "")
-    context: dict = msg.get("context", {})
-
-    if not query_id:
-        await manager.send(user_id, {
-            "type": "error", "code": "INVALID_REQUEST",
-            "message": "voice_query requires queryId", "retryable": False,
-        })
-        return
-
-    if not audio_b64:
-        await manager.send(user_id, {
-            "type": "error", "code": "INVALID_REQUEST",
-            "message": "voice_query requires audioData", "retryable": False,
-        })
-        return
-
-    try:
-        audio_bytes = base64.b64decode(audio_b64)
-    except Exception:
-        await manager.send(user_id, {
-            "type": "error", "code": "INVALID_REQUEST",
-            "message": "audioData is not valid base64", "retryable": False,
-        })
-        return
-
-    chunk_index = 0
-
-    async def on_chunk(chunk) -> None:
-        nonlocal chunk_index
-        content: dict = {}
-        if chunk.audio_chunk:
-            content["audioChunk"] = base64.b64encode(chunk.audio_chunk).decode()
-        if chunk.text:
-            content["text"] = chunk.text
-        if chunk.generated_image_url:
-            content["generatedImage"] = {
-                "url": chunk.generated_image_url,
-                "position": chunk.generated_image_position or {"x": 2.5, "y": 1.8, "z": -2.0},
-            }
-        if chunk.navigation:
-            content["navigation"] = chunk.navigation
-        await manager.send(user_id, {
-            "type": "response_chunk",
-            "queryId": query_id,
-            "chunkIndex": chunk_index,
-            "content": content,
-            "isComplete": False,
-        })
-        chunk_index += 1
-
-    async def on_complete() -> None:
-        await manager.send(user_id, {
-            "type": "response_complete",
-            "queryId": query_id,
-        })
-
-    task = asyncio.create_task(
-        recall_agent_module.process_voice_query(
-            user_id=user_id,
-            query_id=query_id,
-            audio_bytes=audio_bytes,
-            context=context,
-            on_chunk=on_chunk,
-            on_complete=on_complete,
-        ),
-        name=f"voice_query-{user_id}-{query_id}",
-    )
-    recall_agent_module.register_query(user_id, task)
-    logger.info("voice_query started: userId=%s queryId=%s", user_id, query_id)
-
-
-@_handler("text_query")
-async def handle_text_query(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """T093 — Text fallback for voice queries. Streams response_chunk messages."""
-    query_id: str = msg.get("queryId", "")
-    text: str = msg.get("text", "").strip()
-    context: dict = msg.get("context", {})
-
-    if not query_id:
-        await manager.send(user_id, {
-            "type": "error", "code": "INVALID_REQUEST",
-            "message": "text_query requires queryId", "retryable": False,
-        })
-        return
-
-    if not text:
-        await manager.send(user_id, {
-            "type": "error", "code": "INVALID_REQUEST",
-            "message": "text_query requires non-empty text", "retryable": False,
-        })
-        return
-
-    chunk_index = 0
-
-    async def on_chunk(chunk) -> None:
-        nonlocal chunk_index
-        content: dict = {}
-        if chunk.text:
-            content["text"] = chunk.text
-        if chunk.generated_image_url:
-            content["generatedImage"] = {
-                "url": chunk.generated_image_url,
-                "position": chunk.generated_image_position or {"x": 2.5, "y": 1.8, "z": -2.0},
-            }
-        if chunk.navigation:
-            content["navigation"] = chunk.navigation
-        await manager.send(user_id, {
-            "type": "response_chunk",
-            "queryId": query_id,
-            "chunkIndex": chunk_index,
-            "content": content,
-            "isComplete": False,
-        })
-        chunk_index += 1
-
-    async def on_complete() -> None:
-        await manager.send(user_id, {
-            "type": "response_complete",
-            "queryId": query_id,
-        })
-
-    task = asyncio.create_task(
-        recall_agent_module.process_text_query(
-            user_id=user_id,
-            query_id=query_id,
-            text=text,
-            context=context,
-            on_chunk=on_chunk,
-            on_complete=on_complete,
-        ),
-        name=f"text_query-{user_id}-{query_id}",
-    )
-    recall_agent_module.register_query(user_id, task)
-    logger.info("text_query started: userId=%s queryId=%s text=%s", user_id, query_id, text[:80])
-
-
-@_handler("interrupt")
-async def handle_interrupt(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """T095 — Cancel the active query task (barge-in support)."""
-    cancelled = recall_agent_module.cancel_query(user_id)
-    if cancelled:
-        logger.info("interrupt: cancelled active query for userId=%s", user_id)
-        await manager.send(user_id, {"type": "response_interrupted"})
-    else:
-        logger.info("interrupt: no active query for userId=%s", user_id)
 
 
 @_handler("artifact_click")
@@ -324,6 +172,28 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
         return
 
     logger.info("artifact_click: userId=%s artifactId=%s roomId=%s", user_id, artifact_id, room_id)
+
+    # US3-v2 integration: If a live session is active, updated its context instead of starting a new narration
+    if live_session_manager.has_session(user_id):
+        logger.info("artifact_click: session active, updating context for userId=%s", user_id)
+        await live_session_manager.update_context(user_id, room_id, artifact_id)
+        
+        # We still send the artifact_recall message so the frontend opens the UI modal,
+        # but we skip the voice_audio so Gemini Live handles the narration instead.
+        from app.services.artifact_service import get_artifact
+        artifact = await get_artifact(user_id, room_id, artifact_id)
+        
+        await manager.send(user_id, {
+            "type": "artifact_recall",
+            "artifactId": artifact_id,
+            "content": {
+                "voiceNarration": None,
+                "summary": artifact.summary if artifact else "",
+                "generatedDiagrams": [],
+                "relatedArtifacts": [],
+            },
+        })
+        return
 
     try:
         result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id)
@@ -359,7 +229,7 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
 
 @_handler("live_session_start")
 async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """Open a persistent Gemini Live session for real-time voice streaming."""
+    """Open a persistent Gemini Live session with tool calling for navigation/highlight/diagrams."""
     context: dict = msg.get("context", {})
 
     async def on_audio(audio_b64: str) -> None:
@@ -377,6 +247,14 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
     async def on_turn_complete() -> None:
         await manager.send(user_id, {"type": "live_turn_complete"})
 
+    async def on_tool_activity(tool_name: str, payload: dict) -> None:
+        await manager.send(user_id, {
+            "type": "live_tool_call",
+            "tool": tool_name,
+            "label": payload.get("label", tool_name),
+            "payload": {k: v for k, v in payload.items() if k != "label"},
+        })
+
     try:
         await live_session_manager.start_session(
             user_id=user_id,
@@ -386,6 +264,7 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
             on_interrupted=on_interrupted,
             on_turn_complete=on_turn_complete,
             on_user_text=on_user_text,
+            on_tool_activity=on_tool_activity,
         )
         await manager.send(user_id, {"type": "live_session_started"})
     except Exception:
@@ -407,6 +286,14 @@ async def handle_audio_chunk(user_id: str, msg: dict, websocket: WebSocket) -> N
         await live_session_manager.send_audio(user_id, audio_bytes)
     except Exception:
         logger.exception("audio_chunk error: userId=%s", user_id)
+
+
+@_handler("live_context_update")
+async def handle_live_context_update(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Inject updated room artifacts into the live session when the user enters a new room."""
+    room_id: str | None = msg.get("roomId") or None
+    artifact_id: str | None = msg.get("artifactId") or None
+    await live_session_manager.update_context(user_id, room_id, artifact_id)
 
 
 @_handler("live_session_end")
