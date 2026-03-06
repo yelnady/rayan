@@ -1,10 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
 
+const TOOL_ICONS: Record<string, string> = {
+    navigate_to_room: '🧭',
+    highlight_artifact: '✨',
+    save_artifact: '💾',
+    end_session: '👋',
+};
+
 export function ResponsePanel() {
     const status = useVoiceStore((s) => s.status);
     const messages = useVoiceStore((s) => s.messages);
-    const narration = useVoiceStore((s) => s.currentNarration);
     const bottomRef = useRef<HTMLDivElement>(null);
 
     const isVisible = status !== 'disconnected';
@@ -12,7 +18,9 @@ export function ResponsePanel() {
     // Auto-scroll to bottom as conversation grows
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, narration]);
+    }, [messages]);
+
+    if (!isVisible) return null;
 
     return (
         <div
@@ -20,60 +28,68 @@ export function ResponsePanel() {
             role="region"
             aria-label="Voice conversation"
             aria-live="polite"
-            className={`fixed top-1/2 -translate-y-1/2 w-[340px] max-h-[65vh] bg-glass backdrop-blur-xl border border-border border-r-0 rounded-l-2xl flex flex-col overflow-hidden transition-all duration-350 z-response-panel shadow-panel bg-surface ${isVisible ? 'right-0 pointer-events-auto' : '-right-[360px] pointer-events-none'}`}
+            className="fixed left-0 top-0 bottom-0 w-[300px] flex flex-col bg-[rgba(8,8,24,0.82)] backdrop-blur-xl border-r border-[rgba(255,255,255,0.07)] z-response-panel shadow-[4px_0_32px_rgba(0,0,0,0.5)]"
         >
             {/* Header */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-[rgba(255,255,255,0.06)] shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 shrink-0" />
+            <div className="flex items-center gap-2.5 px-4 py-3.5 border-b border-[rgba(255,255,255,0.06)] shrink-0">
+                <StatusDot status={status} />
                 <span className="text-text-primary text-sm font-semibold font-heading flex-1">Conversation</span>
-                {status === 'connecting' && <span className="text-text-muted text-[11px] font-body uppercase tracking-widest">connecting…</span>}
-                {status === 'connected' && <span className="text-text-muted text-[11px] font-body uppercase tracking-widest">listening</span>}
-                {status === 'responding' && <span className="text-text-muted text-[11px] font-body uppercase tracking-widest">speaking</span>}
-                {status === 'error' && <span className="text-error text-[11px] font-body uppercase tracking-widest">error</span>}
+                <span className="text-text-muted text-[10px] font-body uppercase tracking-widest">
+                    {status === 'connecting' ? 'connecting…'
+                        : status === 'connected' ? 'listening'
+                        : status === 'responding' ? 'speaking'
+                        : status === 'error' ? 'error'
+                        : ''}
+                </span>
             </div>
 
-            {/* Body */}
-            <div className="overflow-y-auto px-3 py-3 flex flex-col gap-2">
-                {/* Narration summary from artifact_recall */}
-                {narration?.summary && (
-                    <div className="bg-[rgba(99,102,241,0.08)] border-l-4 border-[rgba(99,102,241,0.6)] rounded-r-lg px-3 py-2">
-                        <p className="text-text-primary text-[13px] leading-relaxed m-0 font-body">{narration.summary}</p>
-                    </div>
-                )}
-
+            {/* Message log */}
+            <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2">
                 {/* Connecting placeholder */}
-                {status === 'connecting' && messages.length === 0 && !narration && (
-                    <div className="flex items-center justify-center py-4">
+                {status === 'connecting' && messages.length === 0 && (
+                    <div className="flex items-center justify-center py-6">
                         <ThinkingDots />
                     </div>
                 )}
 
-                {/* Chat messages */}
-                {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                        <div className={`max-w-[82%] p-2 px-3 border ${msg.role === 'rayan' ? 'bg-[rgba(99,102,241,0.12)] border-[rgba(99,102,241,0.25)] rounded-r-md rounded-bl-md rounded-tl-sm' : 'bg-[rgba(255,255,255,0.08)] border-[rgba(255,255,255,0.1)] rounded-l-md rounded-br-md rounded-tr-sm'}`}>
-                            <span className={`block text-[10px] font-bold uppercase tracking-widest mb-[3px] font-body ${msg.role === 'rayan' ? 'text-[rgba(139,92,246,0.85)]' : 'text-[rgba(156,163,175,0.7)]'}`}>
-                                {msg.role === 'rayan' ? 'Rayan' : 'You'}
-                            </span>
-                            <p className={`m-0 text-[13px] leading-relaxed font-body ${msg.role === 'rayan' ? 'text-text-primary' : 'text-text-secondary'}`}>{msg.text}</p>
-                        </div>
-                    </div>
-                ))}
-
-                {/* Related artifacts from narration */}
-                {narration?.relatedArtifacts && narration.relatedArtifacts.length > 0 && (
-                    <div className="flex flex-col gap-1.5 mt-1">
-                        <p className="text-text-muted text-[10px] font-semibold uppercase tracking-widest m-0 font-body">Related memories</p>
-                        {narration.relatedArtifacts.map((rel) => (
-                            <div key={rel.artifactId} className="bg-[rgba(255,255,255,0.05)] rounded-md px-2.5 py-1.5">
-                                <span className="text-text-secondary text-xs font-body leading-relaxed">{rel.reason}</span>
+                {messages.map((msg) => {
+                    if (msg.role === 'tool') {
+                        const icon = TOOL_ICONS[msg.toolName ?? ''] ?? '⚙️';
+                        return (
+                            <div key={msg.id} className="flex items-center justify-center my-1">
+                                <div className="flex items-center gap-1.5 bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.08)] rounded-full px-3 py-1 max-w-[90%]">
+                                    <span className="text-[12px] leading-none">{icon}</span>
+                                    <span className="text-[11px] font-body text-text-muted tracking-wide">{msg.text}</span>
+                                </div>
                             </div>
-                        ))}
-                    </div>
-                )}
+                        );
+                    }
+
+                    if (msg.role === 'user') {
+                        return (
+                            <div key={msg.id} className="flex justify-end">
+                                <div className="max-w-[85%] bg-[rgba(255,255,255,0.08)] border border-[rgba(255,255,255,0.1)] rounded-l-xl rounded-br-xl rounded-tr-sm px-3 py-2">
+                                    <span className="block text-[10px] font-bold uppercase tracking-widest mb-[3px] font-body text-[rgba(156,163,175,0.7)]">
+                                        You
+                                    </span>
+                                    <p className="m-0 text-[13px] leading-relaxed font-body text-text-secondary">{msg.text}</p>
+                                </div>
+                            </div>
+                        );
+                    }
+
+                    // rayan
+                    return (
+                        <div key={msg.id} className="flex justify-start">
+                            <div className="max-w-[85%] bg-[rgba(99,102,241,0.12)] border border-[rgba(99,102,241,0.25)] rounded-r-xl rounded-bl-xl rounded-tl-sm px-3 py-2">
+                                <span className="block text-[10px] font-bold uppercase tracking-widest mb-[3px] font-body text-[rgba(139,92,246,0.85)]">
+                                    Rayan
+                                </span>
+                                <p className="m-0 text-[13px] leading-relaxed font-body text-text-primary">{msg.text}</p>
+                            </div>
+                        </div>
+                    );
+                })}
 
                 <div ref={bottomRef} />
             </div>
@@ -82,6 +98,16 @@ export function ResponsePanel() {
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatusDot({ status }: { status: string }) {
+    const colorClass =
+        status === 'connected' ? 'bg-green-500'
+        : status === 'responding' ? 'bg-indigo-500 animate-pulse'
+        : status === 'connecting' ? 'bg-yellow-500 animate-pulse'
+        : status === 'error' ? 'bg-red-500'
+        : 'bg-gray-500';
+    return <span className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`} />;
+}
 
 function ThinkingDots() {
     return (
