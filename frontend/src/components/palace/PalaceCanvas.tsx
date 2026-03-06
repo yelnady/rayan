@@ -119,6 +119,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       state.setCurrentRoomId(roomId);
       const targetRoom = state.rooms.find(r => r.id === roomId);
       if (targetRoom) {
+        useCameraStore.getState().exitOverview();
         useCameraStore.getState().teleport({
           x: targetRoom.position.x + targetRoom.dimensions.w / 2,
           y: 1.7,
