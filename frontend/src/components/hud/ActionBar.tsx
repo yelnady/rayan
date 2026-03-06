@@ -7,6 +7,7 @@
  * Each section has an animated icon button + label + state sub-label.
  */
 
+import { useState } from 'react';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
@@ -34,14 +35,14 @@ function ResetViewSection() {
             onClick={handleReset}
             aria-label="Reset view to palace entrance"
             title="Reset View"
-            className="flex flex-col items-center gap-1 py-1.5 px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+            className="flex flex-col items-center gap-1 py-1.5 px-2 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
         >
             <div
-                className="w-9 h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95"
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95"
             >
-                <HomeIcon />
+                <HomeIcon size={16} />
             </div>
-            <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
+            <span className="font-body text-[9px] sm:text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 Reset
             </span>
         </button>
@@ -68,15 +69,15 @@ function OverviewSection() {
             onClick={handleClick}
             aria-label={isOverviewMode ? 'Exit overview' : 'Show overview of all rooms'}
             title={isOverviewMode ? 'Exit Overview' : 'Overview'}
-            className="flex flex-col items-center gap-1 py-1.5 px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+            className="flex flex-col items-center gap-1 py-1.5 px-2 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
         >
             <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95 ${isOverviewMode ? 'bg-primary' : 'bg-[rgba(0,0,0,0.04)]'}`}
+                className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95 ${isOverviewMode ? 'bg-primary' : 'bg-[rgba(0,0,0,0.04)]'}`}
             >
-                <MapIcon active={isOverviewMode} />
+                <MapIcon active={isOverviewMode} size={16} />
             </div>
-            <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
-                {isOverviewMode ? 'Exit Map' : 'Overview'}
+            <span className="font-body text-[9px] sm:text-[10px] text-text-muted tracking-[0.03em] leading-none">
+                {isOverviewMode ? 'Exit Map' : 'Map'}
             </span>
         </button>
     );
@@ -88,14 +89,22 @@ function CaptureSection() {
     const { startCapture, stopCapture } = useCapture();
     const status = useCaptureStore((s) => s.status);
     const concepts = useCaptureStore((s) => s.concepts);
+    const [selectedSource, setSelectedSource] = useState<'webcam' | 'screen_share' | 'voice'>('webcam');
+    const [showMenu, setShowMenu] = useState(false);
 
     const isCapturing = status === 'capturing';
     const isProcessing = status === 'processing';
     const disabled = isProcessing;
 
-    function handleClick() {
+    function handleMainClick() {
         if (isCapturing) stopCapture();
-        else startCapture('screen_share');
+        else setShowMenu(!showMenu);
+    }
+
+    function handleStart(source: 'webcam' | 'screen_share' | 'voice') {
+        setSelectedSource(source);
+        setShowMenu(false);
+        startCapture(source);
     }
 
     const btnColor = isCapturing
@@ -112,35 +121,73 @@ function CaptureSection() {
             ? concepts.length > 0
                 ? `${concepts.length} concept${concepts.length !== 1 ? 's' : ''} found`
                 : 'Listening…'
-            : 'Webcam · Screen';
+            : selectedSource === 'webcam' ? 'Webcam' : selectedSource === 'voice' ? 'Voice' : 'Screen Share';
 
     return (
-        <button
-            onClick={handleClick}
-            disabled={disabled}
-            aria-label={isCapturing ? 'Stop capture' : 'Start capture'}
-            className="action-section-btn flex items-center gap-3 py-1.5 pr-4 pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[190px] hover:bg-surface-hover group"
-        >
-            {/* Icon */}
-            <div
-                className={`w-[46px] h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isCapturing ? 'animate-[capture-pulse_1.6s_ease-in-out_infinite]' : ''}`}
-            >
-                {isProcessing ? <SpinnerIcon color="#111827" /> : isCapturing ? <StopIcon /> : <CamIcon />}
-            </div>
+        <div className="relative">
+            {/* Source Selection Menu */}
+            {!isCapturing && showMenu && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-glass backdrop-blur-xl border border-border rounded-2xl p-1.5 flex flex-col gap-1 shadow-xl animate-[fadeIn_0.2s_ease]">
+                    <SourceOption
+                        onClick={() => handleStart('webcam')}
+                        icon={<CamIcon size={16} />}
+                        label="Webcam"
+                        active={selectedSource === 'webcam'}
+                    />
+                    <SourceOption
+                        onClick={() => handleStart('screen_share')}
+                        icon={<MapIcon size={16} active={false} />}
+                        label="Screen"
+                        active={selectedSource === 'screen_share'}
+                    />
+                    <SourceOption
+                        onClick={() => handleStart('voice')}
+                        icon={<MicIcon size={16} />}
+                        label="Voice Only"
+                        active={selectedSource === 'voice'}
+                    />
+                </div>
+            )}
 
-            {/* Labels */}
-            <div className="flex flex-col gap-0.5">
-                <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
-                <span
-                    className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
+            <button
+                onClick={handleMainClick}
+                disabled={disabled}
+                aria-label={isCapturing ? 'Stop capture' : 'Open capture menu'}
+                className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
+            >
+                {/* Icon */}
+                <div
+                    className={`w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isCapturing ? 'animate-[capture-pulse_1.6s_ease-in-out_infinite]' : ''}`}
                 >
-                    {isProcessing ? (
-                        <span className="animate-[pulse-opacity_1s_ease_infinite]">{subLabel}</span>
-                    ) : (
-                        subLabel
-                    )}
-                </span>
-            </div>
+                    {isProcessing ? <SpinnerIcon color="#111827" size={18} /> : isCapturing ? <StopIcon size={16} /> : selectedSource === 'voice' ? <MicIcon size={18} color="#111827" /> : selectedSource === 'screen_share' ? <MapIcon size={18} active={false} /> : <CamIcon size={18} />}
+                </div>
+
+                {/* Labels */}
+                <div className="hidden sm:flex flex-col gap-0.5">
+                    <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
+                    <span
+                        className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
+                    >
+                        {isProcessing ? (
+                            <span className="animate-[pulse-opacity_1s_ease_infinite]">{subLabel}</span>
+                        ) : (
+                            subLabel
+                        )}
+                    </span>
+                </div>
+            </button>
+        </div>
+    );
+}
+
+function SourceOption({ onClick, icon, label, active }: { onClick: () => void, icon: React.ReactNode, label: string, active: boolean }) {
+    return (
+        <button
+            onClick={onClick}
+            className={`flex items-center gap-3 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors w-full ${active ? 'bg-primary text-white' : 'bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)]'}`}
+        >
+            <div className="flex items-center justify-center shrink-0">{icon}</div>
+            <span className="font-body text-[13px] font-medium whitespace-nowrap">{label}</span>
         </button>
     );
 }
@@ -197,27 +244,27 @@ function VoiceSection() {
             onClick={handleClick}
             disabled={isConnecting}
             aria-label={ariaLabel}
-            className="action-section-btn flex items-center gap-3 py-1.5 pr-4 pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[190px] hover:bg-surface-hover group"
+            className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
         >
             {/* Icon */}
             <div
-                className={`w-[46px] h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isResponding ? 'animate-[voice-pulse_1.2s_ease-in-out_infinite]' : ''}`}
+                className={`w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isResponding ? 'animate-[voice-pulse_1.2s_ease-in-out_infinite]' : ''}`}
             >
                 {isConnecting ? (
-                    <SpinnerIcon color="#111827" />
+                    <SpinnerIcon color="#111827" size={18} />
                 ) : isResponding ? (
-                    <SpeakingIcon />
+                    <SpeakingIcon size={20} />
                 ) : isActive ? (
-                    <MicIcon />
+                    <MicIcon size={20} />
                 ) : status === 'error' ? (
-                    <ErrorIcon />
+                    <ErrorIcon size={20} />
                 ) : (
-                    <MicOffIcon />
+                    <MicOffIcon size={20} />
                 )}
             </div>
 
             {/* Labels */}
-            <div className="flex flex-col gap-0.5">
+            <div className="hidden sm:flex flex-col gap-0.5">
                 <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Chat with Memory</span>
                 <span
                     className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
@@ -235,9 +282,9 @@ function VoiceSection() {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleStop(); } }}
                     aria-label="Stop voice session"
                     title="Stop session"
-                    className="w-[26px] h-[26px] rounded-full bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center cursor-pointer shrink-0 transition-background duration-150 ml-1 hover:bg-[rgba(239,68,68,0.2)]"
+                    className="w-5 h-5 sm:w-[26px] sm:h-[26px] rounded-full bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center cursor-pointer shrink-0 transition-background duration-150 ml-0 sm:ml-1 hover:bg-[rgba(239,68,68,0.2)]"
                 >
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="rgba(239,68,68,0.9)">
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="rgba(239,68,68,0.9)" className="sm:w-2.5 sm:h-2.5">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
                     </svg>
                 </div>
@@ -280,7 +327,7 @@ export function ActionBar() {
             <div
                 role="toolbar"
                 aria-label="Memory actions"
-                className="fixed bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-2.5 py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both]"
+                className="fixed bottom-4 sm:bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1.5 sm:px-2.5 py-1.5 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[95vw] sm:max-w-none"
             >
                 <ResetViewSection />
 
@@ -314,76 +361,76 @@ export function ActionBar() {
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 
-function HomeIcon() {
+function HomeIcon({ size = 18 }: { size?: number }) {
     return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="rgba(0,0,0,0.6)">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="rgba(0,0,0,0.6)">
             <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
         </svg>
     );
 }
 
-function MapIcon({ active }: { active: boolean }) {
+function MapIcon({ active, size = 18 }: { active: boolean, size?: number }) {
     const fill = active ? '#ffffff' : 'rgba(0,0,0,0.6)';
     return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill={fill}>
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={fill}>
             <path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z" />
         </svg>
     );
 }
 
-function CamIcon() {
+function CamIcon({ size = 20 }: { size?: number }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#111827">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="#111827">
             <circle cx="12" cy="12" r="3.5" />
             <path d="M17 3H7L4.5 6H2a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h20a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-2.5L17 3zM12 17a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" />
         </svg>
     );
 }
 
-function StopIcon() {
+function StopIcon({ size = 18 }: { size?: number }) {
     return (
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="#ffffff">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="#ffffff">
             <rect x="5" y="5" width="14" height="14" rx="2" />
         </svg>
     );
 }
 
-function MicIcon() {
+function MicIcon({ size = 20, color = "#ffffff" }: { size?: number, color?: string }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
             <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm-2 4v6a2 2 0 0 0 4 0V5a2 2 0 0 0-4 0zm-4 6H4a8 8 0 0 0 16 0h-2a6 6 0 0 1-12 0zm6 8v2H9v2h6v-2h-3v-2z" />
         </svg>
     );
 }
 
-function MicOffIcon() {
+function MicOffIcon({ size = 20 }: { size?: number }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="rgba(0,0,0,0.4)">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="rgba(0,0,0,0.4)">
             <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
         </svg>
     );
 }
 
-function SpeakingIcon() {
+function SpeakingIcon({ size = 20 }: { size?: number }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="#ffffff">
             <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
             <path d="M18.5 12c0-2.93-1.73-5.45-4.5-6.32V5.6c3.39.9 5.5 3.65 5.5 6.4s-2.11 5.5-5.5 6.4v-.08c2.77-.87 4.5-3.39 4.5-6.32z" opacity="0.5" />
         </svg>
     );
 }
 
-function ErrorIcon() {
+function ErrorIcon({ size = 20 }: { size?: number }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="#ffffff">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="#ffffff">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
         </svg>
     );
 }
 
-function SpinnerIcon({ color }: { color: string }) {
+function SpinnerIcon({ color, size = 20 }: { color: string, size?: number }) {
     return (
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5">
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5">
             <circle cx="12" cy="12" r="10" strokeOpacity="0.2" />
             <path d="M12 2a10 10 0 0 1 10 10" strokeLinecap="round">
                 <animateTransform

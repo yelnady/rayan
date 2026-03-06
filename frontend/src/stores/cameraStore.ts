@@ -18,6 +18,9 @@ interface CameraState {
     isOverviewMode: boolean;
     enterOverview: () => void;
     exitOverview: () => void;
+    /** Mobile-specific movement vector (from joystick) */
+    mobileMovement: { x: number; z: number };
+    setMobileMovement: (movement: { x: number; z: number }) => void;
 }
 
 export const useCameraStore = create<CameraState>((set) => ({
@@ -38,4 +41,6 @@ export const useCameraStore = create<CameraState>((set) => ({
     isOverviewMode: false,
     enterOverview: () => set({ isOverviewMode: true }),
     exitOverview: () => set({ isOverviewMode: false }),
+    mobileMovement: { x: 0, z: 0 },
+    setMobileMovement: (movement) => set({ mobileMovement: movement }),
 }));
