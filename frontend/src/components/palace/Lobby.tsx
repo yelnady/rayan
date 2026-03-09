@@ -76,30 +76,14 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
       {/* ── Lights first so everything picks them up ─────────────────────── */}
       <ambientLight intensity={2.0} color="#b0b8ff" />
 
-      {/* Grand central overhead point light to catch ceiling details */}
+      {/* Grand central overhead point light */}
       <pointLight
         position={[LOBBY_SIZE / 2, LOBBY_HEIGHT - 1.0, LOBBY_SIZE / 2]}
         intensity={40}
         color="#ffffff"
         distance={30}
         decay={1.2}
-        castShadow
       />
-
-      {/* Dedicated floor fill light to ensure floor texture is visible */}
-      <pointLight
-        position={[LOBBY_SIZE / 2, 0.5, LOBBY_SIZE / 2]}
-        intensity={15}
-        color="#ffffff"
-        distance={20}
-        decay={2}
-      />
-
-      {/* Atmospheric corner rim lights - boosted */}
-      <pointLight position={[0.5, 4, 0.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
-      <pointLight position={[11.5, 4, 0.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
-      <pointLight position={[0.5, 4, 11.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
-      <pointLight position={[11.5, 4, 11.5]} intensity={10} color="#4a4aff" distance={15} decay={2} />
 
       {/* ── Floor ─────────────────────────────────────────────────────────── */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[LOBBY_SIZE / 2, 0, LOBBY_SIZE / 2]} receiveShadow>

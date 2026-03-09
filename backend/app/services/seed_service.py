@@ -20,7 +20,6 @@ logger = logging.getLogger(__name__)
 _SEED_ROOMS: list[dict[str, Any]] = [
     {
         "name": "Natural Museum Visit",
-
         "keywords": ["museum", "nature", "exhibits", "paleontology"],
         "artifacts": [
             {
@@ -58,7 +57,6 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Machine Learning Lab",
-
         "keywords": ["machine-learning", "neural-networks", "AI", "algorithms"],
         "artifacts": [
             {
@@ -97,7 +95,6 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Mountain Hiking",
-
         "keywords": ["hiking", "mountains", "outdoors", "nature"],
         "artifacts": [
             {
@@ -134,7 +131,6 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Biology Garden",
-
         "keywords": ["biology", "cells", "genetics", "botany"],
         "artifacts": [
             {
@@ -172,7 +168,6 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Coffee Shop Moments",
-
         "keywords": ["coffee", "conversations", "ideas", "social"],
         "artifacts": [
             {
@@ -209,7 +204,6 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "My Daughter",
-
         "keywords": ["family", "daughter", "milestones", "parenting"],
         "artifacts": [
             {

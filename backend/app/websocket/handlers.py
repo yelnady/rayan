@@ -31,7 +31,7 @@ from app.agents import narrator_agent as narrator_agent_module
 from app.agents.capture_agent import CaptureAgent
 from app.models.capture_session import SessionStatus
 from app.services import capture_service
-from app.services.live_session_manager import live_session_manager
+from app.agents.recall_agent import recall_agent
 from app.websocket.manager import manager
 from app.websocket.responses import (
     broadcast_palace_update,
@@ -92,7 +92,13 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
             if cat.requires_confirmation and cat.suggestion:
                 await send_room_suggestion(user_id, cat.artifact.id, cat.suggestion)
 
-    agent = CaptureAgent(user_id, session_id, on_extraction)
+    async def on_audio(audio_bytes: bytes) -> None:
+        await manager.send(user_id, {
+            "type": "capture_audio",
+            "data": base64.b64encode(audio_bytes).decode(),
+        })
+
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
@@ -174,9 +180,9 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
     logger.info("artifact_click: userId=%s artifactId=%s roomId=%s", user_id, artifact_id, room_id)
 
     # US3-v2 integration: If a live session is active, updated its context instead of starting a new narration
-    if live_session_manager.has_session(user_id):
+    if recall_agent.has_session(user_id):
         logger.info("artifact_click: session active, updating context for userId=%s", user_id)
-        await live_session_manager.update_context(user_id, room_id, artifact_id)
+        await recall_agent.update_context(user_id, room_id, artifact_id)
         
         # We still send the artifact_recall message so the frontend opens the UI modal,
         # but we skip the voice_audio so Gemini Live handles the narration instead.
@@ -256,7 +262,7 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
         })
 
     try:
-        await live_session_manager.start_session(
+        await recall_agent.start_session(
             user_id=user_id,
             context=context,
             on_audio=on_audio,
@@ -283,7 +289,7 @@ async def handle_audio_chunk(user_id: str, msg: dict, websocket: WebSocket) -> N
         return
     try:
         audio_bytes = base64.b64decode(data_b64)
-        await live_session_manager.send_audio(user_id, audio_bytes)
+        await recall_agent.send_audio(user_id, audio_bytes)
     except Exception:
         logger.exception("audio_chunk error: userId=%s", user_id)
 
@@ -293,13 +299,13 @@ async def handle_live_context_update(user_id: str, msg: dict, websocket: WebSock
     """Inject updated room artifacts into the live session when the user enters a new room."""
     room_id: str | None = msg.get("roomId") or None
     artifact_id: str | None = msg.get("artifactId") or None
-    await live_session_manager.update_context(user_id, room_id, artifact_id)
+    await recall_agent.update_context(user_id, room_id, artifact_id)
 
 
 @_handler("live_session_end")
 async def handle_live_session_end(user_id: str, msg: dict, websocket: WebSocket) -> None:
     """Close the persistent Gemini Live session."""
-    await live_session_manager.close_session(user_id)
+    await recall_agent.close_session(user_id)
     logger.info("live_session_end: userId=%s", user_id)
 
 

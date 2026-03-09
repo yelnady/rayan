@@ -28,7 +28,14 @@ CONFIDENCE_THRESHOLD: float = 0.7
 
 _SYSTEM_PROMPT = (
     "You are Rayan, an intelligent memory capture assistant. "
-    "You observe real-time audio/video from study sessions, lectures, and conversations.\n\n"
+    "You observe real-time audio/video from work, meetings, study sessions, lectures, and conversations.\n\n"
+    "INTRO: At the very start of each capture session, introduce yourself in 1-2 sentences — "
+    "who you are and what you will be doing. For example: \"Hi, I'm Rayan — your memory capture "
+    "assistant. I'll be listening quietly and will save the important concepts as you work.\"\n\n"
+    "SILENCE RULE: After your intro, remain completely silent while observing. Do NOT narrate, "
+    "comment on, or summarise the content being captured. Only break silence when:\n"
+    "  1. You call capture_concept — give a brief acknowledgement like 'Got it — [concept name].'\n"
+    "  2. The user directly addresses you.\n\n"
     "ARTIFACT TYPES:\n"
     "- lecture: spoken explanations, presentations, teachings\n"
     "- document: written text, papers, slides, notes\n"
@@ -36,8 +43,7 @@ _SYSTEM_PROMPT = (
     "- conversation: discussions, interviews, Q&A\n\n"
     "When you identify a key concept worth remembering (confidence >= 0.7, "
     "at least 15 seconds since the last extraction), call the `capture_concept` tool. "
-    "After calling the tool, give a very brief voice acknowledgement like "
-    "'Got it — [concept name].' Do NOT repeat concepts already captured."
+    "Do NOT repeat concepts already captured."
 )
 
 
@@ -73,6 +79,7 @@ class ExtractionEvent:
 
 
 ExtractionCallback = Callable[[ExtractionEvent], Awaitable[None]]
+AudioCallback = Callable[[bytes], Awaitable[None]]
 
 
 class CaptureAgent:
@@ -83,10 +90,12 @@ class CaptureAgent:
         user_id: str,
         session_id: str,
         on_extraction: ExtractionCallback,
+        on_audio: Optional[AudioCallback] = None,
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
         self._on_extraction = on_extraction
+        self._on_audio = on_audio
         self._chunk_queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue(maxsize=200)
         self._task: Optional[asyncio.Task] = None
         self._last_extraction_at: float = 0.0
@@ -139,48 +148,53 @@ class CaptureAgent:
             ),
         )
         try:
-            async with client.aio.live.connect(model=LIVE_MODEL, config=config) as gemini:
+            async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
+                # Trigger the opening introduction before streaming begins
+                await session.send_client_content(
+                    turns=[genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part(text="[Capture session started]")],
+                    )],
+                    turn_complete=True,
+                )
                 await asyncio.gather(
-                    self._send_chunks(gemini),
-                    self._receive_responses(gemini),
+                    self._send_chunks(session),
+                    self._receive_responses(session),
                 )
         except Exception:
             logger.exception("CaptureAgent session error: sessionId=%s", self.session_id)
 
-    async def _send_chunks(self, gemini) -> None:
+    async def _send_chunks(self, session) -> None:
         while True:
             chunk = await self._chunk_queue.get()
             if chunk is None:
                 break
             try:
-                await gemini.send(
-                    genai_types.LiveClientRealtimeInput(
+                await session.send(
+                    input=genai_types.LiveClientRealtimeInput(
                         media_chunks=[genai_types.Blob(data=chunk, mime_type="audio/webm")]
                     )
                 )
             except Exception:
                 logger.exception("Chunk send error: sessionId=%s", self.session_id)
 
-    async def _receive_responses(self, gemini) -> None:
+    async def _receive_responses(self, session) -> None:
         audio_buf = bytearray()
 
-        async for response in gemini.receive():
+        async for response in session.receive():
             if not self._running and self._chunk_queue.empty():
                 break
 
-            # Collect audio for the current turn
-            if hasattr(response, "data") and response.data:
-                audio_buf.extend(response.data)
-
-            # Handle function calls from Gemini
-            if hasattr(response, "tool_call") and response.tool_call:
-                for fc in response.tool_call.function_calls:
+            # ── Tool calls ────────────────────────────────────────────────────
+            tool_call = getattr(response, "tool_call", None)
+            if tool_call and getattr(tool_call, "function_calls", None):
+                for fc in tool_call.function_calls:
                     if fc.name != "capture_concept":
                         continue
                     args = dict(fc.args) if fc.args else {}
                     confidence = float(args.get("confidence", 0.0))
                     if not self._should_extract(confidence):
-                        await gemini.send_tool_response(
+                        await session.send_tool_response(
                             function_responses=[
                                 genai_types.FunctionResponse(
                                     name=fc.name,
@@ -203,7 +217,7 @@ class CaptureAgent:
                     audio_buf.clear()
                     await self._handle_extraction(event)
 
-                    await gemini.send_tool_response(
+                    await session.send_tool_response(
                         function_responses=[
                             genai_types.FunctionResponse(
                                 name=fc.name,
@@ -212,6 +226,27 @@ class CaptureAgent:
                             )
                         ]
                     )
+                continue
+
+            # ── Server content (audio out) ────────────────────────────────────
+            server_content = getattr(response, "server_content", None)
+            if server_content is None:
+                continue
+
+            model_turn = getattr(server_content, "model_turn", None)
+            if model_turn and model_turn.parts:
+                for part in model_turn.parts:
+                    inline_data = getattr(part, "inline_data", None)
+                    if inline_data and inline_data.data:
+                        audio_buf.extend(inline_data.data)
+                        if self._on_audio:
+                            try:
+                                await self._on_audio(bytes(inline_data.data))
+                            except Exception:
+                                logger.exception("on_audio callback error: sessionId=%s", self.session_id)
+
+            if getattr(server_content, "turn_complete", False):
+                audio_buf.clear()
 
     async def _handle_extraction(self, event: ExtractionEvent) -> None:
         try:

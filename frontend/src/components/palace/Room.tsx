@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useMemo, useRef, useEffect } from 'react';
 import * as THREE from 'three';
 import { useTexture, Text } from '@react-three/drei';
 import { useCameraStore } from '../../stores/cameraStore';
@@ -113,74 +113,55 @@ export function Room({ room, index, doors = [], artifacts = [], onArtifactClick,
   );
 }
 
-// ── Corner Lighting Helper ───────────────────────────────────────────────────
-interface CornerLightingProps {
-  w: number;
-  d: number;
-  h: number;
-  index: number;
+// ── Instanced Decorative Books ────────────────────────────────────────────────
+const BOOK_COLORS_ROW1 = ['#5A1818', '#1A3A1A', '#B08D57', '#2A2A5A'] as const;
+const BOOK_COLORS_ROW2 = ['#1A3A1A', '#B08D57', '#2A2A5A', '#5A1818'] as const;
+const BX_POS = [-2.5, -1, 1, 2.5];
+const BOOK_OFFSETS = [0, 0.15, 0.3, 0.45];
+
+const _m4 = new THREE.Matrix4();
+
+function BookInstances({ color, positions }: { color: string; positions: [number, number, number][] }) {
+  const ref = useRef<THREE.InstancedMesh>(null!);
+  useEffect(() => {
+    positions.forEach((p, i) => {
+      _m4.makeTranslation(p[0], p[1], p[2]);
+      ref.current.setMatrixAt(i, _m4);
+    });
+    ref.current.instanceMatrix.needsUpdate = true;
+  }, [positions]);
+  return (
+    <instancedMesh ref={ref} args={[undefined, undefined, positions.length]}>
+      <boxGeometry args={[0.12, 0.7, 0.3]} />
+      <meshStandardMaterial color={color} roughness={0.4} metalness={0.1} />
+    </instancedMesh>
+  );
 }
 
-const CORNER_COLORS = [
-  '#4A90E2', // Blue
-  '#F5A623', // Orange
-  '#7ED321', // Green
-  '#BD10E0', // Purple
-  '#50E3C2', // Teal
-  '#F8E71C', // Yellow
-  '#FF69B4', // Hot Pink
-  '#00CED1', // Dark Turquoise
-];
-
-const CornerLighting = memo(function CornerLighting({ w, d, h, index }: CornerLightingProps) {
-  const inset = 0.5;
-  const lightHeight = h * 0.7; // Position lights at 70% of wall height
-
-  // Pick 4 colors based on room index
-  const colors = [
-    CORNER_COLORS[(index * 4 + 0) % CORNER_COLORS.length],
-    CORNER_COLORS[(index * 4 + 1) % CORNER_COLORS.length],
-    CORNER_COLORS[(index * 4 + 2) % CORNER_COLORS.length],
-    CORNER_COLORS[(index * 4 + 3) % CORNER_COLORS.length],
-  ];
+function DecorativeBookShelf({ h }: { h: number }) {
+  const groups = useMemo(() => {
+    const map = new Map<string, [number, number, number][]>();
+    const add = (color: string, x: number, y: number) => {
+      if (!map.has(color)) map.set(color, []);
+      map.get(color)!.push([x, y, 0.15]);
+    };
+    BX_POS.forEach((bx, i) => {
+      BOOK_OFFSETS.forEach((off, j) => {
+        add(BOOK_COLORS_ROW1[(i + j) % 4], bx + off, h * 0.23);
+        add(BOOK_COLORS_ROW2[(i + j) % 4], bx + off, h * 0.43);
+      });
+    });
+    return Array.from(map.entries());
+  }, [h]);
 
   return (
-    <group>
-      {/* Corner 1: [inset, lightHeight, inset] */}
-      <pointLight
-        position={[inset, lightHeight, inset]}
-        color={colors[0]}
-        intensity={3}
-        distance={w}
-        decay={2}
-      />
-      {/* Corner 2: [w - inset, lightHeight, inset] */}
-      <pointLight
-        position={[w - inset, lightHeight, inset]}
-        color={colors[1]}
-        intensity={3}
-        distance={w}
-        decay={2}
-      />
-      {/* Corner 3: [inset, lightHeight, d - inset] */}
-      <pointLight
-        position={[inset, lightHeight, d - inset]}
-        color={colors[2]}
-        intensity={3}
-        distance={w}
-        decay={2}
-      />
-      {/* Corner 4: [w - inset, lightHeight, d - inset] */}
-      <pointLight
-        position={[w - inset, lightHeight, d - inset]}
-        color={colors[3]}
-        intensity={3}
-        distance={w}
-        decay={2}
-      />
-    </group>
+    <>
+      {groups.map(([color, positions]) => (
+        <BookInstances key={color} color={color} positions={positions} />
+      ))}
+    </>
   );
-});
+}
 
 // ── Theme Decor Helpers ───────────────────────────────────────────────────────
 // We'll create a shared hook for the textures so they're only loaded once per room type
@@ -201,12 +182,7 @@ const MahoganyLibraryDecor = memo(function MahoganyLibraryDecor({ w, d, h, index
   return (
     <group>
       <ambientLight intensity={0.6} color="#FFDAB9" />
-      <pointLight position={[cx, h - 1, cz]} intensity={6} color="#FFB067" distance={w * 2} decay={2} castShadow />
-
-      <CornerLighting w={w} d={d} h={h} index={index} />
-
-      {/* Internal Bookshelf Glow - makes the "dark something" readable */}
-      <pointLight position={[cx, h * 0.5, 0.6]} intensity={4} color="#FFE4B5" distance={5} decay={2} />
+      <pointLight position={[cx, h - 1, cz]} intensity={6} color="#FFB067" distance={w * 2} decay={2} />
 
       {/* Floor — rich mahogany parquet, brightened base color */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
@@ -244,35 +220,7 @@ const MahoganyLibraryDecor = memo(function MahoganyLibraryDecor({ w, d, h, index
           </mesh>
         ))}
 
-        {/* Decorative Books */}
-        {[-2.5, -1, 1, 2.5].map((bx, i) => (
-          <group key={i} position={[bx, h * 0.23, 0.15]}>
-            {[0, 0.15, 0.3, 0.45].map((offset, j) => (
-              <mesh key={j} position={[offset, 0, 0]}>
-                <boxGeometry args={[0.12, 0.7, 0.3]} />
-                <meshStandardMaterial
-                  color={['#5A1818', '#1A3A1A', '#B08D57', '#2A2A5A'][(i + j) % 4]}
-                  roughness={0.4}
-                  metalness={0.1}
-                />
-              </mesh>
-            ))}
-          </group>
-        ))}
-        {/* Second row of books */}
-        {[-2.5, -1, 1, 2.5].map((bx, i) => (
-          <group key={i + 10} position={[bx, h * 0.43, 0.15]}>
-            {[0, 0.15, 0.3, 0.45].map((offset, j) => (
-              <mesh key={j} position={[offset, 0, 0]}>
-                <boxGeometry args={[0.12, 0.7, 0.3]} />
-                <meshStandardMaterial
-                  color={['#1A3A1A', '#B08D57', '#2A2A5A', '#5A1818'][(i + j) % 4]}
-                  roughness={0.4}
-                />
-              </mesh>
-            ))}
-          </group>
-        ))}
+        <DecorativeBookShelf h={h} />
       </group>
     </group>
   );
@@ -287,9 +235,7 @@ const ClassicOakDecor = memo(function ClassicOakDecor({ w, d, h, index }: { w: n
   return (
     <group>
       <ambientLight intensity={1.2} color="#FFF8DC" />
-      <pointLight position={[cx, h - 0.4, cz]} intensity={12} color="#FFE4B5" distance={w * 2.5} decay={2} castShadow />
-
-      <CornerLighting w={w} d={d} h={h} index={index} />
+      <pointLight position={[cx, h - 0.4, cz]} intensity={12} color="#FFE4B5" distance={w * 2.5} decay={2} />
 
       {/* Floor — honey oak parquet, brightened base color */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
@@ -305,13 +251,6 @@ const ClassicOakDecor = memo(function ClassicOakDecor({ w, d, h, index }: { w: n
         </mesh>
       ))}
 
-      {/* Display pedestal */}
-      <group position={[cx, 0, d - 2]}>
-        <mesh position={[0, 0.4, 0]}>
-          <boxGeometry args={[0.8, 0.8, 0.8]} />
-          <meshStandardMaterial color="#4A3018" roughness={0.7} />
-        </mesh>
-      </group>
     </group>
   );
 });
@@ -325,9 +264,7 @@ const WarmWalnutDecor = memo(function WarmWalnutDecor({ w, d, h, index }: { w: n
   return (
     <group>
       <ambientLight intensity={1.0} color="#FAEBD7" />
-      <pointLight position={[cx, h - 0.6, cz]} intensity={10} color="#FFDAB9" distance={w * 2} decay={2} castShadow />
-
-      <CornerLighting w={w} d={d} h={h} index={index} />
+      <pointLight position={[cx, h - 0.6, cz]} intensity={10} color="#FFDAB9" distance={w * 2} decay={2} />
 
       {/* Floor — rich walnut parquet, brightened base color */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, 0, cz]} receiveShadow>
@@ -335,23 +272,6 @@ const WarmWalnutDecor = memo(function WarmWalnutDecor({ w, d, h, index }: { w: n
         <meshStandardMaterial map={floorTexture} color="#B58B66" roughness={0.35} metalness={0.08} />
       </mesh>
 
-      {/* Decorative wall paneling */}
-      <mesh position={[0.2, h / 2, cz]} rotation={[0, Math.PI / 2, 0]}>
-        <planeGeometry args={[d * 0.8, h * 0.8]} />
-        <meshStandardMaterial color="#8B5A2B" roughness={0.8} />
-      </mesh>
-
-      {/* Cozy wooden table */}
-      <group position={[cx, 0, cz + 1]}>
-        <mesh position={[0, 0.6, 0]}>
-          <cylinderGeometry args={[0.8, 0.8, 0.1, 32]} />
-          <meshStandardMaterial color="#5C4033" roughness={0.5} />
-        </mesh>
-        <mesh position={[0, 0.3, 0]}>
-          <cylinderGeometry args={[0.1, 0.2, 0.6, 16]} />
-          <meshStandardMaterial color="#3A2818" roughness={0.7} />
-        </mesh>
-      </group>
     </group>
   );
 });

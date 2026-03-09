@@ -39,6 +39,9 @@ function wireListeners(ws: RayanWebSocket): void {
   _playback = new AudioPlayback();
 
   _listenerUnsubs = [
+    ws.on('capture_audio', (msg) => {
+      if (_playback) void _playback.enqueue(msg.data);
+    }),
     ws.on('capture_ack', (msg) => {
       useCaptureStore.getState().addConcept(msg.extraction);
       // Log extraction in the conversation panel
@@ -86,6 +89,7 @@ function wireListeners(ws: RayanWebSocket): void {
       const voiceStore = useVoiceStore.getState();
       if (voiceStore.status === 'connecting') {
         voiceStore.setStatus('connected');
+        voiceStore.addToolEvent('Session Started', 'session_start');
       }
     }),
     ws.on('live_audio', (msg) => {

@@ -17,6 +17,75 @@ import { usePalaceStore } from '../../stores/palaceStore';
 
 // ─── Reset View button ────────────────────────────────────────────────────────
 
+// ─── More button (Mobile Only) ────────────────────────────────────────────────
+
+function MoreSection() {
+    const [showMenu, setShowMenu] = useState(false);
+
+    const resetView = useCameraStore((s) => s.resetView);
+    const exitOverview = useCameraStore((s) => s.exitOverview);
+    const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+    const enterOverview = useCameraStore((s) => s.enterOverview);
+
+    const handleReset = () => {
+        const { startTransition } = useTransitionStore.getState();
+        startTransition('exit', () => {
+            exitOverview();
+            usePalaceStore.getState().setCurrentRoomId(null);
+            resetView();
+            setShowMenu(false);
+        });
+    };
+
+    const handleMapClick = () => {
+        const { startTransition } = useTransitionStore.getState();
+        startTransition('enter', () => {
+            if (isOverviewMode) exitOverview();
+            else enterOverview();
+            setShowMenu(false);
+        });
+    };
+
+    return (
+        <div className="relative flex sm:hidden">
+            {showMenu && (
+                <div className="absolute bottom-full left-0 mb-3 bg-glass backdrop-blur-xl border border-border rounded-2xl p-1.5 flex flex-col gap-1 shadow-xl animate-[fadeIn_0.2s_ease] min-w-[140px]">
+                    <button
+                        onClick={handleReset}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl border-none bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)] cursor-pointer"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
+                            <HomeIcon size={14} />
+                        </div>
+                        <span className="font-body text-[13px] font-medium">Reset View</span>
+                    </button>
+                    <button
+                        onClick={handleMapClick}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl border-none bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)] cursor-pointer"
+                    >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${isOverviewMode ? 'bg-primary' : 'bg-[rgba(0,0,0,0.04)]'}`}>
+                            <MapIcon active={isOverviewMode} size={14} />
+                        </div>
+                        <span className="font-body text-[13px] font-medium">{isOverviewMode ? 'Exit Map' : 'Show Map'}</span>
+                    </button>
+                </div>
+            )}
+            <button
+                onClick={() => setShowMenu(!showMenu)}
+                aria-label="More actions"
+                className="flex flex-col items-center gap-1 py-1.5 px-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+            >
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)]">
+                    <MoreIcon size={18} />
+                </div>
+                <span className="font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">More</span>
+            </button>
+        </div>
+    );
+}
+
+// ─── Reset View button ────────────────────────────────────────────────────────
+
 function ResetViewSection() {
     const resetView = useCameraStore((s) => s.resetView);
     const exitOverview = useCameraStore((s) => s.exitOverview);
@@ -35,14 +104,14 @@ function ResetViewSection() {
             onClick={handleReset}
             aria-label="Reset view to palace entrance"
             title="Reset View"
-            className="flex flex-col items-center gap-1 py-1.5 px-2 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+            className="hidden sm:flex flex-col items-center gap-1 py-1.5 px-1.5 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
         >
             <div
                 className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95"
             >
                 <HomeIcon size={16} />
             </div>
-            <span className="font-body text-[9px] sm:text-[10px] text-text-muted tracking-[0.03em] leading-none">
+            <span className="hidden sm:block font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 Reset
             </span>
         </button>
@@ -69,14 +138,14 @@ function OverviewSection() {
             onClick={handleClick}
             aria-label={isOverviewMode ? 'Exit overview' : 'Show overview of all rooms'}
             title={isOverviewMode ? 'Exit Overview' : 'Overview'}
-            className="flex flex-col items-center gap-1 py-1.5 px-2 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+            className="hidden sm:flex flex-col items-center gap-1 py-1.5 px-1.5 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
         >
             <div
                 className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95 ${isOverviewMode ? 'bg-primary' : 'bg-[rgba(0,0,0,0.04)]'}`}
             >
                 <MapIcon active={isOverviewMode} size={16} />
             </div>
-            <span className="font-body text-[9px] sm:text-[10px] text-text-muted tracking-[0.03em] leading-none">
+            <span className="hidden sm:block font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 {isOverviewMode ? 'Exit Map' : 'Map'}
             </span>
         </button>
@@ -142,7 +211,7 @@ function CaptureSection() {
                     />
                     <SourceOption
                         onClick={() => handleStart('voice')}
-                        icon={<MicIcon size={16} />}
+                        icon={<MicIcon size={16} color="rgba(0,0,0,0.6)" />}
                         label="Voice Only"
                         active={selectedSource === 'voice'}
                     />
@@ -153,20 +222,23 @@ function CaptureSection() {
                 onClick={handleMainClick}
                 disabled={disabled}
                 aria-label={isCapturing ? 'Stop capture' : 'Open capture menu'}
-                className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
+                className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
             >
                 {/* Icon */}
                 <div
-                    className={`w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isCapturing ? 'animate-[capture-pulse_1.6s_ease-in-out_infinite]' : ''}`}
+                    className="w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap relative"
                 >
-                    {isProcessing ? <SpinnerIcon color="#111827" size={18} /> : isCapturing ? <StopIcon size={16} /> : selectedSource === 'voice' ? <MicIcon size={18} color="#111827" /> : selectedSource === 'screen_share' ? <MapIcon size={18} active={false} /> : <CamIcon size={18} />}
+                    <div className={`absolute inset-0 rounded-full ${btnColor} ${btnGlow} transition-colors duration-200 ${isCapturing ? 'animate-[capture-pulse_1.6s_ease-in-out_infinite]' : ''}`} />
+                    <div className="relative z-10 flex items-center justify-center">
+                        {isProcessing ? <SpinnerIcon color="#111827" size={18} /> : isCapturing ? <StopIcon size={16} /> : selectedSource === 'voice' ? <MicIcon size={18} color="#111827" /> : selectedSource === 'screen_share' ? <MapIcon size={18} active={false} /> : <CamIcon size={18} />}
+                    </div>
                 </div>
 
                 {/* Labels */}
-                <div className="hidden sm:flex flex-col gap-0.5">
-                    <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
+                <div className="flex flex-col gap-0.5">
+                    <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
                     <span
-                        className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
+                        className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                     >
                         {isProcessing ? (
                             <span className="animate-[pulse-opacity_1s_ease_infinite]">{subLabel}</span>
@@ -244,30 +316,33 @@ function VoiceSection() {
             onClick={handleClick}
             disabled={isConnecting}
             aria-label={ariaLabel}
-            className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
+            className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
         >
             {/* Icon */}
             <div
-                className={`w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full ${btnColor} ${btnGlow} flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap ${isResponding ? 'animate-[voice-pulse_1.2s_ease-in-out_infinite]' : ''}`}
+                className="w-10 h-10 sm:w-[46px] sm:h-[46px] rounded-full flex items-center justify-center shrink-0 transition-all duration-200 action-icon-wrap relative"
             >
-                {isConnecting ? (
-                    <SpinnerIcon color="#111827" size={18} />
-                ) : isResponding ? (
-                    <SpeakingIcon size={20} />
-                ) : isActive ? (
-                    <MicIcon size={20} />
-                ) : status === 'error' ? (
-                    <ErrorIcon size={20} />
-                ) : (
-                    <MicOffIcon size={20} />
-                )}
+                <div className={`absolute inset-0 rounded-full ${btnColor} ${btnGlow} transition-colors duration-200 ${isResponding ? 'animate-[voice-pulse_1.2s_ease-in-out_infinite]' : ''}`} />
+                <div className="relative z-10 flex items-center justify-center">
+                    {isConnecting ? (
+                        <SpinnerIcon color="#111827" size={18} />
+                    ) : isResponding ? (
+                        <SpeakingIcon size={20} />
+                    ) : isActive ? (
+                        <MicIcon size={20} />
+                    ) : status === 'error' ? (
+                        <ErrorIcon size={20} />
+                    ) : (
+                        <MicOffIcon size={20} />
+                    )}
+                </div>
             </div>
 
             {/* Labels */}
-            <div className="hidden sm:flex flex-col gap-0.5">
-                <span className="font-body font-semibold text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Chat with Memory</span>
+            <div className="flex flex-col gap-0.5">
+                <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Chat with Memory</span>
                 <span
-                    className={`font-body text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
+                    className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                 >
                     {subLabel}
                 </span>
@@ -327,14 +402,15 @@ export function ActionBar() {
             <div
                 role="toolbar"
                 aria-label="Memory actions"
-                className="fixed bottom-4 sm:bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1.5 sm:px-2.5 py-1.5 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[95vw] sm:max-w-none"
+                className="fixed bottom-3 sm:bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1 sm:px-2.5 py-1 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[98vw] sm:max-w-none"
             >
+                <MoreSection />
                 <ResetViewSection />
 
-                {/* Divider */}
+                {/* Divider - hidden when MoreSection is shown */}
                 <div
                     aria-hidden="true"
-                    className="w-px h-12 bg-border-light mx-1 shrink-0"
+                    className="hidden sm:block w-px h-10 sm:h-12 bg-border-light mx-0.5 sm:mx-1 shrink-0"
                 />
 
                 <OverviewSection />
@@ -342,7 +418,7 @@ export function ActionBar() {
                 {/* Divider */}
                 <div
                     aria-hidden="true"
-                    className="w-px h-12 bg-border-light mx-1 shrink-0"
+                    className="w-px h-10 sm:h-12 bg-border-light mx-0.5 sm:mx-1 shrink-0"
                 />
 
                 <CaptureSection />
@@ -360,6 +436,16 @@ export function ActionBar() {
 }
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
+
+function MoreIcon({ size = 18 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="rgba(0,0,0,0.6)">
+            <circle cx="12" cy="7" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="12" cy="17" r="1.5" />
+        </svg>
+    );
+}
 
 function HomeIcon({ size = 18 }: { size?: number }) {
     return (
