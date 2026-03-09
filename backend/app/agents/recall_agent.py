@@ -1,18 +1,18 @@
-"""LiveSessionManager — persistent Gemini Live API sessions per user.
+"""Recall Agent — persistent Gemini Live API session for memory exploration.
 
-Manages a long-lived streaming connection to Gemini Live for each user.
-Audio is forwarded via send_realtime_input (not send() with LiveClientRealtimeInput).
-Gemini's built-in VAD handles turn detection; the receive loop dispatches
-audio/text/interruption events back to the caller via callbacks.
+Manages one long-lived Gemini Live session per user while they are in the palace.
+The user speaks naturally; Rayan answers from stored memories, navigates rooms,
+highlights artifacts, saves new ones, and ends the session on request.
+
+Tool calling: Gemini may call navigate_to_room, highlight_artifact, save_artifact,
+close_artifact, or end_session. Each tool call is executed by _execute_tool() and
+a live_tool_call WS notification is sent to the frontend before the tool response
+is returned to Gemini.
 
 Architecture: The `async with client.aio.live.connect(...)` context manager owns the
 underlying websocket. We run the entire session lifecycle (connect → receive loop →
 close) inside a single background task so the `async with` block stays alive for the
 duration of the session. An asyncio.Event signals when to shut down.
-
-Tool calling: Gemini may call navigate_to_room, highlight_artifact, or create_diagram.
-Each tool call is executed by _execute_tool() and a live_tool_call WS notification
-is sent to the frontend before the tool response is returned to Gemini.
 """
 
 import asyncio
@@ -177,9 +177,9 @@ def _build_system_prompt(results: list[SearchResult], room_directory: str = "") 
     )
 
 
-# ── Manager ────────────────────────────────────────────────────────────────────
+# ── Recall Agent ───────────────────────────────────────────────────────────────
 
-class LiveSessionManager:
+class RecallAgent:
     def __init__(self) -> None:
         self._sessions: dict[str, LiveSession] = {}
 
@@ -202,7 +202,7 @@ class LiveSessionManager:
         room_id: Optional[str] = context.get("currentRoomId")
         artifact_id: Optional[str] = context.get("focusedArtifactId")
         logger.info(
-            "[LiveSession] Starting for userId=%s | currentRoomId=%s | focusedArtifactId=%s",
+            "[RecallAgent] Starting for userId=%s | currentRoomId=%s | focusedArtifactId=%s",
             user_id, room_id, artifact_id,
         )
         results, room_directory = await asyncio.gather(
@@ -211,7 +211,7 @@ class LiveSessionManager:
         )
         if results:
             logger.info(
-                "[LiveSession] ✅ %d memory artifact(s) attached to system prompt:",
+                "[RecallAgent] ✅ %d memory artifact(s) attached to system prompt:",
                 len(results),
             )
             for r in results:
@@ -223,11 +223,11 @@ class LiveSessionManager:
                 )
         else:
             logger.warning(
-                "[LiveSession] ⚠️  No memories attached — system prompt will have empty context. "
+                "[RecallAgent] ⚠️  No memories attached — system prompt will have empty context. "
                 "(focusedArtifactId=%s is required for retrieval)",
                 artifact_id,
             )
-        logger.info("[LiveSession] Room directory built: %d room(s)", room_directory.count("\n- [") + (1 if "- [" in room_directory else 0))
+        logger.info("[RecallAgent] Room directory built: %d room(s)", room_directory.count("\n- [") + (1 if "- [" in room_directory else 0))
 
         # Start the session immediately with basic prompt, retrieve context asynchronously
         system_prompt = _build_system_prompt([], room_directory)
@@ -274,7 +274,7 @@ class LiveSessionManager:
                 live, config, on_audio, on_text, on_interrupted, on_turn_complete,
                 on_user_text, on_tool_activity,
             ),
-            name=f"live-session-{user_id}",
+            name=f"recall-session-{user_id}",
         )
         live.task = task
 
@@ -282,16 +282,16 @@ class LiveSessionManager:
         try:
             await asyncio.wait_for(ready_event.wait(), timeout=15.0)
         except asyncio.TimeoutError:
-            logger.error("Live session timed out connecting for userId=%s", user_id)
+            logger.error("Recall session timed out connecting for userId=%s", user_id)
             await self.close_session(user_id)
-            raise RuntimeError("Live session connection timed out")
+            raise RuntimeError("Recall session connection timed out")
 
         if live.session is None:
             # Connection failed inside the task
             self._sessions.pop(user_id, None)
-            raise RuntimeError("Live session failed to connect")
+            raise RuntimeError("Recall session failed to connect")
 
-        logger.info("Live session started for userId=%s", user_id)
+        logger.info("Recall session started for userId=%s", user_id)
 
         # Inject initial room context and semantic memories asynchronously
         asyncio.create_task(self.update_context(user_id, room_id, artifact_id))
@@ -325,7 +325,7 @@ class LiveSessionManager:
                 await live.task
             except (asyncio.CancelledError, Exception):
                 pass
-        logger.info("Live session closed for userId=%s", user_id)
+        logger.info("Recall session closed for userId=%s", user_id)
 
     def has_session(self, user_id: str) -> bool:
         return user_id in self._sessions
@@ -342,11 +342,11 @@ class LiveSessionManager:
             return
 
         live.current_room_id = room_id
-        
+
         # Load room artifacts and semantic context in parallel
         artifacts_text_task = _load_room_context_text(user_id, room_id)
         semantic_context_task = _retrieve_context(user_id, room_id, artifact_id)
-        
+
         artifacts_text, results = await asyncio.gather(artifacts_text_task, semantic_context_task)
 
         if room_id:
@@ -355,10 +355,10 @@ class LiveSessionManager:
             intro = "[ROOM CONTEXT UPDATE] The user is in the palace lobby."
 
         context_msg = f"{intro}\n\n{artifacts_text}\n\n"
-        
+
         if artifact_id:
             context_msg += f"The user is specifically looking at ARTIFACT ID: {artifact_id}.\n"
-            
+
         if results:
             context_msg += "Here are some relevant memories related to what the user is seeing:\n"
             for r in results:
@@ -366,7 +366,7 @@ class LiveSessionManager:
                 context_msg += (
                     f"- [{r.artifact_id} in {r.room_name}]: {r.summary} (Captured: {captured_str})\n"
                 )
-        
+
         context_msg += "\nUse this context to answer questions or provide narration if the user asks."
 
         try:
@@ -377,7 +377,7 @@ class LiveSessionManager:
                 ],
                 turn_complete=False,
             )
-            logger.info("[LiveSession] Context updated for userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
+            logger.info("[RecallAgent] Context updated for userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
         except Exception:
             logger.exception("Context update failed for userId=%s roomId=%s", user_id, room_id)
 
@@ -389,7 +389,7 @@ class LiveSessionManager:
         on_tool_activity: Optional[OnToolActivity],
     ) -> str:
         """Execute a tool call from Gemini, notify the frontend, return the result string."""
-        logger.info("[LiveSession] Tool call: %s args=%s userId=%s", fn_name, fn_args, user_id)
+        logger.info("[RecallAgent] Tool call: %s args=%s userId=%s", fn_name, fn_args, user_id)
 
         async def notify(payload: dict) -> None:
             if on_tool_activity:
@@ -430,7 +430,7 @@ class LiveSessionManager:
             live = self._sessions.get(user_id)
             # Sync memory automatically when highlighting
             await self.update_context(user_id, live.current_room_id if live else None, artifact_id)
-            
+
             await notify({
                 "label": "Highlighting artifact",
                 "artifactId": artifact_id,
@@ -483,7 +483,7 @@ class LiveSessionManager:
                 })
                 # Refresh Gemini's context so it knows about the new artifact
                 await self.update_context(user_id, room_id)
-                logger.info("[LiveSession] Artifact saved: userId=%s artifactId=%s roomId=%s", user_id, artifact.id, room_id)
+                logger.info("[RecallAgent] Artifact saved: userId=%s artifactId=%s roomId=%s", user_id, artifact.id, room_id)
                 return f"Artifact saved: id={artifact.id} summary={summary[:60]}"
             except Exception:
                 logger.exception("save_artifact failed for userId=%s", user_id)
@@ -491,12 +491,12 @@ class LiveSessionManager:
 
         elif fn_name == "end_session":
             await notify({"label": "Ending session…"})
-            # Signal the session to stop — the receive loop will exit on the
-            # next iteration and the frontend's live_session_end message (or
-            # the explicit close below) will clean up the rest.
             live = self._sessions.get(user_id)
             if live:
                 live._closed = True
+                async def delayed_close():
+                    await asyncio.sleep(0.5)
+                    await self.close_session(user_id)
                 asyncio.create_task(delayed_close())
             return "Session ended"
 
@@ -508,7 +508,7 @@ class LiveSessionManager:
             return "Artifact closed"
 
         else:
-            logger.warning("[LiveSession] Unknown tool call: %s userId=%s", fn_name, user_id)
+            logger.warning("[RecallAgent] Unknown tool call: %s userId=%s", fn_name, user_id)
             return "Unknown tool"
 
     async def _session_lifecycle(
@@ -621,7 +621,7 @@ class LiveSessionManager:
 
 # ── Module-level singleton ─────────────────────────────────────────────────────
 
-live_session_manager = LiveSessionManager()
+recall_agent = RecallAgent()
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -657,19 +657,16 @@ async def _retrieve_context(
 ) -> list[SearchResult]:
     """Retrieve memory context for the system prompt."""
     search_query = ""
-    
+
     if artifact_id:
         try:
             from app.services.artifact_service import get_artifact
-            # Note: room_id is required by get_artifact but room_id might be None in lobby
-            # However, if artifact_id is provided, we usually have a room_id.
-            # If not, we might need a better way to find the artifact.
             artifact = await get_artifact(user_id, room_id or "lobby", artifact_id)
             if artifact:
                 search_query = artifact.summary
         except Exception:
             logger.warning("Failed to load artifact %s for semantic search query", artifact_id)
-            
+
     if not search_query:
         return []
 

@@ -29,7 +29,9 @@ export function stopVoiceSession(): void {
     if (!_started) return;
     _streamer?.stop();
     _streamer = null;
-    useVoiceStore.getState().setStatus('disconnected');
+    const voiceStore = useVoiceStore.getState();
+    voiceStore.setStatus('disconnected');
+    voiceStore.addToolEvent('Session Ended', 'session_end');
     _started = false;
     _muted = false;
 }
@@ -84,7 +86,9 @@ export function useVoice() {
         _streamer?.stop();
         _streamer = null;
         wsRef.current.sendLiveSessionEnd();
-        useVoiceStore.getState().setStatus('disconnected');
+        const voiceStore = useVoiceStore.getState();
+        voiceStore.setStatus('disconnected');
+        voiceStore.addToolEvent('Session Ended', 'session_end');
         _started = false;
         _muted = false;
     }, []);

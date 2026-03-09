@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useMemo } from 'react';
+import { Suspense, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
@@ -18,8 +18,7 @@ import type { LobbyDoor, WallPosition } from '../../types/palace';
 //   Add to <Canvas> gl prop: { onCreated: ({ gl }) => { gl.initGLContext?.(); } }
 //   Then use: const floorTex = useKTX2('/textures/floor.ktx2') in theme decorators.
 
-import { BakeShadows, useTexture, OrbitControls } from '@react-three/drei';
-import { EffectComposer, N8AO } from '@react-three/postprocessing';
+import { useTexture, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 
 
@@ -63,22 +62,38 @@ function PalaceGround() {
   );
 }
 
-// Positions the camera bird's-eye style when overview mode is entered.
-// Sets camera position during render (useMemo) so OrbitControls' constructor
-// already sees the correct position — useEffect would run too late.
-function OverviewCameraRig({ centerX, centerZ }: { centerX: number; centerZ: number }) {
+// Bird's-eye OrbitControls — positions the camera and explicitly syncs the
+// controls' internal spherical state via useLayoutEffect (runs before the
+// first useFrame so OrbitControls.update() never sees a stale position).
+function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: number }) {
   const { camera } = useThree();
-  const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
 
-  useMemo(() => {
-    if (!isOverviewMode) return;
+  useLayoutEffect(() => {
     camera.position.set(centerX, 35, centerZ + 45);
-    camera.lookAt(centerX, 0, centerZ);
     (camera as THREE.PerspectiveCamera).fov = 50;
     (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-  }, [isOverviewMode, camera, centerX, centerZ]);
 
-  return null;
+    const controls = controlsRef.current;
+    if (controls) {
+      controls.target.set(centerX, 0, centerZ);
+      controls.update();
+    } else {
+      camera.lookAt(centerX, 0, centerZ);
+    }
+  }, [camera, centerX, centerZ]);
+
+  return (
+    <OrbitControls
+      ref={controlsRef}
+      enablePan
+      enableZoom
+      enableRotate
+      minPolarAngle={0}
+      maxPolarAngle={Math.PI / 2.2}
+    />
+  );
 }
 
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
@@ -164,7 +179,6 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
         // Three.js frustumCulled=true is the default on every mesh, so off-screen
         // geometry is already rejected by the GPU before rasterization.
         camera={{ fov: 75, near: 0.1, far: 200, position: [6, 1.7, 6] }}
-        shadows
         dpr={[1, 1.5]} // Caps pixel ratio on high-res screens (like Retina Macs) to prevent lag
         performance={{ min: 0.5 }} // Allows R3F to scale down performance if frame rate drops
         gl={{
@@ -175,8 +189,9 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       >
         <fog attach="fog" args={['#060614', isOverviewMode ? 60 : 20, isOverviewMode ? 200 : 80]} />
 
+        <ambientLight intensity={0.7} color="#fff8f0" />
+
         <Suspense fallback={null}>
-          <BakeShadows />
           {/* Universal palace ground floor */}
           <PalaceGround />
 
@@ -233,21 +248,10 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
             return <Corridor key={i} from={from} to={to} />;
           })}
 
-          <EffectComposer enableNormalPass={false}>
-            <N8AO aoRadius={0.5} intensity={2} color="black" />
-          </EffectComposer>
         </Suspense>
 
-        <OverviewCameraRig centerX={overviewCenter.x} centerZ={overviewCenter.z} />
         {isOverviewMode
-          ? <OrbitControls
-            enablePan={true}
-            enableZoom={true}
-            enableRotate={true}
-            minPolarAngle={0}
-            maxPolarAngle={Math.PI / 2.2}
-            target={[overviewCenter.x, 0, overviewCenter.z]}
-          />
+          ? <OverviewControls centerX={overviewCenter.x} centerZ={overviewCenter.z} />
           : <FirstPersonControls />
         }
       </Canvas>

@@ -14,7 +14,7 @@ export function CaptureOverlay() {
   };
 
   return (
-    <div className="fixed top-4 right-4 bg-glass text-white rounded-2xl px-4 py-3 min-w-[220px] z-capture-overlay backdrop-blur-md border border-border shadow-[0_4px_24px_rgba(0,0,0,0.4)] animate-[fadeIn_0.2s_ease]">
+    <div className="fixed top-4 right-4 bg-glass text-text-primary rounded-2xl px-4 py-3 min-w-[220px] z-capture-overlay backdrop-blur-md border border-border shadow-[0_4px_24px_rgba(0,0,0,0.4)] animate-[fadeIn_0.2s_ease]">
       <div className="font-bold mb-2 font-body text-[13px]">
         {statusLabel[status] ?? status}
       </div>

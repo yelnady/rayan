@@ -173,14 +173,6 @@ export function PalacePage() {
       {/* Mobile Joystick */}
       {isMobile && !isOverviewMode && <Joystick />}
 
-      {/* Click-to-explore hint — shown when palace is loaded but pointer is not yet locked */}
-      {!loading && !error && (
-        <div className="fixed bottom-[110px] left-1/2 -translate-x-1/2 z-hud pointer-events-none">
-          <div className="bg-glass backdrop-blur-md border border-border rounded-[20px] px-4 py-1.5 text-xs font-body text-text-muted tracking-wide whitespace-nowrap">
-            {isMobile ? 'Drag to look · Use stick to move' : 'Click to explore · WASD to move'}
-          </div>
-        </div>
-      )}
 
 
 

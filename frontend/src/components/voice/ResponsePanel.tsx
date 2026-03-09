@@ -9,6 +9,8 @@ const TOOL_ICONS: Record<string, string> = {
     save_artifact: '💾',
     end_session: '👋',
     capture_concept: '🧠',
+    session_start: '🎙️',
+    session_end: '🏁',
 };
 
 export function ResponsePanel() {
@@ -39,7 +41,7 @@ export function ResponsePanel() {
             role="region"
             aria-label="Voice conversation"
             aria-live="polite"
-            className="fixed left-0 top-0 bottom-0 w-[320px] flex flex-col bg-[rgba(255,255,255,0.92)] backdrop-blur-2xl border-r border-[rgba(0,0,0,0.08)] z-response-panel shadow-[0_0_40px_rgba(0,0,0,0.1)] transition-all duration-300 animate-[fadeIn_0.3s_ease]"
+            className="fixed z-response-panel flex flex-col bg-[rgba(255,255,255,0.92)] backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.1)] transition-all duration-300 animate-[fadeIn_0.3s_ease] max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:h-[50vh] max-sm:rounded-t-2xl max-sm:border-t max-sm:border-[rgba(0,0,0,0.08)] sm:left-0 sm:top-0 sm:bottom-0 sm:w-[320px] sm:border-r sm:border-[rgba(0,0,0,0.08)]"
         >
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-[rgba(0,0,0,0.05)] shrink-0">

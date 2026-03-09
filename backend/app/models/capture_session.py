@@ -17,6 +17,7 @@ class SourceType(str, Enum):
     screen_share = "screen_share"
     upload = "upload"
     text_input = "text_input"
+    voice = "voice"
 
 
 class CaptureSession(BaseModel):
