@@ -20,17 +20,31 @@ export function SpeechBubble({
 
   const { scene } = useGLTF('/models/chat_bubble_icon.glb');
 
-  // Deep-clone so each instance has its own transforms; preserve original materials
+  // T164: Upgrade to MeshPhysicalMaterial for 'Premium' glass-like look.
+  // It uses the global Environment map for reflections, so it's never pitch black.
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
+    const material = new THREE.MeshPhysicalMaterial({
+      color: color,
+      emissive: color,
+      emissiveIntensity: 0.15,
+      roughness: 0.1,
+      metalness: 0.2, // Low metalness + Environment = Glassy sheen
+      clearcoat: 1, // Shiny protective layer
+      transmission: 0.2, // Slight translucency for 'Premium' feel
+      thickness: 0.5,
+      side: THREE.DoubleSide,
+    });
+
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        (child as THREE.Mesh).castShadow = true;
-        (child as THREE.Mesh).receiveShadow = true;
+        const mesh = child as THREE.Mesh;
+        mesh.material = material;
+        mesh.castShadow = true;
       }
     });
     return clone;
-  }, [scene]);
+  }, [scene, color]);
 
   function handlePointerOver() {
     if (!groupRef.current) return;
@@ -52,7 +66,7 @@ export function SpeechBubble({
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
       >
-        <group scale={0.5}>
+        <group scale={0.22}>
           <primitive object={clonedScene} />
         </group>
 

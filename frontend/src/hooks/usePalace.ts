@@ -32,6 +32,7 @@ export function usePalace(): UsePalaceReturn {
         // Palace doesn't exist yet — create it
         if (err instanceof Error && err.message.includes('404')) {
           try {
+            usePalaceStore.getState().setIsSeeding(true);
             const created = await palaceApi.createPalace();
             if (!cancelled) {
               setPalace(created.palace);
@@ -41,6 +42,7 @@ export function usePalace(): UsePalaceReturn {
           } catch (createErr) {
             if (!cancelled) {
               setError(createErr instanceof Error ? createErr.message : 'Failed to create palace');
+              usePalaceStore.getState().setIsSeeding(false);
             }
           }
         } else {

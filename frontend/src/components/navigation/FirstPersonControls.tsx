@@ -34,6 +34,12 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const isDragging = useRef(false);
     const yaw = useRef(Math.PI); // start looking toward -Z (into the lobby)
     const pitch = useRef(0);
+
+    // Cinematic fly-to state
+    const isCinematic = useRef(false);
+    const cinematicDest = useRef(new THREE.Vector3());
+    const cinematicYaw = useRef(0);
+    const cinematicPitch = useRef(0);
     // Zoom state
     const zoomFov = useRef(DEFAULT_FOV);
     const MIN_FOV = 30; // Max zoom in
@@ -70,22 +76,49 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         velocity.current.set(0, 0, 0);
     }, [teleportToken, teleportTarget, camera]);
 
+    // FlyTo — smooth cinematic glide to position + face target
+    const flyToToken = useCameraStore((s) => s.flyToToken);
+    useEffect(() => {
+        if (flyToToken === 0) return;
+        const { flyToTarget } = useCameraStore.getState();
+        if (!flyToTarget) return;
+
+        const { position, lookAt: lt } = flyToTarget;
+        cinematicDest.current.set(position.x, CAMERA_HEIGHT, position.z);
+
+        const dx = lt.x - position.x;
+        const dy = lt.y - CAMERA_HEIGHT;
+        const dz = lt.z - position.z;
+        const hdist = Math.sqrt(dx * dx + dz * dz);
+        cinematicYaw.current = Math.atan2(dx, dz) + Math.PI;
+        cinematicPitch.current = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, -Math.atan2(dy, hdist)));
+        isCinematic.current = true;
+    }, [flyToToken]);
+
     // LookAt — rotate camera toward a world-space position
     const lookAtToken = useCameraStore((s) => s.lookAtToken);
     const lookAtTarget = useCameraStore((s) => s.lookAtTarget);
     useEffect(() => {
         if (lookAtToken === 0 || !lookAtTarget) return;
-        const dx = lookAtTarget.x - camera.position.x;
+
+        // T161: If we are teleporting in the same frame, use the target position 
+        // for rotation math, otherwise atan2 uses the PRE-teleport lobby position.
+        const currentX = teleportTarget ? teleportTarget.x : camera.position.x;
+        const currentZ = teleportTarget ? teleportTarget.z : camera.position.z;
+
+        const dx = lookAtTarget.x - currentX;
         const dy = lookAtTarget.y - camera.position.y;
-        const dz = lookAtTarget.z - camera.position.z;
+        const dz = lookAtTarget.z - currentZ;
         const horizontalDist = Math.sqrt(dx * dx + dz * dz);
-        yaw.current = Math.atan2(dx, dz);
+        // T163: Standard Three.js camera (0,0,0) faces -Z. 
+        // Rotation PI faces +Z. So we add PI to the raw angle to face the target.
+        yaw.current = Math.atan2(dx, dz) + Math.PI;
         pitch.current = Math.max(
             -Math.PI / 2 + 0.05,
             Math.min(Math.PI / 2 - 0.05, -Math.atan2(dy, horizontalDist)),
         );
         camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
-    }, [lookAtToken, lookAtTarget, camera]);
+    }, [lookAtToken, lookAtTarget, teleportTarget, camera]);
 
     // Keyboard + mouse drag listeners
     useEffect(() => {
@@ -125,10 +158,11 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         function onWheel(e: WheelEvent) {
             // Adjust zoom base FOV depending on scroll delta
             const zoomSpeed = 0.05;
-            zoomFov.current = Math.max(
+            const nextFov = Math.max(
                 MIN_FOV,
                 Math.min(MAX_FOV, zoomFov.current + e.deltaY * zoomSpeed)
             );
+            useCameraStore.getState().setFov(nextFov);
         }
         function onContextMenu(e: Event) {
             e.preventDefault(); // suppress right-click menu on canvas
@@ -200,10 +234,42 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     }, [gl]);
 
     const mobileMovement = useCameraStore((s) => s.mobileMovement);
+    const storeFov = useCameraStore((s) => s.fov);
+
+    // Sync internal zoom ref when store FOV changes programmatically
+    useEffect(() => {
+        zoomFov.current = storeFov;
+    }, [storeFov]);
 
     useFrame((_, delta) => {
         // Skip movement in overview mode
         if (isOverviewMode) return;
+
+        // Cinematic fly-to: smooth glide overrides all normal movement
+        if (isCinematic.current) {
+            const SPEED = 3.5;
+            camera.position.lerp(cinematicDest.current, delta * SPEED);
+
+            // Lerp yaw/pitch via shortest angular path
+            const yawDiff = ((cinematicYaw.current - yaw.current + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+            yaw.current += yawDiff * Math.min(delta * SPEED * 1.5, 1);
+            pitch.current += (cinematicPitch.current - pitch.current) * Math.min(delta * SPEED * 1.5, 1);
+            camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
+
+            const fov = camera as THREE.PerspectiveCamera;
+            fov.fov = THREE.MathUtils.lerp(fov.fov, zoomFov.current, delta * 5);
+            fov.updateProjectionMatrix();
+
+            if (camera.position.distanceTo(cinematicDest.current) < 0.1) {
+                camera.position.copy(cinematicDest.current);
+                isCinematic.current = false;
+                const state = useCameraStore.getState();
+                const cb = state.onFlyComplete;
+                state.clearFlyTo();
+                cb?.();
+            }
+            return;
+        }
 
         // Apply camera rotation from yaw/pitch
         camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));

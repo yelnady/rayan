@@ -1,40 +1,35 @@
-"""Enrichment Agent — uses Gemini to research artifacts from the web.
+"""Enrichment Agent — uses Gemini + built-in Google Search to research artifacts.
 
 T117: ADK-style agent that:
   1. Takes an artifact summary/content
-  2. Queries Google Custom Search for relevant pages
-  3. Extracts text from the top results
-  4. Uses Gemini to synthesise enrichment content and relevance score
-  5. Saves enrichments to Firestore via enrichment_service
-  6. Broadcasts enrichment_update WebSocket event per websocket.md §6
+  2. Calls Gemini with the built-in google_search grounding tool
+  3. Synthesises enrichment content and a relevance score
+  4. Saves the enrichment to Firestore via enrichment_service
+  5. Broadcasts enrichment_update WebSocket event per websocket.md §6
 """
 
+import json
 import logging
 from typing import Awaitable, Callable
 
 from app.core.gemini import get_genai_client
-from app.models.enrichment import EnrichmentImage
 from app.models.artifact import Artifact
-from app.services.content_extractor import extract_content
-from app.services.web_search import search_web
 from app.services.enrichment_service import create_enrichment
 
 logger = logging.getLogger(__name__)
 
-# Max pages to fully extract content from (keeps latency reasonable)
-_MAX_PAGES_TO_EXTRACT = 3
-_MODEL = "gemini-2.0-flash"
+_MODEL = "gemini-2.5-flash"
 
 _SYSTEM_PROMPT = """You are a research assistant enriching a memory palace artifact.
-Given an artifact summary and web research content, you will:
-1. Identify the most relevant facts from the research
-2. Write a concise but informative enrichment (100-300 words)
-3. Assess relevance on a scale from 0.0 to 1.0
+Use Google Search to find the most relevant information about the given topic, then:
+1. Write a concise but informative enrichment (100-300 words) based on what you find
+2. Assess how relevant the research is to the artifact on a scale from 0.0 to 1.0
 
 Respond ONLY in this JSON format:
 {
   "enriched_content": "...",
-  "relevance_score": 0.85
+  "relevance_score": 0.85,
+  "source_name": "brief description of the main source"
 }"""
 
 
@@ -44,110 +39,73 @@ async def run_enrichment(
     room_id: str,
     on_enrichment_created: Callable[[dict], Awaitable[None]] | None = None,
 ) -> None:
-    """Run the full enrichment pipeline for one artifact.
-
-    on_enrichment_created — optional async callback called after each
-    enrichment is saved; receives the enrichment_update WebSocket payload.
-    """
+    """Run the full enrichment pipeline for one artifact."""
     logger.info(
         "enrichment_agent: starting for userId=%s artifactId=%s", user_id, artifact.id
     )
 
     query = artifact.summary
     if artifact.fullContent:
-        # Use first 200 chars of content for a more focused query
         query = f"{artifact.summary} {artifact.fullContent[:200]}"
 
-    # Step 1: web search
-    results = await search_web(query, num_results=_MAX_PAGES_TO_EXTRACT)
-    if not results:
-        logger.info("enrichment_agent: no search results for artifactId=%s", artifact.id)
+    result = await _research_with_google(artifact.summary, query)
+    if not result:
+        logger.info("enrichment_agent: no result for artifactId=%s", artifact.id)
         return
 
-    # Step 2: extract content from top pages
-    enrichments_created = 0
-    for result in results[:_MAX_PAGES_TO_EXTRACT]:
-        try:
-            page_text = await extract_content(result.url)
-            if not page_text:
-                continue
+    enrich_content = result.get("enriched_content", "").strip()
+    relevance = float(result.get("relevance_score", 0.0))
+    source_name = result.get("source_name", "Google Search")
 
-            # Step 3: synthesise with Gemini
-            enriched = await _synthesise(artifact.summary, result.title, page_text)
-            if enriched is None:
-                continue
+    if relevance < 0.3 or not enrich_content:
+        logger.info(
+            "enrichment_agent: skipping low-relevance result (%.2f) for artifactId=%s",
+            relevance, artifact.id,
+        )
+        return
 
-            enrich_content = enriched.get("enriched_content", "")
-            relevance = float(enriched.get("relevance_score", 0.0))
+    enrichment = await create_enrichment(
+        user_id=user_id,
+        artifact_id=artifact.id,
+        room_id=room_id,
+        source_url="",
+        source_name=source_name,
+        extracted_content=enrich_content,
+        images=[],
+        relevance_score=relevance,
+    )
 
-            # Skip low-relevance enrichments
-            if relevance < 0.3:
-                logger.info(
-                    "enrichment_agent: skipping low-relevance result (%.2f) for %s",
-                    relevance, result.url,
-                )
-                continue
-
-            # Step 4: persist
-            enrichment = await create_enrichment(
-                user_id=user_id,
-                artifact_id=artifact.id,
-                room_id=room_id,
-                source_url=result.url,
-                source_name=result.display_url or result.title,
-                extracted_content=enrich_content,
-                images=[],
-                relevance_score=relevance,
-            )
-            enrichments_created += 1
-
-            # Step 5: notify via WebSocket callback
-            if on_enrichment_created:
-                payload = {
-                    "type": "enrichment_update",
-                    "artifactId": artifact.id,
-                    "enrichment": {
-                        "id": enrichment.id,
-                        "sourceName": enrichment.sourceName,
-                        "sourceUrl": enrichment.sourceUrl,
-                        "preview": enrichment.extractedContent[:300],
-                        "images": [
-                            {"url": img.url, "caption": img.caption}
-                            for img in enrichment.images
-                        ],
-                    },
-                    "visualIndicator": {
-                        "artifactId": artifact.id,
-                        "effect": "crystal_orb_pulse",
-                    },
-                }
-                await on_enrichment_created(payload)
-
-        except Exception:
-            logger.exception(
-                "enrichment_agent: failed processing result %s for artifactId=%s",
-                result.url, artifact.id,
-            )
+    if on_enrichment_created:
+        payload = {
+            "type": "enrichment_update",
+            "artifactId": artifact.id,
+            "enrichment": {
+                "id": enrichment.id,
+                "sourceName": enrichment.sourceName,
+                "sourceUrl": enrichment.sourceUrl,
+                "preview": enrichment.extractedContent[:300],
+                "images": [],
+            },
+            "visualIndicator": {
+                "artifactId": artifact.id,
+                "effect": "crystal_orb_pulse",
+            },
+        }
+        await on_enrichment_created(payload)
 
     logger.info(
-        "enrichment_agent: done userId=%s artifactId=%s enrichments=%d",
-        user_id, artifact.id, enrichments_created,
+        "enrichment_agent: done userId=%s artifactId=%s relevance=%.2f",
+        user_id, artifact.id, relevance,
     )
 
 
-async def _synthesise(artifact_summary: str, page_title: str, page_text: str) -> dict | None:
-    """Ask Gemini to synthesise relevant enrichment content.
-
-    Returns a dict with `enriched_content` and `relevance_score` keys,
-    or None on failure.
-    """
-    import json
-
+async def _research_with_google(artifact_summary: str, query: str) -> dict | None:
+    """Call Gemini with built-in Google Search grounding and return parsed enrichment dict."""
     prompt = (
-        f"ARTIFACT SUMMARY:\n{artifact_summary}\n\n"
-        f"WEB PAGE TITLE: {page_title}\n\n"
-        f"WEB PAGE CONTENT:\n{page_text[:3000]}\n\n"
-        "Synthesise an enrichment and respond in JSON only."
+        f"Research this topic and provide enrichment content:\n\n"
+        f"ARTIFACT: {artifact_summary}\n\n"
+        f"SEARCH QUERY: {query}\n\n"
+        "Synthesise your findings and respond ONLY in the specified JSON format."
     )
 
     client = get_genai_client()
@@ -157,17 +115,19 @@ async def _synthesise(artifact_summary: str, page_title: str, page_text: str) ->
             contents=[{"role": "user", "parts": [{"text": prompt}]}],
             config={
                 "system_instruction": _SYSTEM_PROMPT,
+                "tools": [{"google_search": {}}],
                 "temperature": 0.2,
                 "max_output_tokens": 512,
             },
         )
-        raw = response.text.strip()
+        raw = response.text.strip() if response.text else ""
+        if not raw:
+            return None
 
-        # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
 
         return json.loads(raw)
     except Exception:
-        logger.exception("_synthesise: Gemini call failed")
+        logger.exception("_research_with_google: Gemini call failed for query=%r", query[:60])
         return None

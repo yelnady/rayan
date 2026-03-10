@@ -11,30 +11,63 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
+import { HighlightGlow } from './HighlightGlow';
 
 interface BookInstancedRendererProps {
     artifacts: ArtifactData[];
     onClick?: (artifact: ArtifactData) => void;
+    highlightedIds?: string[];
 }
 
 interface DocumentItemProps {
     artifact: ArtifactData;
     onClick?: (artifact: ArtifactData) => void;
+    highlighted?: boolean;
 }
 
-function DocumentItem({ artifact, onClick }: DocumentItemProps) {
+function wallRotation(artifact: ArtifactData): [number, number, number] {
+    if (artifact.wall === 'west') return [0, Math.PI / 2, 0];
+    if (artifact.wall === 'east') return [0, -Math.PI / 2, 0];
+    if (artifact.wall === 'south') return [0, Math.PI, 0];
+    if (artifact.wall === 'north') return [0, 0, 0];
+
+    const { x, z } = artifact.position;
+    if (x < 0.2) return [0, Math.PI / 2, 0];
+    if (x > 7.8) return [0, -Math.PI / 2, 0];
+    if (z > 7.8) return [0, Math.PI, 0];
+    return [0, 0, 0];
+}
+
+function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
     const { scene } = useGLTF('/models/document.glb');
     const groupRef = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
 
-    // Deep-clone the scene so each instance has its own transform/material state
+    const rotation = useMemo(() => wallRotation(artifact), [artifact]);
+
+    // T164: Upgrade to MeshPhysicalMaterial for 'Premium' glossy document look.
+    // Reflections from Environment map will keep details visible in shadows.
     const clonedScene = useMemo(() => {
         const clone = scene.clone(true);
-        // Ensure all meshes in the clone cast shadows
+        const material = new THREE.MeshPhysicalMaterial({
+            side: THREE.DoubleSide,
+            emissive: new THREE.Color('#ffffff'),
+            emissiveIntensity: 0.1, // Slight base glow to maintain texture 
+            clearcoat: 0.8, // Glossy paper/ink look
+            roughness: 0.3,
+        });
+
         clone.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
-                (child as THREE.Mesh).castShadow = true;
-                (child as THREE.Mesh).receiveShadow = true;
+                const mesh = child as THREE.Mesh;
+                mesh.castShadow = true;
+                mesh.receiveShadow = true;
+                if (mesh.material) {
+                    const oldMat = mesh.material as THREE.MeshStandardMaterial;
+                    mesh.material = material.clone();
+                    if (oldMat.map) (mesh.material as THREE.MeshPhysicalMaterial).map = oldMat.map;
+                    if (oldMat.color) (mesh.material as THREE.MeshPhysicalMaterial).color = oldMat.color;
+                }
             }
         });
         return clone;
@@ -42,7 +75,6 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
 
     useFrame((_, delta) => {
         if (!groupRef.current) return;
-        // Scale up slightly on hover
         const targetScale = hovered ? 0.6 : 0.5;
         const s = groupRef.current.scale.x;
         groupRef.current.scale.setScalar(s + (targetScale - s) * Math.min(delta * 10, 1));
@@ -53,12 +85,18 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
             <group
                 ref={groupRef}
                 position={[artifact.position.x, artifact.position.y, artifact.position.z]}
+                rotation={rotation}
                 scale={0.5}
                 onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
                 onPointerOut={() => setHovered(false)}
                 onClick={(e) => { e.stopPropagation(); onClick?.(artifact); }}
             >
-                <primitive object={clonedScene} />
+                {/* T159: Model origin shift — model is centered, so we push it 10cm "forward" 
+                    into the room so it doesn't intersect the wall. */}
+                <group position={[0, 0, 0.1]}>
+                    <primitive object={clonedScene} />
+                </group>
+                {highlighted && <HighlightGlow color="#60A8FF" />}
             </group>
 
             {hovered && (
@@ -103,13 +141,18 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
     );
 }
 
-export function BookInstancedRenderer({ artifacts, onClick }: BookInstancedRendererProps) {
+export function BookInstancedRenderer({ artifacts, onClick, highlightedIds }: BookInstancedRendererProps) {
     if (artifacts.length === 0) return null;
 
     return (
         <>
             {artifacts.map((artifact) => (
-                <DocumentItem key={artifact.id} artifact={artifact} onClick={onClick} />
+                <DocumentItem
+                    key={artifact.id}
+                    artifact={artifact}
+                    onClick={onClick}
+                    highlighted={highlightedIds?.includes(artifact.id)}
+                />
             ))}
         </>
     );

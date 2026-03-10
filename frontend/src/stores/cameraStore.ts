@@ -14,6 +14,12 @@ interface CameraState {
     lookAtTarget: { x: number; y: number; z: number } | null;
     lookAtToken: number;
     lookAt: (position: { x: number; y: number; z: number }) => void;
+    /** Smooth cinematic fly-to: glides camera to position while rotating to face lookAt */
+    flyToTarget: { position: { x: number; y: number; z: number }; lookAt: { x: number; y: number; z: number } } | null;
+    flyToToken: number;
+    onFlyComplete: (() => void) | null;
+    flyTo: (position: { x: number; y: number; z: number }, lookAt: { x: number; y: number; z: number }, onComplete?: () => void) => void;
+    clearFlyTo: () => void;
     /** Bird's-eye overview mode */
     isOverviewMode: boolean;
     enterOverview: () => void;
@@ -21,6 +27,9 @@ interface CameraState {
     /** Mobile-specific movement vector (from joystick) */
     mobileMovement: { x: number; z: number };
     setMobileMovement: (movement: { x: number; z: number }) => void;
+    /** Target FOV for the camera */
+    fov: number;
+    setFov: (fov: number) => void;
 }
 
 export const useCameraStore = create<CameraState>((set) => ({
@@ -38,9 +47,20 @@ export const useCameraStore = create<CameraState>((set) => ({
         lookAtTarget: position,
         lookAtToken: s.lookAtToken + 1,
     })),
+    flyToTarget: null,
+    flyToToken: 0,
+    onFlyComplete: null,
+    flyTo: (position, lookAt, onComplete) => set((s) => ({
+        flyToTarget: { position, lookAt },
+        flyToToken: s.flyToToken + 1,
+        onFlyComplete: onComplete ?? null,
+    })),
+    clearFlyTo: () => set({ flyToTarget: null, onFlyComplete: null }),
     isOverviewMode: false,
     enterOverview: () => set({ isOverviewMode: true }),
     exitOverview: () => set({ isOverviewMode: false }),
     mobileMovement: { x: 0, z: 0 },
     setMobileMovement: (movement) => set({ mobileMovement: movement }),
+    fov: 75,
+    setFov: (fov) => set({ fov }),
 }));

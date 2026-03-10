@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { useCaptureStore } from '../../stores/captureStore';
 import { useWS } from '../../hooks/useWS';
 import { stopVoiceSession } from '../../hooks/useVoice';
+import { stopCapture } from '../../hooks/useCapture';
 
 const TOOL_ICONS: Record<string, string> = {
     navigate_to_room: '🧭',
@@ -13,14 +15,46 @@ const TOOL_ICONS: Record<string, string> = {
     session_end: '🏁',
 };
 
+type PanelMode = 'voice' | 'capture' | null;
+
+function usePanelMode(): PanelMode {
+    const voiceShow = useVoiceStore((s) => s.showPanel);
+    const captureShow = useCaptureStore((s) => s.showPanel);
+    const captureStatus = useCaptureStore((s) => s.status);
+
+    // Prioritize capture when active
+    if (captureShow && captureStatus === 'capturing') {
+        return 'capture';
+    }
+    if (voiceShow) {
+        return 'voice';
+    }
+    return null;
+}
+
 export function ResponsePanel() {
-    const status = useVoiceStore((s) => s.status);
-    const messages = useVoiceStore((s) => s.messages);
-    const showPanel = useVoiceStore((s) => s.showPanel);
-    const setShowPanel = useVoiceStore((s) => s.setShowPanel);
-    const clearMessages = useVoiceStore((s) => s.clearMessages);
-    const bottomRef = useRef<HTMLDivElement>(null);
+    const panelMode = usePanelMode();
     const ws = useWS();
+    const bottomRef = useRef<HTMLDivElement>(null);
+
+    // Voice state
+    const voiceStatus = useVoiceStore((s) => s.status);
+    const voiceMessages = useVoiceStore((s) => s.messages);
+    const voiceSetShow = useVoiceStore((s) => s.setShowPanel);
+    const voiceClearMessages = useVoiceStore((s) => s.clearMessages);
+
+    // Capture state
+    const captureStatus = useCaptureStore((s) => s.status);
+    const captureMessages = useCaptureStore((s) => s.messages);
+    const captureSetShow = useCaptureStore((s) => s.setShowPanel);
+    const captureClearMessages = useCaptureStore((s) => s.clearMessages);
+
+    // Determine active mode state
+    const status = panelMode === 'voice' ? voiceStatus : captureStatus;
+    const messages = panelMode === 'voice' ? voiceMessages : captureMessages;
+    const setShowPanel = panelMode === 'voice' ? voiceSetShow : captureSetShow;
+    const clearMessages = panelMode === 'voice' ? voiceClearMessages : captureClearMessages;
+    const modeLabel = panelMode === 'voice' ? 'Conversation' : 'Capture Session';
 
     // Auto-scroll to bottom as conversation grows
     useEffect(() => {
@@ -29,31 +63,44 @@ export function ResponsePanel() {
 
     const handleClear = () => {
         clearMessages();
-        stopVoiceSession();
-        ws.sendLiveSessionEnd();
+        if (panelMode === 'voice') {
+            stopVoiceSession();
+            ws.sendLiveSessionEnd();
+        } else {
+            stopCapture();
+        }
     };
 
-    if (!showPanel) return null;
+    if (!panelMode) return null;
+
+    // Status label logic
+    const statusLabel = panelMode === 'voice'
+        ? (voiceStatus === 'connecting' ? 'connecting'
+            : voiceStatus === 'connected' ? 'listening'
+                : voiceStatus === 'responding' ? 'speaking'
+                    : voiceStatus === 'error' ? 'error'
+                        : 'offline')
+        : (captureStatus === 'capturing' ? 'recording'
+            : captureStatus === 'processing' ? 'processing'
+                : captureStatus === 'complete' ? 'done'
+                    : captureStatus === 'error' ? 'error'
+                        : 'idle');
 
     return (
         <div
             id="response-panel"
             role="region"
-            aria-label="Voice conversation"
+            aria-label={panelMode === 'voice' ? "Voice conversation" : "Capture session"}
             aria-live="polite"
             className="fixed z-response-panel flex flex-col bg-[rgba(255,255,255,0.92)] backdrop-blur-2xl shadow-[0_0_40px_rgba(0,0,0,0.1)] transition-all duration-300 animate-[fadeIn_0.3s_ease] max-sm:bottom-0 max-sm:left-0 max-sm:right-0 max-sm:top-auto max-sm:h-[50vh] max-sm:rounded-t-2xl max-sm:border-t max-sm:border-[rgba(0,0,0,0.08)] sm:left-0 sm:top-0 sm:bottom-0 sm:w-[320px] sm:border-r sm:border-[rgba(0,0,0,0.08)]"
         >
             {/* Header */}
             <div className="flex items-center gap-3 px-5 py-4 border-b border-[rgba(0,0,0,0.05)] shrink-0">
                 <StatusDot status={status} />
-                <span className="text-slate-900 text-sm font-bold font-heading flex-1 tracking-tight">Conversation</span>
+                <span className="text-slate-900 text-sm font-bold font-heading flex-1 tracking-tight">{modeLabel}</span>
                 <div className="flex items-center gap-2">
                     <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mr-1">
-                        {status === 'connecting' ? 'connecting'
-                            : status === 'connected' ? 'listening'
-                                : status === 'responding' ? 'speaking'
-                                    : status === 'error' ? 'error'
-                                        : 'offline'}
+                        {statusLabel}
                     </span>
                     <button
                         onClick={handleClear}
@@ -65,7 +112,7 @@ export function ResponsePanel() {
                     <button
                         onClick={() => setShowPanel(false)}
                         className="p-1.5 rounded-full hover:bg-[rgba(0,0,0,0.05)] text-slate-400 hover:text-slate-600 transition-colors"
-                        title="Hide conversation"
+                        title="Hide panel"
                     >
                         <CloseIcon />
                     </button>
@@ -74,10 +121,10 @@ export function ResponsePanel() {
 
             {/* Message log */}
             <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
-                {/* Connecting placeholder */}
-                {status === 'connecting' && messages.length === 0 && (
+                {/* Connecting/Recording placeholder */}
+                {(status === 'connecting' || status === 'capturing') && messages.length === 0 && (
                     <div className="flex items-center justify-center py-8">
-                        <ThinkingDots />
+                        <ThinkingDots status={status} />
                     </div>
                 )}
 
@@ -150,24 +197,29 @@ function TrashIcon() {
 
 function StatusDot({ status }: { status: string }) {
     const colorClass =
-        status === 'connected' ? 'bg-emerald-500'
-            : status === 'responding' ? 'bg-indigo-500 animate-pulse'
-                : status === 'connecting' ? 'bg-amber-500 animate-pulse'
+        status === 'connected' || status === 'capturing' ? 'bg-emerald-500'
+            : status === 'responding' || status === 'processing' ? 'bg-indigo-500 animate-pulse'
+                : status === 'connecting' || status === 'recording' ? 'bg-amber-500 animate-pulse'
                     : status === 'error' ? 'bg-rose-500'
                         : 'bg-slate-300';
     return <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorClass}`} />;
 }
 
-function ThinkingDots() {
+function ThinkingDots({ status }: { status: string }) {
+    const isRecording = status === 'capturing' || status === 'recording';
     return (
         <div className="flex gap-1.5 items-center" aria-hidden="true">
-            {[0, 0.2, 0.4].map((delay, i) => (
-                <div
-                    key={i}
-                    className="w-2 h-2 rounded-full bg-indigo-400 animate-[thinking-dot_1.2s_ease-in-out_infinite]"
-                    style={{ animationDelay: `${delay}s` }}
-                />
-            ))}
+            {isRecording ? (
+                <span className="text-amber-500 text-[11px] font-semibold">● Recording...</span>
+            ) : (
+                [0, 0.2, 0.4].map((delay, i) => (
+                    <div
+                        key={i}
+                        className="w-2 h-2 rounded-full bg-indigo-400 animate-[thinking-dot_1.2s_ease-in-out_infinite]"
+                        style={{ animationDelay: `${delay}s` }}
+                    />
+                ))
+            )}
         </div>
     );
 }

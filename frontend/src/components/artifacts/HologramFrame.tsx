@@ -1,4 +1,5 @@
 import { memo, useRef } from 'react';
+import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
@@ -11,10 +12,10 @@ interface HologramFrameProps {
   onHover?: (hovered: boolean) => void;
 }
 
-const FRAME_W = 0.6;
-const FRAME_H = 0.4;
+const FRAME_W = 1.2;
+const FRAME_H = 0.8;
 const FRAME_DEPTH = 0.02;
-const BORDER = 0.04;
+const BORDER = 0.06;
 const PULSE_SPEED = 1.8;
 
 export const HologramFrame = memo(function HologramFrame({
@@ -56,22 +57,22 @@ export const HologramFrame = memo(function HologramFrame({
         {/* Top bar */}
         <mesh position={[0, FRAME_H / 2 + BORDER / 2, 0]}>
           <boxGeometry args={[FRAME_W + BORDER * 2, BORDER, FRAME_DEPTH]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+          <meshPhysicalMaterial color={color} emissive={color} emissiveIntensity={0.8} clearcoat={1} roughness={0.1} />
         </mesh>
         {/* Bottom bar */}
         <mesh position={[0, -(FRAME_H / 2 + BORDER / 2), 0]}>
           <boxGeometry args={[FRAME_W + BORDER * 2, BORDER, FRAME_DEPTH]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+          <meshPhysicalMaterial color={color} emissive={color} emissiveIntensity={0.8} clearcoat={1} roughness={0.1} />
         </mesh>
         {/* Left bar */}
         <mesh position={[-(FRAME_W / 2 + BORDER / 2), 0, 0]}>
           <boxGeometry args={[BORDER, FRAME_H, FRAME_DEPTH]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+          <meshPhysicalMaterial color={color} emissive={color} emissiveIntensity={0.8} clearcoat={1} roughness={0.1} />
         </mesh>
         {/* Right bar */}
         <mesh position={[(FRAME_W / 2 + BORDER / 2), 0, 0]}>
           <boxGeometry args={[BORDER, FRAME_H, FRAME_DEPTH]} />
-          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.6} />
+          <meshPhysicalMaterial color={color} emissive={color} emissiveIntensity={0.8} clearcoat={1} roughness={0.1} />
         </mesh>
 
         {/* Holographic screen */}
@@ -82,13 +83,12 @@ export const HologramFrame = memo(function HologramFrame({
           onPointerOut={handlePointerOut}
         >
           <planeGeometry args={[FRAME_W, FRAME_H]} />
-          <meshStandardMaterial
+          <meshBasicMaterial
             color={color}
-            emissive={color}
-            emissiveIntensity={0.3}
             opacity={0.55}
             transparent
             depthWrite={false}
+            side={THREE.DoubleSide}
           />
         </mesh>
 
@@ -102,21 +102,18 @@ export const HologramFrame = memo(function HologramFrame({
             depthWrite={false}
           />
         </mesh>
-
-        <pointLight color={color} intensity={0.5} distance={1.5} decay={2} />
       </group>
 
       {/* LOD 1: Mid-range — single emissive plane only (12–28 units) */}
       <group>
         <mesh onClick={onClick}>
           <planeGeometry args={[FRAME_W + BORDER * 2, FRAME_H + BORDER * 2]} />
-          <meshStandardMaterial
+          <meshBasicMaterial
             color={color}
-            emissive={color}
-            emissiveIntensity={0.4}
             opacity={0.6}
             transparent
             depthWrite={false}
+            side={THREE.DoubleSide}
           />
         </mesh>
       </group>

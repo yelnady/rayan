@@ -49,5 +49,6 @@ class Artifact(BaseModel):
     enrichments: list[str] = []
     relatedArtifacts: list[str] = []
     color: Optional[str] = None
+    wall: Optional[str] = None
     isSeedData: bool = False
     capturedAt: Optional[datetime] = None

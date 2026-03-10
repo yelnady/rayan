@@ -27,22 +27,26 @@ export function GoogleSignIn() {
         disabled={loading}
         id="google-sign-in-button"
         aria-label="Sign in with Google"
-        className={`flex items-center justify-center gap-2.5 w-full px-5 py-3 rounded-xl border border-[rgba(255,255,255,0.12)] bg-[rgba(255,255,255,0.05)] shadow-sm transition-all duration-250 ease-out focus:outline-none focus:ring-2 focus:ring-primary ${loading
+        className={`flex items-center justify-center gap-2.5 w-full px-5 py-3.5 rounded-xl border border-white/[0.08] bg-white/[0.03] shadow-[0_1px_2px_rgba(0,0,0,0.4)] transition-all duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${loading
             ? 'opacity-65 cursor-not-allowed'
-            : 'cursor-pointer hover:bg-[rgba(99,102,241,0.14)] hover:border-[rgba(99,102,241,0.55)] hover:shadow-primary-glow hover:-translate-y-px'
+            : 'cursor-pointer hover:bg-white/[0.08] hover:border-white/[0.15] hover:shadow-[0_8px_30px_rgb(0,0,0,0.12)] hover:-translate-y-0.5 active:scale-[0.98]'
           }`}
       >
         {loading ? (
           <>
             {/* Spinner */}
-            <div className="w-4 h-4 rounded-full border-2 border-primary-muted border-t-primary animate-spin shrink-0" />
-            <span className="font-body text-sm font-medium text-text-primary tracking-wide">Signing in…</span>
+            <div className="w-4 h-4 rounded-full border-2 border-indigo-500/20 border-t-indigo-400 animate-spin shrink-0" />
+            <span className="font-body text-sm font-medium text-indigo-100/70 tracking-wide">
+              Signing in…
+            </span>
           </>
         ) : (
           <>
             {/* Google "G" icon */}
             <GoogleLogo />
-            <span className="font-body text-sm font-medium text-text-primary tracking-wide">Sign in with Google</span>
+            <span className="font-body text-sm font-semibold text-white/90 tracking-wide">
+              Sign in with Google
+            </span>
           </>
         )}
       </button>

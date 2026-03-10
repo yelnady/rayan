@@ -8,6 +8,7 @@ interface PalaceState {
   artifacts: Record<string, Artifact[]>; // roomId → artifacts
   currentRoomId: string | null;
   loading: boolean;
+  isSeeding: boolean;
   error: string | null;
   highlightedArtifactIds: string[];
   agentSelectedArtifactId: string | null;
@@ -21,6 +22,7 @@ interface PalaceState {
   addArtifact: (artifact: Artifact) => void;
   setCurrentRoomId: (roomId: string | null) => void;
   setLoading: (loading: boolean) => void;
+  setIsSeeding: (isSeeding: boolean) => void;
   setError: (error: string | null) => void;
   setHighlightedArtifacts: (ids: string[]) => void;
   setAgentSelectedArtifactId: (id: string | null) => void;
@@ -33,6 +35,7 @@ export const usePalaceStore = create<PalaceState>((set) => ({
   artifacts: {},
   currentRoomId: null,
   loading: false,
+  isSeeding: false,
   error: null,
   highlightedArtifactIds: [],
   agentSelectedArtifactId: null,
@@ -59,6 +62,7 @@ export const usePalaceStore = create<PalaceState>((set) => ({
     }),
   setCurrentRoomId: (currentRoomId) => set({ currentRoomId }),
   setLoading: (loading) => set({ loading }),
+  setIsSeeding: (isSeeding) => set({ isSeeding }),
   setError: (error) => set({ error }),
   setHighlightedArtifacts: (highlightedArtifactIds) => set({ highlightedArtifactIds }),
   setAgentSelectedArtifactId: (agentSelectedArtifactId) => set({ agentSelectedArtifactId }),

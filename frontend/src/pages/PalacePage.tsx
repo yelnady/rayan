@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
 import { useVoice } from '../hooks/useVoice';
+import { useCaptureWS } from '../hooks/useCaptureWS';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
 import { CaptureOverlay } from '../components/capture/CaptureOverlay';
 import { ConceptToast } from '../components/capture/ConceptToast';
@@ -18,6 +19,8 @@ import { usePalaceStore } from '../stores/palaceStore';
 import { useCameraStore } from '../stores/cameraStore';
 import { useCaptureStore } from '../stores/captureStore';
 import { useVoiceStore } from '../stores/voiceStore';
+import { useTransitionStore } from '../stores/transitionStore';
+import { Logo } from '../components/brand/Logo';
 import type { Artifact } from '../types/palace';
 
 
@@ -28,8 +31,12 @@ export function PalacePage() {
   // Load palace data into palaceStore on mount
   const { loading, error, reload } = usePalace();
 
+  // Initialize capture WebSocket listeners
+  useCaptureWS();
+
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+  const isSeeding = usePalaceStore((s) => s.isSeeding);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -67,41 +74,64 @@ export function PalacePage() {
     }
   }, [currentRoomId, ws]);
 
-  // React to agent-selected artifact: open modal + rotate camera toward it
+  // React to agent-selected artifact: navigate to its room, stand in front of it, open modal
   const agentSelectedArtifactId = usePalaceStore((s) => s.agentSelectedArtifactId);
   useEffect(() => {
     if (!agentSelectedArtifactId) return;
     const state = usePalaceStore.getState();
 
     let foundRoomId: string | null = null;
-    let artifactPos: { x: number; y: number; z: number } | null = null;
+    let foundArtifact: Artifact | null = null;
     for (const [rid, arts] of Object.entries(state.artifacts)) {
       const found = arts.find((a) => a.id === agentSelectedArtifactId);
-      if (found) {
-        foundRoomId = rid;
-        artifactPos = found.position;
-        break;
-      }
+      if (found) { foundRoomId = rid; foundArtifact = found; break; }
     }
 
-    if (!foundRoomId) return;
+    if (!foundRoomId || !foundArtifact) return;
     const finalRoomId = foundRoomId;
+    const artifact = foundArtifact;
+    const room = state.rooms.find((r) => r.id === finalRoomId);
+    if (!room) return;
 
-    if (artifactPos) {
-      const room = state.rooms.find((r) => r.id === finalRoomId);
-      if (room) {
-        useCameraStore.getState().lookAt({
-          x: room.position.x + artifactPos.x,
-          y: artifactPos.y,
-          z: room.position.z + artifactPos.z,
-        });
-      }
+    // World position of the artifact
+    const worldX = room.position.x + artifact.position.x;
+    const worldZ = room.position.z + artifact.position.z;
+
+    // Stand 2 units in front of the artifact (away from its wall)
+    const STAND_DIST = 2.0;
+    let standX = worldX;
+    let standZ = worldZ;
+    if (artifact.wall === 'north' || artifact.position.z < 0.6) standZ = worldZ + STAND_DIST;
+    else if (artifact.wall === 'south' || artifact.position.z > room.dimensions.d - 0.6) standZ = worldZ - STAND_DIST;
+    else if (artifact.wall === 'west' || artifact.position.x < 0.2) standX = worldX + STAND_DIST;
+    else if (artifact.wall === 'east' || artifact.position.x > room.dimensions.w - 0.2) standX = worldX - STAND_DIST;
+
+    const openModal = () => {
+      setTimeout(() => setSelectedArtifact({ id: agentSelectedArtifactId, roomId: finalRoomId }), 1000);
+    };
+
+    const flyToArtifact = () => {
+      useCameraStore.getState().flyTo(
+        { x: standX, y: 1.7, z: standZ },
+        { x: worldX, y: artifact.position.y, z: worldZ },
+        openModal,
+      );
+    };
+
+    if (state.currentRoomId !== finalRoomId) {
+      // Transition into the room, then fly to the artifact
+      useTransitionStore.getState().startTransition('enter', () => {
+        usePalaceStore.getState().setCurrentRoomId(finalRoomId);
+        useCameraStore.getState().exitOverview();
+        // Teleport to room entry so the fly starts from a sensible position
+        const entryX = room.position.x + room.dimensions.w / 2;
+        const entryZ = room.position.z + room.dimensions.d - 0.5;
+        useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
+        flyToArtifact();
+      });
+    } else {
+      flyToArtifact();
     }
-
-    // Delay modal opening to allow for camera rotation
-    setTimeout(() => {
-      setSelectedArtifact({ id: agentSelectedArtifactId, roomId: finalRoomId });
-    }, 1000);
 
     usePalaceStore.getState().setAgentSelectedArtifactId(null);
   }, [agentSelectedArtifactId]);
@@ -120,9 +150,9 @@ export function PalacePage() {
       <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-bg relative">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(239,68,68,0.08)_0%,transparent_60%)] pointer-events-none" />
         <div className="relative bg-surface border border-error-border rounded-[20px] px-11 py-9 max-w-[440px] w-full text-center shadow-[0_0_40px_rgba(239,68,68,0.1),0_24px_64px_rgba(0,0,0,0.5)] animate-[scaleIn_0.3s_ease]">
-          {/* Icon */}
-          <div className="w-14 h-14 rounded-full bg-error-muted border border-error-border flex items-center justify-center mx-auto mb-5 text-2xl">
-            ⚠️
+          {/* Logo instead of manual alert */}
+          <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mx-auto mb-6">
+            <Logo size={40} className="opacity-40 grayscale" />
           </div>
 
           <h2 className="font-heading text-xl font-semibold text-text-primary m-0 mb-2">
@@ -155,12 +185,23 @@ export function PalacePage() {
       <PalaceCanvas onArtifactClick={handleArtifactClick} />
 
       {/* Loading overlay */}
-      {loading && (
-        <div className="fixed inset-0 flex flex-col items-center justify-center gap-3.5 bg-[rgba(6,6,20,0.9)] z-overlay backdrop-blur-sm">
-          <div className="w-7 h-7 rounded-full border-2 border-primary-muted border-t-primary animate-spin" />
-          <span className="font-body text-sm text-text-muted tracking-wide">
-            Loading your memory palace…
-          </span>
+      {(loading || isSeeding) && (
+        <div className="fixed inset-0 flex flex-col items-center justify-center gap-6 bg-[rgba(6,6,20,0.94)] z-overlay backdrop-blur-md">
+          <div className="relative">
+            <Logo size={64} className="relative z-10" />
+            <div className="absolute inset-0 bg-indigo-500/25 blur-3xl animate-pulse" />
+          </div>
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-6 h-6 rounded-full border-2 border-primary-muted border-t-primary animate-spin" />
+            <span className="font-body text-xs text-text-muted tracking-[0.2em] uppercase font-semibold">
+              {isSeeding ? 'Initializing your Memory Palace…' : 'Reconstructing Palace…'}
+            </span>
+            {isSeeding && (
+              <span className="font-body text-[11px] text-text-faint italic">
+                This might take a moment while we build your first rooms...
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -176,14 +217,18 @@ export function PalacePage() {
 
 
 
-      {/* Capture status overlays */}
+      {/* Capture status overlays - hide when panel is active */}
       <CapturePreview />
-      <CaptureOverlay />
-      <ConceptToast />
+      {(!useCaptureStore.getState().showPanel) && (
+        <>
+          <CaptureOverlay />
+          <ConceptToast />
+        </>
+      )}
       <CaptureComplete onClose={() => useCaptureStore.getState().reset()} />
       <RoomSuggestionModal />
 
-      {/* Voice UI (T105, T106, T107) */}
+      {/* Voice and Capture UI (T105, T106, T107) */}
       <ResponsePanel />
 
       {/* Artifact detail modal (T113) */}

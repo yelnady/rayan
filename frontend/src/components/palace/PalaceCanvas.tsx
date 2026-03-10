@@ -18,7 +18,7 @@ import type { LobbyDoor, WallPosition } from '../../types/palace';
 //   Add to <Canvas> gl prop: { onCreated: ({ gl }) => { gl.initGLContext?.(); } }
 //   Then use: const floorTex = useKTX2('/textures/floor.ktx2') in theme decorators.
 
-import { useTexture, OrbitControls } from '@react-three/drei';
+import { useTexture, OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 
@@ -97,7 +97,7 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
 }
 
 export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
-  const { palace, layout, rooms, artifacts } = usePalaceStore();
+  const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
 
   // Compute centroid of all rooms (+ lobby at 6,0,6) for overview camera target
@@ -134,35 +134,68 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       const state = usePalaceStore.getState();
       state.setCurrentRoomId(roomId);
       const targetRoom = state.rooms.find(r => r.id === roomId);
+      const door = lobbyDoors.find(d => d.roomId === roomId);
+
       if (targetRoom) {
         useCameraStore.getState().exitOverview();
 
         const w = targetRoom.dimensions.w;
         const d = targetRoom.dimensions.d;
-        const h = targetRoom.style === 'library' ? 5 : 4.5; // Roughly match Room.tsx heights
-
-        // Calculate room world bounds
         const startX = targetRoom.position.x;
         const startZ = targetRoom.position.z;
 
-        // Position camera at the "back" of the room (opposite the name wall at local Z=0)
-        // We push it back towards local Z=d as much as possible with a small margin
-        const entryX = startX + w / 2;
-        const entryZ = startZ + d - 1.5;
+        // Default: at the back (South), face North
+        let entryX = startX + w / 2;
+        let entryZ = startZ + d - 0.5;
+        let lookX = entryX;
+        let lookZ = startZ;
 
-        useCameraStore.getState().teleport({
-          x: entryX,
-          y: 1.7, // Human eye level
-          z: entryZ,
-        });
+        // Adjust entry point and look-at based on which lobby wall the door is on.
+        // If you walk through a North lobby door, you enter the South wall of the room.
+        if (door) {
+          switch (door.wallPosition) {
+            case 'north': // Walk North -> Enter South looking North
+              entryX = startX + w / 2;
+              entryZ = startZ + d - 0.5;
+              lookX = entryX;
+              lookZ = startZ;
+              break;
+            case 'south': // Walk South -> Enter North looking South
+              entryX = startX + w / 2;
+              entryZ = startZ + 0.5;
+              lookX = entryX;
+              lookZ = startZ + d;
+              break;
+            case 'east': // Walk East -> Enter West looking East
+              entryX = startX + 0.5;
+              entryZ = startZ + d / 2;
+              lookX = startX + w;
+              lookZ = entryZ;
+              break;
+            case 'west': // Walk West -> Enter East looking West
+              entryX = startX + w - 0.5;
+              entryZ = startZ + d / 2;
+              lookX = startX;
+              lookZ = entryZ;
+              break;
+          }
+        }
 
-        // Facing the "front" wall (local Z=0) where the room name is
-        useCameraStore.getState().lookAt({
-          x: startX + w / 2,
-          y: h * 0.8, // Look slightly up towards the name plate
-          z: startZ,
-        });
+        useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
+        useCameraStore.getState().lookAt({ x: lookX, y: 1.7, z: lookZ });
+        useCameraStore.getState().setFov(100);
       }
+    });
+  }, [lobbyDoors]);
+
+  // T162: Stable callback to return to the center of the lobby
+  const handleEnterLobby = useCallback(() => {
+    useTransitionStore.getState().startTransition('enter', () => {
+      usePalaceStore.getState().setCurrentRoomId(null);
+      useCameraStore.getState().exitOverview();
+      useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
+      useCameraStore.getState().lookAt({ x: 6, y: 1.7, z: 0 }); // Look North toward palace entrance
+      useCameraStore.getState().setFov(75);
     });
   }, []);
 
@@ -189,7 +222,11 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
       >
         <fog attach="fog" args={['#060614', isOverviewMode ? 60 : 20, isOverviewMode ? 200 : 80]} />
 
-        <ambientLight intensity={0.7} color="#fff8f0" />
+        <ambientLight intensity={0.5} color="#fff8f0" />
+        {/* T165: Global Environment — this is the #1 trick for 'premium' WebGL.
+            It provides reflection/ambient light derived from a city map, so even 
+            in a 'shadow', objects reflect the city lights and never turn black. */}
+        <Environment preset="city" />
 
         <Suspense fallback={null}>
           {/* Universal palace ground floor */}
@@ -200,16 +237,35 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
             lobbyDoors={lobbyDoors}
             rooms={rooms}
             onEnterRoom={handleEnterRoom}
+            onEnterLobby={handleEnterLobby}
           />
 
           {/* Rooms with their artifacts */}
           {rooms.map((room, index) => {
-            // T157: doors array built per room (stable across renders unless connections change)
-            const doors: DoorSpec[] = (room.connections ?? []).map((targetId, i) => ({
+            // T157: doors array built per room
+            // 1. Room-to-Room connections
+            const roomDoors: DoorSpec[] = (room.connections ?? []).map((targetId, i) => ({
               wall: 'north',
-              index: i,
+              index: i + 1, // Start at index 1 to avoid overlap with potential exit door
               targetRoomId: targetId,
             }));
+
+            // 2. Add Lobby Exit Door (mapped inverse from lobby door position)
+            const lobbyDoor = lobbyDoors.find(d => d.roomId === room.id);
+            if (lobbyDoor) {
+              const exitWallMap: Record<string, WallPosition> = {
+                'north': 'south',
+                'south': 'north',
+                'east': 'west',
+                'west': 'east'
+              };
+              roomDoors.push({
+                wall: exitWallMap[lobbyDoor.wallPosition] || 'south',
+                index: 0, // Primary exit is always index 0
+                targetRoomId: 'lobby'
+              });
+            }
+
             const roomArtifacts = artifacts[room.id] ?? [];
 
             // T153: books and orbs are now instanced inside Room via BookInstancedRenderer /
@@ -223,16 +279,19 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
                 key={room.id}
                 room={room}
                 index={index}
-                doors={doors}
+                doors={roomDoors}
                 artifacts={roomArtifacts}
+                highlightedIds={highlightedArtifactIds}
                 onArtifactClick={onArtifactClick}
                 onEnter={() => handleEnterRoom(room.id)}
+                onExitLobby={handleEnterLobby}
               >
                 {nonInstancedArtifacts.map((artifact) => (
                   <Artifact
                     key={artifact.id}
                     artifact={artifact}
                     onClick={onArtifactClick}
+                    highlighted={highlightedArtifactIds.includes(artifact.id)}
                   />
                 ))}
               </Room>

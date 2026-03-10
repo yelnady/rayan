@@ -18,6 +18,7 @@ from typing import Awaitable, Callable, Optional
 from google.genai import types as genai_types
 
 from app.agents.memory_architect import CategorizationResult, categorize_and_store
+from app.agents.tools.tools import capture_concept
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.capture_service import add_artifact_to_session
 
@@ -47,24 +48,6 @@ _SYSTEM_PROMPT = (
 )
 
 
-def capture_concept(
-    title: str,
-    summary: str,
-    artifact_type: str,
-    keywords: list[str],
-    confidence: float,
-) -> str:
-    """Extract and save a key concept to the memory palace.
-
-    Args:
-        title: Short title for the concept (3-7 words).
-        summary: Detailed summary of the concept (50-150 words).
-        artifact_type: One of: lecture, document, visual, conversation.
-        keywords: 2-4 topic keywords for categorisation.
-        confidence: How confident you are this is worth saving (0.0-1.0).
-    """
-    return ""
-
 
 @dataclass
 class ExtractionEvent:
@@ -80,6 +63,7 @@ class ExtractionEvent:
 
 ExtractionCallback = Callable[[ExtractionEvent], Awaitable[None]]
 AudioCallback = Callable[[bytes], Awaitable[None]]
+TextCallback = Callable[[str], Awaitable[None]]
 
 
 class CaptureAgent:
@@ -91,11 +75,13 @@ class CaptureAgent:
         session_id: str,
         on_extraction: ExtractionCallback,
         on_audio: Optional[AudioCallback] = None,
+        on_text: Optional[TextCallback] = None,
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
         self._on_extraction = on_extraction
         self._on_audio = on_audio
+        self._on_text = on_text
         self._chunk_queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue(maxsize=200)
         self._task: Optional[asyncio.Task] = None
         self._last_extraction_at: float = 0.0
@@ -146,6 +132,7 @@ class CaptureAgent:
                 ),
                 language_code="en-US",
             ),
+            output_audio_transcription=genai_types.AudioTranscriptionConfig(),
         )
         try:
             async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
@@ -228,7 +215,7 @@ class CaptureAgent:
                     )
                 continue
 
-            # ── Server content (audio out) ────────────────────────────────────
+            # ── Server content (audio out + transcription) ────────────────────────
             server_content = getattr(response, "server_content", None)
             if server_content is None:
                 continue
@@ -244,6 +231,16 @@ class CaptureAgent:
                                 await self._on_audio(bytes(inline_data.data))
                             except Exception:
                                 logger.exception("on_audio callback error: sessionId=%s", self.session_id)
+
+            # Handle output transcription
+            output_trans = getattr(server_content, "output_transcription", None)
+            if output_trans:
+                rayan_text = getattr(output_trans, "text", None)
+                if rayan_text and self._on_text:
+                    try:
+                        await self._on_text(rayan_text)
+                    except Exception:
+                        logger.exception("Text callback error: sessionId=%s", self.session_id)
 
             if getattr(server_content, "turn_complete", False):
                 audio_buf.clear()

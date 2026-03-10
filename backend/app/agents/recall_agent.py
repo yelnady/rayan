@@ -24,6 +24,13 @@ from typing import Awaitable, Callable, Optional
 
 from google.genai import types as genai_types
 
+from app.agents.tools.tools import (
+    close_artifact,
+    end_session,
+    highlight_artifact,
+    navigate_to_room,
+    save_artifact,
+)
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.search_service import SearchResult, semantic_search
 
@@ -48,55 +55,6 @@ class LiveSession:
     ready_event: asyncio.Event  # signaled when session is connected
     current_room_id: Optional[str] = field(default=None)
     _closed: bool = field(default=False, init=False)
-
-
-# ── Tool stubs (used only for schema generation by the Gemini SDK) ─────────────
-
-def navigate_to_room(room_id: str) -> str:
-    """Navigate the user to a specific room in their memory palace, or back to the lobby.
-
-    Args:
-        room_id: The exact room ID from the ROOM DIRECTORY to navigate to,
-                 or "lobby" to return to the main palace lobby.
-    """
-    return ""
-
-
-def highlight_artifact(artifact_id: str) -> str:
-    """Highlight a specific artifact in the memory palace to draw the user's attention to it.
-
-    Args:
-        artifact_id: The exact artifact ID from MEMORIES to highlight.
-    """
-    return ""
-
-
-def save_artifact(artifact_type: str, summary: str, full_content: str = "") -> str:
-    """Save a new artifact to the current room in the memory palace and store it permanently.
-
-    Use this when the user shares knowledge, a concept, or information they want to remember.
-
-    Args:
-        artifact_type: Type of artifact. Must be one of:
-            - "lecture"      → a lesson, class, or educational talk (shown as hologram frame)
-            - "document"     → a text document, note, or article (shown as floating book)
-            - "visual"       → an image, diagram, or visual content (shown as framed image)
-            - "conversation" → a discussion, interview, or dialogue (shown as speech bubble)
-            - "enrichment"   → supplementary or research material (shown as crystal orb)
-        summary: A concise summary of what this artifact contains (required).
-        full_content: The full detailed content of the artifact (optional but recommended).
-    """
-    return ""
-
-
-def end_session() -> str:
-    """End the current voice session when the user asks to stop, disconnect, or end the conversation."""
-    return ""
-
-
-def close_artifact() -> str:
-    """Close the currently open artifact detail modal or memory view."""
-    return ""
 
 
 # ── System prompt ──────────────────────────────────────────────────────────────

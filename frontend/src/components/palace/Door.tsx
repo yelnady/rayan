@@ -14,11 +14,12 @@ interface DoorProps {
   position: [number, number, number];
   targetRoomName?: string;
   onEnter?: () => void;
+  initialOpen?: boolean;
 }
 
-export function Door({ wall, position, targetRoomName, onEnter }: DoorProps) {
+export function Door({ wall, position, targetRoomName, onEnter, initialOpen = false }: DoorProps) {
   const groupRef = useRef<Group>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(initialOpen);
   const [hovered, setHovered] = useState(false);
 
   // Load the "nano banana" door texture
@@ -54,10 +55,21 @@ export function Door({ wall, position, targetRoomName, onEnter }: DoorProps) {
       (target - groupRef.current.rotation.y) * Math.min(1, delta * 6);
   });
 
-  function handleClick() {
+  function handleClick(e: any) {
+    if (e) e.stopPropagation();
+    onEnter?.();
     setIsOpen((prev) => !prev);
-    if (!isOpen) onEnter?.();
   }
+
+  const handlePointerOver = () => {
+    setHovered(true);
+    document.body.style.cursor = 'pointer';
+  };
+
+  const handlePointerOut = () => {
+    setHovered(false);
+    document.body.style.cursor = 'auto';
+  };
 
   let rotation: [number, number, number] = [0, 0, 0];
   switch (wall) {
@@ -73,7 +85,7 @@ export function Door({ wall, position, targetRoomName, onEnter }: DoorProps) {
       <group position={[-DOOR_WIDTH / 2, 0, 0]}>
         {/* Door panel — pivot at left edge */}
         <group ref={groupRef}>
-          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]} onClick={handleClick} onPointerOver={() => setHovered(true)} onPointerOut={() => setHovered(false)}>
+          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
             <mesh castShadow>
               <boxGeometry args={[DOOR_WIDTH, DOOR_HEIGHT, 0.08]} />
               <primitive object={doorMaterial} attach="material" />

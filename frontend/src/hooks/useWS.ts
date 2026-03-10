@@ -65,7 +65,7 @@ function wireListeners(ws: RayanWebSocket): void {
           style: r.style as never,
           connections: [],
           artifactCount: 0,
-        }),
+        })
       );
       msg.changes.artifactsAdded?.forEach((a) =>
         palaceStore.addArtifact({
@@ -77,8 +77,14 @@ function wireListeners(ws: RayanWebSocket): void {
           summary: a.summary,
           embedding: [],
           createdAt: new Date().toISOString(),
-        } as never),
+        } as never)
       );
+    }),
+    ws.on('seeding_started' as any, () => {
+      usePalaceStore.getState().setIsSeeding(true);
+    }),
+    ws.on('seeding_complete' as any, () => {
+      usePalaceStore.getState().setIsSeeding(false);
     }),
     ws.on('error', (msg) => {
       console.error('[WS error]', msg.code, msg.message);
@@ -133,30 +139,91 @@ function wireListeners(ws: RayanWebSocket): void {
       useVoiceStore.getState().setToolActivity({ tool: msg.tool, label: msg.label });
       setTimeout(() => useVoiceStore.getState().setToolActivity(null), 4_000);
 
-      // Navigate to room (with transition animation + sound)
+      // Navigate to room: exit to lobby first (if in a room), then enter target room
       if (msg.payload.navigation?.enterRoom) {
         const nav = msg.payload.navigation;
         const isLobby = nav.targetRoomId === 'lobby';
         const palaceStore = usePalaceStore.getState();
         const currentRoomId = palaceStore.currentRoomId;
         const targetRoomId = isLobby ? null : nav.targetRoomId;
+        const { startTransition } = useTransitionStore.getState();
 
         if (currentRoomId !== targetRoomId) {
-          useTransitionStore.getState().startTransition('enter', () => {
-            palaceStore.setCurrentRoomId(targetRoomId);
-            if (!isLobby) {
-              const room = palaceStore.rooms.find((r) => r.id === nav.targetRoomId);
-              if (room) {
-                useCameraStore.getState().teleport({
-                  x: room.position.x + room.dimensions.w / 2,
-                  y: 1.7,
-                  z: room.position.z + room.dimensions.d / 2,
-                });
-              }
+          const WALL_CYCLE = ['north', 'east', 'south', 'west'] as const;
+          const DOOR_SPACING = 2.2;
+          const LOBBY_SIZE = 12;
+          const layout = palaceStore.layout;
+
+          // Find which lobby wall/index this room's door is on (mirrors PalaceCanvas fallback logic)
+          const getLobbyDoor = (roomId: string) => {
+            const fromLayout = layout?.lobbyDoors?.find(d => d.roomId === roomId);
+            if (fromLayout) return fromLayout;
+            const idx = Math.max(palaceStore.rooms.findIndex(r => r.id === roomId), 0);
+            return { wallPosition: WALL_CYCLE[idx % 4], doorIndex: Math.floor(idx / 4) };
+          };
+
+          // Room entry position based on which lobby wall the door is on (mirrors handleEnterRoom in PalaceCanvas)
+          const getRoomEntry = (room: typeof palaceStore.rooms[0], wallPosition: string) => {
+            const { w, d } = room.dimensions;
+            const rx = room.position.x, rz = room.position.z;
+            switch (wallPosition) {
+              case 'south': return { entryX: rx + w / 2, entryZ: rz + 0.5,       lookX: rx + w / 2, lookZ: rz + d };
+              case 'east':  return { entryX: rx + 0.5,       entryZ: rz + d / 2,  lookX: rx + w,     lookZ: rz + d / 2 };
+              case 'west':  return { entryX: rx + w - 0.5,   entryZ: rz + d / 2,  lookX: rx,         lookZ: rz + d / 2 };
+              default:      return { entryX: rx + w / 2,     entryZ: rz + d - 0.5, lookX: rx + w / 2, lookZ: rz };
             }
-            // Send context update so Gemini knows the new room's artifacts
-            _instance?.sendContextUpdate(targetRoomId);
-          });
+          };
+
+          // Lobby position that faces the given door
+          const getLobbyFacing = (wallPosition: string, doorIndex: number) => {
+            const offset = doorIndex * DOOR_SPACING;
+            switch (wallPosition) {
+              case 'south': return { x: LOBBY_SIZE / 2 + offset, z: LOBBY_SIZE - 2, lx: LOBBY_SIZE / 2 + offset, lz: LOBBY_SIZE };
+              case 'east':  return { x: LOBBY_SIZE - 2,           z: LOBBY_SIZE / 2 + offset, lx: LOBBY_SIZE,     lz: LOBBY_SIZE / 2 + offset };
+              case 'west':  return { x: 2,                        z: LOBBY_SIZE / 2 + offset, lx: 0,              lz: LOBBY_SIZE / 2 + offset };
+              default:      return { x: LOBBY_SIZE / 2 + offset,  z: 2,             lx: LOBBY_SIZE / 2 + offset, lz: 0 };
+            }
+          };
+
+          const enterTarget = () => {
+            startTransition(isLobby ? 'exit' : 'enter', () => {
+              palaceStore.setCurrentRoomId(targetRoomId);
+              useCameraStore.getState().exitOverview();
+              if (!isLobby) {
+                const room = palaceStore.rooms.find(r => r.id === nav.targetRoomId);
+                if (room) {
+                  const ld = getLobbyDoor(nav.targetRoomId);
+                  const { entryX, entryZ, lookX, lookZ } = getRoomEntry(room, ld.wallPosition);
+                  useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
+                  useCameraStore.getState().lookAt({ x: lookX, y: 1.7, z: lookZ });
+                  useCameraStore.getState().setFov(100);
+                }
+              } else {
+                useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
+                useCameraStore.getState().lookAt({ x: 6, y: 1.7, z: 0 });
+                useCameraStore.getState().setFov(75);
+              }
+              _instance?.sendContextUpdate(targetRoomId);
+            });
+          };
+
+          if (currentRoomId !== null && !isLobby) {
+            // In a room → exit to lobby facing the target door, then enter the target room
+            const ld = getLobbyDoor(nav.targetRoomId);
+            const facing = getLobbyFacing(ld.wallPosition, ld.doorIndex ?? 0);
+            startTransition('exit', () => {
+              palaceStore.setCurrentRoomId(null);
+              useCameraStore.getState().exitOverview();
+              useCameraStore.getState().teleport({ x: facing.x, y: 1.7, z: facing.z });
+              useCameraStore.getState().lookAt({ x: facing.lx, y: 1.7, z: facing.lz });
+              useCameraStore.getState().setFov(75);
+              // Wait for the lobby fade-in to complete, then enter the target room
+              setTimeout(enterTarget, 1200);
+            });
+          } else {
+            // Already in lobby (or navigating to lobby): single transition
+            enterTarget();
+          }
         }
 
         if (nav.highlightArtifacts?.length) {

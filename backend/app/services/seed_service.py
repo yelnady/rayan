@@ -9,7 +9,8 @@ import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from app.models.artifact import ArtifactType
+from app.models.artifact import Artifact, ArtifactType
+from app.models.room import Room
 from app.services.artifact_service import create_artifact
 from app.services.room_service import create_room, increment_artifact_count, recompute_room_summary
 
@@ -255,6 +256,8 @@ async def seed_palace(user_id: str) -> dict:
     artifacts_created = 0
     artifact_index = 0
     created_room_ids: list[str] = []
+    created_rooms: list[Room] = []
+    created_artifacts: list[Artifact] = []
 
     for room_def in _SEED_ROOMS:
         room = await create_room(
@@ -263,13 +266,14 @@ async def seed_palace(user_id: str) -> dict:
             keywords=room_def["keywords"],
         )
         created_room_ids.append(room.id)
+        created_rooms.append(room)
         rooms_created += 1
 
         for art_def in room_def["artifacts"]:
             # Stagger dates: oldest first, most recent last
             captured_at = now - timedelta(days=14) + (time_step * artifact_index)
 
-            await create_artifact(
+            artifact = await create_artifact(
                 user_id=user_id,
                 room_id=room.id,
                 artifact_type=art_def["type"],
@@ -279,6 +283,7 @@ async def seed_palace(user_id: str) -> dict:
                 skip_enrichment=True,
                 captured_at=captured_at,
             )
+            created_artifacts.append(artifact)
             await increment_artifact_count(user_id, room.id)
             artifacts_created += 1
             artifact_index += 1
@@ -314,6 +319,10 @@ async def seed_palace(user_id: str) -> dict:
         user_id, rooms_created, artifacts_created, len(lobby_doors),
     )
     return {
-        "roomsCreated": rooms_created,
-        "artifactsCreated": artifacts_created,
+        "rooms": created_rooms,
+        "artifacts": created_artifacts,
+        "summary": {
+            "roomsCreated": rooms_created,
+            "artifactsCreated": artifacts_created,
+        }
     }
