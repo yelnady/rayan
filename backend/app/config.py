@@ -40,3 +40,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Ensure Google Cloud SDKs see the credentials
+if settings.google_application_credentials:
+    import os
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = settings.google_application_credentials

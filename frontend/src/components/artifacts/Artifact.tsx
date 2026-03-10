@@ -169,6 +169,23 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
               {artifact.summary}
             </div>
 
+            {/* Date */}
+            <div
+              style={{
+                fontSize: '10px',
+                color: 'rgba(255,255,255,0.5)',
+                marginBottom: '8px',
+              }}
+            >
+              {new Date(artifact.capturedAt || artifact.createdAt).toLocaleDateString(undefined, {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </div>
+
             {/* Click hint */}
             <div
               style={{

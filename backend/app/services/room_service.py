@@ -80,7 +80,24 @@ async def recompute_room_summary(user_id: str, room_id: str) -> str:
     from app.services.artifact_service import get_room_artifacts  # local import avoids circular
     artifacts = await get_room_artifacts(user_id, room_id)
     summary = " | ".join(a.summary for a in artifacts if a.summary)
-    await update_room_summary(user_id, room_id, summary)
+
+    # Date range calculation
+    dates = []
+    for a in artifacts:
+        # Prefer capturedAt, fallback to createdAt
+        dt = a.capturedAt or a.createdAt
+        if dt:
+            dates.append(dt)
+
+    first_at = min(dates) if dates else None
+    last_at = max(dates) if dates else None
+
+    # Update both summary and dates in one Firestore call
+    await _rooms_ref(user_id).document(room_id).update({
+        "summary": summary,
+        "firstMemoryAt": first_at,
+        "lastMemoryAt": last_at,
+    })
     return summary
 
 

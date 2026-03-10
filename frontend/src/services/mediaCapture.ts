@@ -23,9 +23,11 @@ export class MediaCapture {
     this.chunkIndex = 0;
 
     if (opts.source === 'webcam') {
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     } else if (opts.source === 'voice') {
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      // Voice-only mode — MediaCapture handles NO data if AudioStreamer is used.
+      // But we can let it capture audio:true just in case, but prefer disabling it here.
+      this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: false });
     } else {
       this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
     }

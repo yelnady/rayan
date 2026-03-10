@@ -98,6 +98,9 @@ export interface Room {
   lastAccessedAt?: string;
   artifactCount: number;
   topicKeywords?: string[];
+  summary?: string;
+  firstMemoryAt?: string;
+  lastMemoryAt?: string;
 }
 
 export interface Artifact {
@@ -116,6 +119,7 @@ export interface Artifact {
   relatedArtifacts?: string[];
   color?: string;
   wall?: WallPosition;
+  capturedAt?: string;
 }
 
 export interface EnrichmentImage {

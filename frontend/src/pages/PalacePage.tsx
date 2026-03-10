@@ -54,15 +54,22 @@ export function PalacePage() {
 
   const [selectedArtifact, setSelectedArtifact] = useState<{ id: string; roomId: string } | null>(null);
 
-  // Auto-connect the mic the first time the user enters any room
+  // Auto-connect the mic the first time the user enters any room,
+  // but only if capture is not already running.
   const { status: voiceStatus, connect: connectVoice } = useVoice();
+  const captureStatus = useCaptureStore((s) => s.status);
   const voiceConnectedRef = useRef(false);
   useEffect(() => {
-    if (currentRoomId && !voiceConnectedRef.current && voiceStatus === 'disconnected') {
+    if (
+      currentRoomId &&
+      !voiceConnectedRef.current &&
+      voiceStatus === 'disconnected' &&
+      captureStatus !== 'capturing'
+    ) {
       voiceConnectedRef.current = true;
       void connectVoice();
     }
-  }, [currentRoomId, voiceStatus, connectVoice]);
+  }, [currentRoomId, voiceStatus, connectVoice, captureStatus]);
 
   // Send context update to live session whenever the user enters a different room
   const prevRoomIdRef = useRef<string | null | undefined>(undefined);
@@ -259,10 +266,10 @@ export function PalacePage() {
         />
       )}
 
-      {/* Handle live_tool_call: close_artifact */}
+      {/* Handle live_tool_call: close_artifact + close on room navigation */}
       {useEffect(() => {
         return ws.on('live_tool_call', (msg) => {
-          if (msg.tool === 'close_artifact' || msg.payload.closeArtifact) {
+          if (msg.tool === 'close_artifact' || msg.payload.closeArtifact || msg.payload.navigation?.enterRoom) {
             setSelectedArtifact(null);
           }
         });

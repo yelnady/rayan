@@ -9,6 +9,14 @@
 
 Rayan is an AI agent that builds and maintains a personalized 3D memory palace from your real life. It captures what you see, hear, and read through real-time audio/video streaming, then lets you walk through an immersive 3D environment and have natural voice conversations with your own memories.
 
+### Core Mechanism: The Capture Agent
+The **Capture Agent** is the real-time engine that powers the experience. It works as follows:
+1. **Co-Listening**: It connects to a Gemini Live session and receives low-latency audio/video media chunks from the user's environment.
+2. **Real-Time Extraction**: Using built-in tool calls, it identifies key concepts (lectures, insights, moments) with a confidence threshold (>= 0.7).
+3. **Voice Feedback**: It provides immediate verbal acknowledgement (e.g., *"Got it — Mitochondria"*) while continuing to observe.
+4. **Interactive Dialogue**: It handles direct user questions via a separate voice stream, allowing the user to ask for clarifications mid-capture.
+5. **Spatial Archiving**: Once a session ends, it delegates to the **Memory Architect** to persist artifacts in semantically relevant rooms in the 3D palace.
+
 **Target Competition Categories**:
 - Live Agents (real-time voice/vision interaction)
 - Creative Storyteller (interleaved multimodal output)
