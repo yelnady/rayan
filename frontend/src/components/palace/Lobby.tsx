@@ -42,6 +42,7 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
 
 export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
+  const highlightedDoorRoomId = usePalaceStore(s => s.highlightedLobbyDoorRoomId);
   const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
   const micGLTF = useGLTF('/models/microphone.glb');
 
@@ -171,6 +172,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
               position={pos}
               targetRoomName={room?.name}
               onEnter={() => onEnterRoom(ld.roomId)}
+              highlighted={ld.roomId === highlightedDoorRoomId}
             />
           );
         })

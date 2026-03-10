@@ -26,10 +26,12 @@ from google.genai import types as genai_types
 
 from app.agents.tools.tools import (
     close_artifact,
+    create_artifact,
     end_session,
+    execute_web_search,
     highlight_artifact,
     navigate_to_room,
-    save_artifact,
+    web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.search_service import SearchResult, semantic_search
@@ -80,17 +82,33 @@ RESPONSE STRUCTURE:
 2. Supporting details from memories (2-3 sentences)
 3. Source citation ("This is from your [topic] session on [date]")
 
-ARTIFACT TYPES (use with save_artifact):
-- lecture      → educational talks, classes, lessons        (visual: hologram frame)
-- document     → notes, articles, text documents            (visual: floating book)
-- visual       → images, diagrams, visual content           (visual: framed image)
-- conversation → discussions, interviews, dialogues         (visual: speech bubble)
-- enrichment   → research, supplementary material           (visual: crystal orb)
+ARTIFACT TYPES (use with create_artifact):
+  KNOWLEDGE & LEARNING:
+  - lecture      → educational talks, classes, presentations    (hologram frame)
+  - document     → notes, articles, written text               (floating book)
+  - lesson       → structured lessons, tutorials, how-tos      (lesson model)
+  - insight      → realizations, aha moments, key takeaways    (brain model)
+  - question     → open questions, things to explore           (question model)
+  EXPERIENCES & EMOTIONS:
+  - moment       → a specific personal memory or experience    (coffee model)
+  - milestone    → life events, achievements, transitions      (milestone model)
+  - emotion      → feelings or emotional states                (heart model)
+  - dream        → long-term aspirations, deep wishes          (dream model)
+  - habit        → recurring behaviors, routines               (tree model)
+  OPINIONS & IDENTITY:
+  - conversation → discussions, interviews, dialogues          (speech bubble)
+  - opinion      → views, stances, beliefs on a topic          (opinion model)
+  - visual       → images, diagrams, visual content            (framed image)
+  - media        → music, podcasts, films that resonated       (headphones model)
+  GOALS:
+  - goal         → aspirations, objectives, things to achieve  (cash stack model)
+  - enrichment   → research or supplementary material          (crystal orb)
 
 TOOLS — use them proactively when relevant:
 - navigate_to_room: when your answer lives in a specific room, navigate there
 - highlight_artifact: when one artifact is the key answer, highlight it
-- save_artifact: when the user shares something they want to remember, save it
+- create_artifact: when the user shares something they want to remember, save it
+- web_search: when the user asks about something you don't have in memory, search the web for it
 - end_session: call this IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation.
 
 MEMORIES:
@@ -194,7 +212,7 @@ class RecallAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, highlight_artifact, save_artifact, end_session, close_artifact],
+            tools=[navigate_to_room, highlight_artifact, create_artifact, web_search, end_session, close_artifact],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -395,7 +413,7 @@ class RecallAgent:
             })
             return f"Highlighted artifact {artifact_id}. I have also loaded its full content into my memory."
 
-        elif fn_name == "save_artifact":
+        elif fn_name == "create_artifact":
             live = self._sessions.get(user_id)
             room_id = live.current_room_id if live else None
             if not room_id:
@@ -446,6 +464,12 @@ class RecallAgent:
             except Exception:
                 logger.exception("save_artifact failed for userId=%s", user_id)
                 return "Failed to save artifact"
+
+        elif fn_name == "web_search":
+            query = fn_args.get("query", "")
+            await notify({"label": f"Searching: {query[:50]}"})
+            result = await execute_web_search(query)
+            return result
 
         elif fn_name == "end_session":
             await notify({"label": "Ending session…"})
@@ -601,7 +625,7 @@ async def _load_room_context_text(user_id: str, room_id: Optional[str]) -> str:
             return f"Room: {room_name}\nNo artifacts in this room yet."
         lines = [f"Room: {room_name} (ID: {room_id})"]
         for a in artifacts:
-            lines.append(f"- [ARTIFACT ID: {a.id}] {a.summary or '(no summary)'}")
+            lines.append(f"- [ARTIFACT ID: {a.id}] [{a.type.value}] {a.summary or '(no summary)'}")
         return "\n".join(lines)
     except Exception:
         logger.exception("_load_room_context_text failed for userId=%s roomId=%s", user_id, room_id)

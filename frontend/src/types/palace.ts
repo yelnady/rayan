@@ -22,14 +22,22 @@ export interface Dimensions3D {
 
 export type RoomStyle = 'library' | 'lab' | 'gallery' | 'garden' | 'workshop';
 
-export type ArtifactType = 'lecture' | 'document' | 'visual' | 'conversation' | 'enrichment';
+export type ArtifactType =
+  // Knowledge & Learning
+  | 'lecture' | 'document' | 'lesson' | 'insight' | 'question'
+  // Experiences & Emotions
+  | 'moment' | 'milestone' | 'emotion' | 'dream' | 'habit'
+  // Opinions & Identity
+  | 'conversation' | 'opinion' | 'visual' | 'media'
+  // Goals
+  | 'goal' | 'enrichment';
 
 export type ArtifactVisual =
-  | 'floating_book'
-  | 'hologram_frame'
-  | 'framed_image'
-  | 'speech_bubble'
-  | 'crystal_orb';
+  // Procedural
+  | 'floating_book' | 'hologram_frame' | 'framed_image' | 'speech_bubble' | 'crystal_orb'
+  // GLB models
+  | 'lesson' | 'brain' | 'question' | 'coffee' | 'milestone'
+  | 'heart' | 'dream' | 'tree' | 'opinion' | 'headphones' | 'cash_stack';
 
 export type CaptureQuality = 'low' | 'medium' | 'high';
 

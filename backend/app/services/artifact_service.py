@@ -38,7 +38,6 @@ async def create_artifact(
     position: Optional[Position3D] = None,
     color: Optional[str] = None,
     is_seed_data: bool = False,
-    skip_enrichment: bool = False,
     captured_at: Optional[datetime] = None,
     wall: Optional[str] = None,
 ) -> Artifact:
@@ -76,24 +75,6 @@ async def create_artifact(
     import asyncio
     from app.services.room_service import recompute_room_summary
     asyncio.create_task(recompute_room_summary(user_id, room_id), name=f"room-summary-{room_id}")
-
-    if not skip_enrichment:
-        # T122: Kick off web enrichment asynchronously after artifact creation
-        from app.agents.enrichment_agent import run_enrichment
-        from app.websocket.manager import manager
-
-        async def _on_enrichment(payload: dict) -> None:
-            await manager.send(user_id, payload)
-
-        asyncio.create_task(
-            run_enrichment(
-                user_id=user_id,
-                artifact=artifact,
-                room_id=room_id,
-                on_enrichment_created=_on_enrichment,
-            ),
-            name=f"enrichment-{user_id}-{artifact_id}",
-        )
 
     return artifact
 

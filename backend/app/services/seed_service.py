@@ -280,7 +280,6 @@ async def seed_palace(user_id: str) -> dict:
                 summary=art_def["summary"],
                 full_content=art_def["fullContent"],
                 is_seed_data=True,
-                skip_enrichment=True,
                 captured_at=captured_at,
             )
             created_artifacts.append(artifact)

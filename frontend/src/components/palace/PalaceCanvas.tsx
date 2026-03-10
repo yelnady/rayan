@@ -22,16 +22,20 @@ import { useTexture, OrbitControls, Environment } from '@react-three/drei';
 import * as THREE from 'three';
 
 
-const CANVAS_STYLE: React.CSSProperties = {
+const CANVAS_BASE_STYLE: React.CSSProperties = {
   position: 'fixed',
-  inset: 0,
+  top: 0,
+  right: 0,
+  bottom: 0,
   background: '#060614',
+  transition: 'left 0.3s ease',
 };
 
 const WALL_CYCLE: WallPosition[] = ['north', 'east', 'south', 'west'];
 
 interface PalaceCanvasProps {
   onArtifactClick?: (artifact: ArtifactData) => void;
+  leftOffset?: number;
 }
 
 // Global massive ground plane that sits slightly below all rooms
@@ -96,7 +100,7 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
   );
 }
 
-export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
+export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasProps) {
   const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
 
@@ -200,14 +204,16 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
   }, []);
 
   // Show nothing until the palace record itself exists (very brief flash at most)
+  const canvasStyle = { ...CANVAS_BASE_STYLE, left: leftOffset };
+
   if (!palace) {
-    return <div style={CANVAS_STYLE} />;
+    return <div style={canvasStyle} />;
   }
 
   return (
     <>
       <Canvas
-        style={CANVAS_STYLE}
+        style={canvasStyle}
         // T154: Tightened far plane (500→200) — all rooms are within ~100 units.
         // Three.js frustumCulled=true is the default on every mesh, so off-screen
         // geometry is already rejected by the GPU before rasterization.

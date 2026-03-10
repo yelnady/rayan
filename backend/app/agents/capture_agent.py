@@ -18,7 +18,7 @@ from typing import Awaitable, Callable, Optional
 from google.genai import types as genai_types
 
 from app.agents.memory_architect import CategorizationResult, categorize_and_store
-from app.agents.tools.tools import capture_concept
+from app.agents.tools.tools import capture_concept, create_artifact, execute_web_search, web_search
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.capture_service import add_artifact_to_session
 
@@ -38,12 +38,29 @@ _SYSTEM_PROMPT = (
     "  1. You call capture_concept — give a brief acknowledgement like 'Got it — [concept name].'\n"
     "  2. The user directly addresses you.\n\n"
     "ARTIFACT TYPES:\n"
-    "- lecture: spoken explanations, presentations, teachings\n"
-    "- document: written text, papers, slides, notes\n"
-    "- visual: diagrams, charts, images, demonstrations\n"
-    "- conversation: discussions, interviews, Q&A\n\n"
+    "  KNOWLEDGE & LEARNING:\n"
+    "  - lecture: spoken explanations, presentations, teachings\n"
+    "  - document: written text, papers, slides, notes\n"
+    "  - lesson: structured lessons, tutorials, step-by-step guides\n"
+    "  - insight: sudden realizations, aha moments, key takeaways\n"
+    "  - question: open questions, things left to explore\n"
+    "  EXPERIENCES & EMOTIONS:\n"
+    "  - moment: a specific personal memory or experience\n"
+    "  - milestone: life events, achievements, transitions\n"
+    "  - emotion: feelings or emotional states tied to a moment\n"
+    "  - dream: long-term aspirations, deep wishes\n"
+    "  - habit: recurring behaviors or routines\n"
+    "  OPINIONS & IDENTITY:\n"
+    "  - conversation: discussions, interviews, Q&A\n"
+    "  - opinion: views, stances, beliefs on a topic\n"
+    "  - visual: diagrams, charts, images, demonstrations\n"
+    "  - media: music, podcasts, films that resonated\n"
+    "  GOALS:\n"
+    "  - goal: aspirations, objectives, things to achieve\n"
+    "  - enrichment: supplementary research or background material\n\n"
     "When you identify a key concept worth remembering (confidence >= 0.7, "
     "at least 15 seconds since the last extraction), call the `capture_concept` tool. "
+    "You may also call `create_artifact` directly for any memory type above. "
     "Do NOT repeat concepts already captured."
 )
 
@@ -123,7 +140,7 @@ class CaptureAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=_SYSTEM_PROMPT,
-            tools=[capture_concept],
+            tools=[capture_concept, create_artifact, web_search],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -176,43 +193,89 @@ class CaptureAgent:
             tool_call = getattr(response, "tool_call", None)
             if tool_call and getattr(tool_call, "function_calls", None):
                 for fc in tool_call.function_calls:
-                    if fc.name != "capture_concept":
-                        continue
                     args = dict(fc.args) if fc.args else {}
-                    confidence = float(args.get("confidence", 0.0))
-                    if not self._should_extract(confidence):
+
+                    if fc.name == "capture_concept":
+                        confidence = float(args.get("confidence", 0.0))
+                        if not self._should_extract(confidence):
+                            await session.send_tool_response(
+                                function_responses=[
+                                    genai_types.FunctionResponse(
+                                        name=fc.name,
+                                        id=fc.id,
+                                        response={"result": "skipped — too soon or low confidence"},
+                                    )
+                                ]
+                            )
+                            continue
+
+                        self._last_extraction_at = time.monotonic()
+                        event = ExtractionEvent(
+                            concept_title=args.get("title", ""),
+                            concept_summary=args.get("summary", ""),
+                            concept_type=args.get("artifact_type", "lecture"),
+                            concept_keywords=list(args.get("keywords", [])),
+                            confidence=confidence,
+                            voice_audio=bytes(audio_buf) if audio_buf else None,
+                        )
+                        audio_buf.clear()
+                        await self._handle_extraction(event)
+
                         await session.send_tool_response(
                             function_responses=[
                                 genai_types.FunctionResponse(
                                     name=fc.name,
                                     id=fc.id,
-                                    response={"result": "skipped — too soon or low confidence"},
+                                    response={"result": "concept captured successfully"},
                                 )
                             ]
                         )
-                        continue
 
-                    self._last_extraction_at = time.monotonic()
-                    event = ExtractionEvent(
-                        concept_title=args.get("title", ""),
-                        concept_summary=args.get("summary", ""),
-                        concept_type=args.get("artifact_type", "lecture"),
-                        concept_keywords=list(args.get("keywords", [])),
-                        confidence=confidence,
-                        voice_audio=bytes(audio_buf) if audio_buf else None,
-                    )
-                    audio_buf.clear()
-                    await self._handle_extraction(event)
+                    elif fc.name == "create_artifact":
+                        self._last_extraction_at = time.monotonic()
+                        event = ExtractionEvent(
+                            concept_title=args.get("summary", "")[:60],
+                            concept_summary=args.get("summary", ""),
+                            concept_type=args.get("artifact_type", "moment"),
+                            concept_keywords=[],
+                            confidence=1.0,
+                            voice_audio=bytes(audio_buf) if audio_buf else None,
+                        )
+                        audio_buf.clear()
+                        await self._handle_extraction(event)
 
-                    await session.send_tool_response(
-                        function_responses=[
-                            genai_types.FunctionResponse(
-                                name=fc.name,
-                                id=fc.id,
-                                response={"result": "concept captured successfully"},
-                            )
-                        ]
-                    )
+                        await session.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": "artifact created successfully"},
+                                )
+                            ]
+                        )
+
+                    elif fc.name == "web_search":
+                        result = await execute_web_search(args.get("query", ""))
+                        await session.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": result},
+                                )
+                            ]
+                        )
+
+                    else:
+                        await session.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": "unknown tool"},
+                                )
+                            ]
+                        )
                 continue
 
             # ── Server content (audio out + transcription) ────────────────────────
