@@ -139,6 +139,32 @@ def close_artifact() -> str:
     return ""
 
 
+def edit_artifact(artifact_id: str, summary: str = "", full_content: str = "") -> str:
+    """Edit an existing artifact's summary or full content in the memory palace.
+
+    Use this when the user asks to update, correct, or expand a memory.
+    At least one of summary or full_content must be provided.
+
+    Args:
+        artifact_id: The exact artifact ID from MEMORIES to edit.
+        summary: The new concise summary to replace the existing one (leave empty to keep unchanged).
+        full_content: The new full content to replace the existing one (leave empty to keep unchanged).
+    """
+    return ""
+
+
+def delete_artifact(artifact_id: str) -> str:
+    """Permanently delete an artifact from the user's memory palace.
+
+    Use this only when the user explicitly asks to delete, remove, or forget a specific memory.
+    Always confirm which artifact the user wants to delete before calling this tool.
+
+    Args:
+        artifact_id: The exact artifact ID from MEMORIES to delete.
+    """
+    return ""
+
+
 # ── Execution helpers ──────────────────────────────────────────────────────────
 
 async def execute_web_search(query: str) -> str:

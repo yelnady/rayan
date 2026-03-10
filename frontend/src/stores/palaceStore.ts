@@ -21,6 +21,7 @@ interface PalaceState {
   setArtifacts: (roomId: string, artifacts: Artifact[]) => void;
   setAllArtifacts: (artifacts: Record<string, Artifact[]>) => void;
   addArtifact: (artifact: Artifact) => void;
+  removeArtifact: (artifactId: string) => void;
   setCurrentRoomId: (roomId: string | null) => void;
   setLoading: (loading: boolean) => void;
   setIsSeeding: (isSeeding: boolean) => void;
@@ -62,6 +63,14 @@ export const usePalaceStore = create<PalaceState>((set) => ({
           [artifact.roomId]: [...existing.filter((a) => a.id !== artifact.id), artifact],
         },
       };
+    }),
+  removeArtifact: (artifactId) =>
+    set((state) => {
+      const updated: Record<string, Artifact[]> = {};
+      for (const [roomId, arts] of Object.entries(state.artifacts)) {
+        updated[roomId] = arts.filter((a) => a.id !== artifactId);
+      }
+      return { artifacts: updated };
     }),
   setCurrentRoomId: (currentRoomId) => set({ currentRoomId }),
   setLoading: (loading) => set({ loading }),

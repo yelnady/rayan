@@ -1,6 +1,6 @@
 import { memo, useMemo, useState } from 'react';
-import { Html } from '@react-three/drei';
-import type { Artifact as ArtifactData } from '../../types/palace';
+import { Html, useGLTF } from '@react-three/drei';
+import type { Artifact as ArtifactData, ArtifactVisual } from '../../types/palace';
 import { HighlightGlow } from './HighlightGlow';
 import { FloatingBook } from './FloatingBook';
 import { HologramFrame } from './HologramFrame';
@@ -14,6 +14,17 @@ const TYPE_LABELS: Record<string, string> = {
   framed_image: 'Visual',
   speech_bubble: 'Conversation',
   crystal_orb: 'Enrichment',
+  lesson:     'Lesson',
+  brain:      'Insight',
+  question:   'Question',
+  coffee:     'Moment',
+  milestone:  'Milestone',
+  heart:      'Emotion',
+  dream:      'Dream',
+  tree:       'Habit',
+  opinion:    'Opinion',
+  headphones: 'Media',
+  cash_stack: 'Goal',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -22,7 +33,78 @@ const TYPE_COLORS: Record<string, string> = {
   framed_image: '#FF8C60',
   speech_bubble: '#60C8A0',
   crystal_orb: '#FF60B8',
+  lesson:     '#7EC8E3',
+  brain:      '#C084FC',
+  question:   '#FCD34D',
+  coffee:     '#D97706',
+  milestone:  '#34D399',
+  heart:      '#F87171',
+  dream:      '#A78BFA',
+  tree:       '#4ADE80',
+  opinion:    '#FB923C',
+  headphones: '#38BDF8',
+  cash_stack: '#FBBF24',
 };
+
+/** GLB file path for each model-based visual. */
+const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
+  lesson:     '/models/lesson.glb',
+  brain:      '/models/Brain.glb',
+  question:   '/models/question.glb',
+  coffee:     '/models/coffee.glb',
+  milestone:  '/models/Milestone.glb',
+  heart:      '/models/heart.glb',
+  dream:      '/models/Dream.glb',
+  tree:       '/models/Tree.glb',
+  opinion:    '/models/Opinion.glb',
+  headphones: '/models/Headphones.glb',
+  cash_stack: '/models/Cash Stack.glb',
+};
+
+/**
+ * Per-model scale to normalise each GLB to ~0.55 units (matching FloatingBook height).
+ * Derived from bounding-box analysis of each file.
+ */
+const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
+  lesson:     0.004,
+  brain:      0.030,
+  question:   0.052,
+  coffee:     0.019,
+  milestone:  13.5,
+  heart:      0.275,
+  dream:      0.001,
+  tree:       0.001,
+  opinion:    0.003,
+  headphones: 0.050,
+  cash_stack: 12.5,
+};
+
+// Preload all GLB models so they're ready when a room loads
+Object.values(GLB_PATHS).forEach((p) => useGLTF.preload(p));
+
+function GlbArtifact({
+  path,
+  scale,
+  onClick,
+  onHover,
+}: {
+  path: string;
+  scale: number;
+  onClick?: () => void;
+  onHover?: (h: boolean) => void;
+}) {
+  const { scene } = useGLTF(path);
+  const cloned = useMemo(() => scene.clone(), [scene]);
+  return (
+    <primitive
+      object={cloned}
+      scale={scale}
+      onClick={onClick}
+      onPointerOver={() => onHover?.(true)}
+      onPointerOut={() => onHover?.(false)}
+    />
+  );
+}
 
 interface ArtifactProps {
   artifact: ArtifactData;
@@ -89,8 +171,14 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
         return <SpeechBubble position={O} color={color} onClick={handleClick} onHover={handleHover} />;
       case 'crystal_orb':
         return <CrystalOrb position={O} color={color} onClick={handleClick} onHover={handleHover} />;
-      default:
+      default: {
+        const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
+        const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
+        if (glbPath) {
+          return <GlbArtifact path={glbPath} scale={glbScale} onClick={handleClick} onHover={handleHover} />;
+        }
         return null;
+      }
     }
   })();
 

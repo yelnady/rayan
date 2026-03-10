@@ -14,6 +14,7 @@ const TOOL_ICONS: Record<string, string> = {
     session_start: '🎙️',
     session_end: '🏁',
     memory_search: '🔍',
+    delete_artifact: '🗑️',
 };
 
 type PanelMode = 'voice' | 'capture' | null;

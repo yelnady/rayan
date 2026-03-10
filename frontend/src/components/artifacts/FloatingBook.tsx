@@ -10,9 +10,9 @@ interface FloatingBookProps {
   onHover?: (hovered: boolean) => void;
 }
 
-const BOOK_W = 0.44;
-const BOOK_H = 0.6;
-const BOOK_D = 0.12;
+const BOOK_W = 0.65;
+const BOOK_H = 0.9;
+const BOOK_D = 0.18;
 
 export const FloatingBook = memo(function FloatingBook({
   position,

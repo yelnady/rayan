@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
+import { usePalaceStore } from '../../stores/palaceStore';
 import { RelatedArtifacts } from './RelatedArtifacts';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
@@ -96,7 +97,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
             setRelatedLoading(true);
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`${API_BASE_URL}/artifacts/${artifactId}/related?threshold=0.75&limit=5`, {
+                const res = await fetch(`${API_BASE_URL}/artifacts/${artifactId}/related?threshold=0.50&limit=5`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) return;
@@ -197,24 +198,33 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                     )}
 
                     {/* Related artifacts */}
-                    {(artifact?.relatedArtifacts.length ?? 0) > 0 && (
-                        <section>
-                            <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
-                            <RelatedArtifacts
-                                relatedArtifactIds={artifact!.relatedArtifacts}
-                                narrationRelated={narration?.relatedArtifacts ?? []}
-                            />
-                        </section>
-                    )}
-                    {(narration?.relatedArtifacts.length ?? 0) > 0 && (artifact?.relatedArtifacts.length ?? 0) === 0 && (
-                        <section>
-                            <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
-                            <RelatedArtifacts
-                                relatedArtifactIds={[]}
-                                narrationRelated={narration!.relatedArtifacts}
-                            />
-                        </section>
-                    )}
+                    {(() => {
+                        const similarityMap = new Map(relatedMemories.map((m) => [m.artifactId, m.similarity]));
+                        return (
+                            <>
+                                {(artifact?.relatedArtifacts.length ?? 0) > 0 && (
+                                    <section>
+                                        <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
+                                        <RelatedArtifacts
+                                            relatedArtifactIds={artifact!.relatedArtifacts}
+                                            narrationRelated={narration?.relatedArtifacts ?? []}
+                                            similarityMap={similarityMap}
+                                        />
+                                    </section>
+                                )}
+                                {(narration?.relatedArtifacts.length ?? 0) > 0 && (artifact?.relatedArtifacts.length ?? 0) === 0 && (
+                                    <section>
+                                        <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
+                                        <RelatedArtifacts
+                                            relatedArtifactIds={[]}
+                                            narrationRelated={narration!.relatedArtifacts}
+                                            similarityMap={similarityMap}
+                                        />
+                                    </section>
+                                )}
+                            </>
+                        );
+                    })()}
 
                     {/* Similar memories via semantic search */}
                     {(relatedLoading || relatedMemories.length > 0) && (
@@ -230,8 +240,18 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                                     {relatedMemories.map((m) => {
                                         const pct = Math.round(m.similarity * 100);
                                         const color = pct >= 90 ? '#10b981' : pct >= 80 ? '#6366f1' : '#f59e0b';
+                                        const handleClick = () => {
+                                            onClose();
+                                            usePalaceStore.getState().setHighlightedArtifacts([m.artifactId]);
+                                            setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+                                            usePalaceStore.getState().setAgentSelectedArtifactId(m.artifactId);
+                                        };
                                         return (
-                                            <div key={m.artifactId} className="flex items-start gap-2.5 bg-surface-hover rounded-xl px-3 py-2.5 border border-border-light">
+                                            <button
+                                                key={m.artifactId}
+                                                onClick={handleClick}
+                                                className="flex items-start gap-2.5 bg-surface-hover hover:bg-surface-alt rounded-xl px-3 py-2.5 border border-border-light hover:border-primary/30 transition-colors text-left w-full cursor-pointer"
+                                            >
                                                 <span
                                                     className="shrink-0 text-[10px] font-bold rounded-full px-2 py-0.5 mt-0.5 font-body"
                                                     style={{ color, background: `${color}22`, border: `1px solid ${color}44` }}
@@ -242,7 +262,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                                                     <p className="m-0 text-[13px] text-text-secondary font-body leading-snug truncate">{m.summary}</p>
                                                     <p className="m-0 text-[11px] text-text-faint font-body mt-0.5">{m.roomName}</p>
                                                 </div>
-                                            </div>
+                                            </button>
                                         );
                                     })}
                                 </div>
@@ -253,7 +273,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                     {/* Meta */}
                     {(artifact?.capturedAt || artifact?.createdAt) && (
                         <p className="text-text-faint text-[11px] font-body m-0">
-                            Captured {new Date(artifact.capturedAt || artifact.createdAt).toLocaleDateString(undefined, {
+                            Captured {new Date(artifact.capturedAt || artifact.createdAt).toLocaleString(undefined, {
                                 month: 'long', day: 'numeric', year: 'numeric',
                                 hour: '2-digit', minute: '2-digit',
                             })}
