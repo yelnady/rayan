@@ -37,6 +37,10 @@ export function PalacePage() {
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
   const isSeeding = usePalaceStore((s) => s.isSeeding);
+  const voicePanelOpen = useVoiceStore((s) => s.showPanel);
+  const capturePanelOpen = useCaptureStore((s) => s.showPanel && s.status === 'capturing');
+  const panelOpen = voicePanelOpen || capturePanelOpen;
+  const PANEL_WIDTH = 320;
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -181,8 +185,8 @@ export function PalacePage() {
 
   return (
     <>
-      {/* 3D palace scene */}
-      <PalaceCanvas onArtifactClick={handleArtifactClick} />
+      {/* 3D palace scene — shifts right when side panel is open */}
+      <PalaceCanvas onArtifactClick={handleArtifactClick} leftOffset={panelOpen && !isMobile ? PANEL_WIDTH : 0} />
 
       {/* Loading overlay */}
       {(loading || isSeeding) && (
@@ -227,6 +231,22 @@ export function PalacePage() {
       )}
       <CaptureComplete onClose={() => useCaptureStore.getState().reset()} />
       <RoomSuggestionModal />
+
+      {/* Panel reopen tab — visible on desktop when panel is closed */}
+      {!panelOpen && !isMobile && (
+        <button
+          onClick={() => useVoiceStore.getState().setShowPanel(true)}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-response-panel flex flex-col items-center justify-center gap-1.5 bg-[rgba(255,255,255,0.92)] backdrop-blur-xl border border-r border-[rgba(0,0,0,0.08)] rounded-r-xl px-1.5 py-4 shadow-md hover:bg-white transition-colors group"
+          title="Open conversation panel"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 group-hover:text-indigo-500 transition-colors">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-indigo-500 transition-colors" style={{ writingMode: 'vertical-rl', textOrientation: 'mixed', transform: 'rotate(180deg)' }}>
+            Chat
+          </span>
+        </button>
+      )}
 
       {/* Voice and Capture UI (T105, T106, T107) */}
       <ResponsePanel />

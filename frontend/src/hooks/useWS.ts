@@ -42,6 +42,9 @@ function wireListeners(ws: RayanWebSocket): void {
     ws.on('capture_audio', (msg) => {
       if (_playback) void _playback.enqueue(msg.data);
     }),
+    ws.on('capture_text', (msg) => {
+      useCaptureStore.getState().appendRayanText(msg.text);
+    }),
     ws.on('capture_ack', (msg) => {
       useCaptureStore.getState().addConcept(msg.extraction);
       // Log extraction in the conversation panel
@@ -139,7 +142,7 @@ function wireListeners(ws: RayanWebSocket): void {
       useVoiceStore.getState().setToolActivity({ tool: msg.tool, label: msg.label });
       setTimeout(() => useVoiceStore.getState().setToolActivity(null), 4_000);
 
-      // Navigate to room: exit to lobby first (if in a room), then enter target room
+      // Navigate to room: cinematic fly to lobby door → highlight → enter room
       if (msg.payload.navigation?.enterRoom) {
         const nav = msg.payload.navigation;
         const isLobby = nav.targetRoomId === 'lobby';
@@ -174,18 +177,8 @@ function wireListeners(ws: RayanWebSocket): void {
             }
           };
 
-          // Lobby position that faces the given door
-          const getLobbyFacing = (wallPosition: string, doorIndex: number) => {
-            const offset = doorIndex * DOOR_SPACING;
-            switch (wallPosition) {
-              case 'south': return { x: LOBBY_SIZE / 2 + offset, z: LOBBY_SIZE - 2, lx: LOBBY_SIZE / 2 + offset, lz: LOBBY_SIZE };
-              case 'east':  return { x: LOBBY_SIZE - 2,           z: LOBBY_SIZE / 2 + offset, lx: LOBBY_SIZE,     lz: LOBBY_SIZE / 2 + offset };
-              case 'west':  return { x: 2,                        z: LOBBY_SIZE / 2 + offset, lx: 0,              lz: LOBBY_SIZE / 2 + offset };
-              default:      return { x: LOBBY_SIZE / 2 + offset,  z: 2,             lx: LOBBY_SIZE / 2 + offset, lz: 0 };
-            }
-          };
-
           const enterTarget = () => {
+            usePalaceStore.getState().setHighlightedLobbyDoorRoomId(null);
             startTransition(isLobby ? 'exit' : 'enter', () => {
               palaceStore.setCurrentRoomId(targetRoomId);
               useCameraStore.getState().exitOverview();
@@ -208,18 +201,45 @@ function wireListeners(ws: RayanWebSocket): void {
           };
 
           if (currentRoomId !== null && !isLobby) {
-            // In a room → exit to lobby facing the target door, then enter the target room
+            // Currently in a room: exit room immediately, then fly cinematically to lobby facing the door
             const ld = getLobbyDoor(nav.targetRoomId);
-            const facing = getLobbyFacing(ld.wallPosition, ld.doorIndex ?? 0);
-            startTransition('exit', () => {
-              palaceStore.setCurrentRoomId(null);
-              useCameraStore.getState().exitOverview();
-              useCameraStore.getState().teleport({ x: facing.x, y: 1.7, z: facing.z });
-              useCameraStore.getState().lookAt({ x: facing.lx, y: 1.7, z: facing.lz });
-              useCameraStore.getState().setFov(75);
-              // Wait for the lobby fade-in to complete, then enter the target room
-              setTimeout(enterTarget, 1200);
-            });
+            const idx = ld.doorIndex ?? 0;
+            const offset = idx * DOOR_SPACING;
+
+            // Camera stand position in lobby (3 units from the wall — enough to see the full door)
+            let facingX = 0, facingZ = 0, doorCX = 0, doorCZ = 0;
+            switch (ld.wallPosition) {
+              case 'south':
+                facingX = LOBBY_SIZE / 2 + offset; facingZ = LOBBY_SIZE - 3;
+                doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = LOBBY_SIZE; break;
+              case 'east':
+                facingX = LOBBY_SIZE - 3; facingZ = LOBBY_SIZE / 2 + offset;
+                doorCX  = LOBBY_SIZE;     doorCZ  = LOBBY_SIZE / 2 + offset; break;
+              case 'west':
+                facingX = 3; facingZ = LOBBY_SIZE / 2 + offset;
+                doorCX  = 0; doorCZ  = LOBBY_SIZE / 2 + offset; break;
+              default: // north
+                facingX = LOBBY_SIZE / 2 + offset; facingZ = 3;
+                doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = 0; break;
+            }
+
+            // Leave the room immediately so lobby collision/rendering takes over
+            palaceStore.setCurrentRoomId(null);
+            useCameraStore.getState().exitOverview();
+            // Narrow FOV for a cinematic door-framing effect
+            useCameraStore.getState().setFov(65);
+
+            // Smooth cinematic glide through the palace to the lobby door
+            useCameraStore.getState().flyTo(
+              { x: facingX, y: 1.7, z: facingZ },
+              { x: doorCX, y: 1.25, z: doorCZ },
+              () => {
+                // Arrived in lobby facing the door — highlight it, it opens, then enter
+                if (usePalaceStore.getState().currentRoomId !== null) return;
+                usePalaceStore.getState().setHighlightedLobbyDoorRoomId(nav.targetRoomId);
+                setTimeout(enterTarget, 1500);
+              }
+            );
           } else {
             // Already in lobby (or navigating to lobby): single transition
             enterTarget();
@@ -235,9 +255,12 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       }
 
-      // Cinematic Highlight: Move camera + Open popup
+      // Cinematic Highlight: Move camera + Open popup + glow
       if (msg.payload.artifactId) {
-        usePalaceStore.getState().setAgentSelectedArtifactId(msg.payload.artifactId);
+        const artifactId = msg.payload.artifactId;
+        usePalaceStore.getState().setHighlightedArtifacts([artifactId]);
+        setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+        usePalaceStore.getState().setAgentSelectedArtifactId(artifactId);
       }
 
       // Server-initiated session end

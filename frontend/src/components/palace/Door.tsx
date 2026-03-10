@@ -1,4 +1,4 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Text, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
@@ -15,12 +15,19 @@ interface DoorProps {
   targetRoomName?: string;
   onEnter?: () => void;
   initialOpen?: boolean;
+  highlighted?: boolean;
 }
 
-export function Door({ wall, position, targetRoomName, onEnter, initialOpen = false }: DoorProps) {
+export function Door({ wall, position, targetRoomName, onEnter, initialOpen = false, highlighted = false }: DoorProps) {
   const groupRef = useRef<Group>(null);
+  const glowLightRef = useRef<THREE.PointLight>(null);
   const [isOpen, setIsOpen] = useState(initialOpen);
   const [hovered, setHovered] = useState(false);
+
+  // Auto-open the door when highlighted (agent is about to enter)
+  useEffect(() => {
+    if (highlighted) setIsOpen(true);
+  }, [highlighted]);
 
   // Load the "nano banana" door texture
   const doorTex = useTexture('/textures/door_texture.png');
@@ -47,12 +54,17 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
     });
   }, []);
 
-  // Smoothly animate door open/close
-  useFrame((_, delta) => {
+  // Smoothly animate door open/close + pulse glow when highlighted
+  useFrame(({ clock }, delta) => {
     if (!groupRef.current) return;
     const target = isOpen ? OPEN_ANGLE : 0;
     groupRef.current.rotation.y +=
       (target - groupRef.current.rotation.y) * Math.min(1, delta * 6);
+
+    if (highlighted && glowLightRef.current) {
+      const t = clock.getElapsedTime();
+      glowLightRef.current.intensity = 5 + Math.sin(t * 3.5) * 2.5;
+    }
   });
 
   function handleClick(e: any) {
@@ -116,6 +128,25 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
           >
             {targetRoomName}
           </Text>
+        )}
+
+        {/* Highlight glow: golden pulsing light + emissive overlay around the frame */}
+        {highlighted && (
+          <>
+            <pointLight
+              ref={glowLightRef}
+              position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0.6]}
+              color="#D4AF37"
+              intensity={5}
+              distance={7}
+              decay={2}
+            />
+            {/* Golden shimmer overlay on the frame */}
+            <mesh position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0.06]}>
+              <boxGeometry args={[DOOR_WIDTH + 0.3, DOOR_HEIGHT + 0.3, 0.02]} />
+              <meshBasicMaterial color="#D4AF37" transparent opacity={0.2} depthWrite={false} />
+            </mesh>
+          </>
         )}
       </group>
     </group>
