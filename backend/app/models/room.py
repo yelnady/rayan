@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import Enum
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -21,3 +22,5 @@ class Room(BaseModel):
     topicKeywords: list[str] = []
     topicEmbedding: list[float] = []
     summary: str = ""  # derived from artifact summaries; updated after each artifact add/delete
+    firstMemoryAt: Optional[datetime] = None
+    lastMemoryAt: Optional[datetime] = None

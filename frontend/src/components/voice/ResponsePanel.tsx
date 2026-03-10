@@ -13,6 +13,7 @@ const TOOL_ICONS: Record<string, string> = {
     capture_concept: '🧠',
     session_start: '🎙️',
     session_end: '🏁',
+    memory_search: '🔍',
 };
 
 type PanelMode = 'voice' | 'capture' | null;

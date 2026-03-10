@@ -46,6 +46,15 @@ def navigate_to_room(room_id: str) -> str:
     return ""
 
 
+def navigate_horizontal(direction: str) -> str:
+    """Move left or right within the current room to see more artifacts.
+
+    Args:
+        direction: The direction to move. Must be either "left" or "right".
+    """
+    return ""
+
+
 def highlight_artifact(artifact_id: str) -> str:
     """Highlight a specific artifact in the memory palace to draw the user's attention to it.
 
@@ -91,6 +100,19 @@ def create_artifact(artifact_type: str, summary: str, full_content: str = "") ->
 
         summary: A concise summary of what this artifact contains (required).
         full_content: The full detailed content (optional but recommended).
+    """
+    return ""
+
+
+def create_room(name: str, keywords: list[str]) -> str:
+    """Create a new room in the memory palace for a distinct topic.
+
+    Use this when the user explicitly asks to start a new room, or when the
+    current topic is clearly unrelated to any existing room.
+
+    Args:
+        name: A short, descriptive name for the room (3-5 words).
+        keywords: 2-4 topic keywords that describe the room's theme.
     """
     return ""
 

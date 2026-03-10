@@ -34,6 +34,8 @@ interface CaptureState {
   addToolEvent: (text: string, toolName: string) => void;
   /** Append text to the last rayan message, or create a new one */
   appendRayanText: (text: string) => void;
+  /** Append text to the last user message, or create a new one */
+  appendUserText: (text: string) => void;
   setShowPanel: (show: boolean) => void;
   /** Clear all messages from conversation log */
   clearMessages: () => void;
@@ -92,6 +94,17 @@ export const useCaptureStore = create<CaptureState>((set) => ({
         msgs[msgs.length - 1] = { ...last, text: last.text + text };
       } else {
         msgs.push({ id: `rayan-${Date.now()}`, role: 'rayan', text });
+      }
+      return { messages: msgs };
+    }),
+  appendUserText: (text) =>
+    set((state) => {
+      const msgs = [...state.messages];
+      const last = msgs[msgs.length - 1];
+      if (last && last.role === 'user') {
+        msgs[msgs.length - 1] = { ...last, text: last.text + text };
+      } else {
+        msgs.push({ id: `user-${Date.now()}`, role: 'user', text });
       }
       return { messages: msgs };
     }),

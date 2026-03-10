@@ -2,6 +2,8 @@
 
 Rayan is an AI agent that builds and maintains a personalized 3D memory palace from your real life. It captures what you see, hear, and read through real-time audio/video streaming, then lets you walk through an immersive 3D environment and have natural voice conversations with your own memories.
 
+[Read the Product Overview (for end users)](./PRODUCT.md)
+
 ## Features
 
 - **Real-Time Memory Capture** — Stream your webcam and microphone; Rayan extracts key concepts and stores them as artifacts with voice acknowledgement

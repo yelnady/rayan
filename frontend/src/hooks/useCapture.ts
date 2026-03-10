@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { MediaCapture } from '../services/mediaCapture';
+import { AudioStreamer } from '../services/audioCapture';
 import { useCaptureStore } from '../stores/captureStore';
 import { useWS } from './useWS';
 import type { RoomSuggestionChoice } from '../stores/captureStore';
@@ -8,6 +9,7 @@ import type { RoomSuggestionChoice } from '../stores/captureStore';
 import { stopVoiceSession } from './useVoice';
 
 let _captureInstance: MediaCapture | null = null;
+let _audioStreamer: AudioStreamer | null = null;
 
 /** Standalone stop function to be called from other hooks to ensure exclusivity. */
 export function stopCapture() {
@@ -16,6 +18,9 @@ export function stopCapture() {
 
   _captureInstance?.stop();
   _captureInstance = null;
+
+  _audioStreamer?.stop();
+  _audioStreamer = null;
 
   // useWS needs to be accessible, but stopCapture is used by useVoice which has access to ws singleton
   // Actually easier to just send the WS message via store or direct singleton if available
@@ -45,23 +50,31 @@ export function useCapture() {
       // Notify backend
       ws.sendCaptureStart(sessionId, source);
 
-      // Start local media recording
-      const capture = new MediaCapture();
-      _captureInstance = capture;
+      // Start local media recording for visual sources (webcam, screen share)
+      if (source !== 'voice') {
+        const capture = new MediaCapture();
+        _captureInstance = capture;
 
-      await capture.start({
-        source,
-        onChunk: (data, index, timestamp) => {
-          ws.sendMediaChunk(sessionId, index, data, timestamp);
-        },
-        onError: (err) => {
-          store.setError(err.message);
-          store.setStatus('error');
-        },
+        await capture.start({
+          source,
+          onChunk: (data, index, timestamp) => {
+            ws.sendMediaChunk(sessionId, index, data, timestamp);
+          },
+          onError: (err) => {
+            store.setError(err.message);
+            store.setStatus('error');
+          },
+        });
+
+        // Save stream to store so UI can render the floating preview
+        store.setActiveStream(capture.getStream());
+      }
+      // Start audio streamer for real-time voice interaction with Rayan
+      const streamer = new AudioStreamer();
+      _audioStreamer = streamer;
+      await streamer.start((base64Pcm) => {
+        ws.sendCaptureVoiceChunk(sessionId, base64Pcm);
       });
-
-      // Save stream to store so UI can render the floating preview
-      store.setActiveStream(capture.getStream());
     },
     [ws, store],
   );
@@ -72,6 +85,9 @@ export function useCapture() {
 
     _captureInstance?.stop();
     _captureInstance = null;
+
+    _audioStreamer?.stop();
+    _audioStreamer = null;
 
     ws.sendCaptureEnd(sessionId);
     store.setStatus('processing');

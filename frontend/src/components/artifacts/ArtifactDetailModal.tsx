@@ -29,8 +29,17 @@ export interface ArtifactDetailData {
     fullContent?: string;
     thumbnailUrl?: string;
     createdAt: string;
+    capturedAt?: string;
     relatedArtifacts: string[];
     color?: string;
+}
+
+interface RelatedMemory {
+    artifactId: string;
+    roomId: string;
+    roomName: string;
+    summary: string;
+    similarity: number;
 }
 
 interface ArtifactDetailModalProps {
@@ -43,6 +52,8 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [relatedMemories, setRelatedMemories] = useState<RelatedMemory[]>([]);
+    const [relatedLoading, setRelatedLoading] = useState(false);
 
     const narration = useVoiceStore((s) => s.currentNarration);
     const { user } = useAuthStore();
@@ -75,6 +86,32 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
         void fetchArtifact();
         return () => { cancelled = true; };
     }, [artifactId, user]);
+
+    // ── Fetch related memories ──────────────────────────────────────────────────
+    useEffect(() => {
+        if (!user || loading) return;
+        let cancelled = false;
+
+        const fetchRelated = async () => {
+            setRelatedLoading(true);
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch(`${API_BASE_URL}/artifacts/${artifactId}/related?threshold=0.75&limit=5`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!res.ok) return;
+                const json = await res.json();
+                if (!cancelled) setRelatedMemories(json.related ?? []);
+            } catch {
+                // silently ignore — related memories are non-critical
+            } finally {
+                if (!cancelled) setRelatedLoading(false);
+            }
+        };
+
+        void fetchRelated();
+        return () => { cancelled = true; };
+    }, [artifactId, user, loading]);
 
     // ── Delete handler ──────────────────────────────────────────────────────────
     const handleDelete = async () => {
@@ -179,11 +216,46 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                         </section>
                     )}
 
+                    {/* Similar memories via semantic search */}
+                    {(relatedLoading || relatedMemories.length > 0) && (
+                        <section>
+                            <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Similar Memories</h3>
+                            {relatedLoading ? (
+                                <div className="flex items-center gap-2 text-text-faint text-[12px] font-body">
+                                    <div className="w-3 h-3 rounded-full border-[2px] border-primary-muted border-t-primary animate-spin" />
+                                    Finding similar memories…
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-2">
+                                    {relatedMemories.map((m) => {
+                                        const pct = Math.round(m.similarity * 100);
+                                        const color = pct >= 90 ? '#10b981' : pct >= 80 ? '#6366f1' : '#f59e0b';
+                                        return (
+                                            <div key={m.artifactId} className="flex items-start gap-2.5 bg-surface-hover rounded-xl px-3 py-2.5 border border-border-light">
+                                                <span
+                                                    className="shrink-0 text-[10px] font-bold rounded-full px-2 py-0.5 mt-0.5 font-body"
+                                                    style={{ color, background: `${color}22`, border: `1px solid ${color}44` }}
+                                                >
+                                                    {pct}%
+                                                </span>
+                                                <div className="min-w-0">
+                                                    <p className="m-0 text-[13px] text-text-secondary font-body leading-snug truncate">{m.summary}</p>
+                                                    <p className="m-0 text-[11px] text-text-faint font-body mt-0.5">{m.roomName}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </section>
+                    )}
+
                     {/* Meta */}
-                    {artifact?.createdAt && (
+                    {(artifact?.capturedAt || artifact?.createdAt) && (
                         <p className="text-text-faint text-[11px] font-body m-0">
-                            Captured {new Date(artifact.createdAt).toLocaleDateString(undefined, {
+                            Captured {new Date(artifact.capturedAt || artifact.createdAt).toLocaleDateString(undefined, {
                                 month: 'long', day: 'numeric', year: 'numeric',
+                                hour: '2-digit', minute: '2-digit',
                             })}
                         </p>
                     )}

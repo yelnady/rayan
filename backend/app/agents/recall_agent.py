@@ -4,7 +4,7 @@ Manages one long-lived Gemini Live session per user while they are in the palace
 The user speaks naturally; Rayan answers from stored memories, navigates rooms,
 highlights artifacts, saves new ones, and ends the session on request.
 
-Tool calling: Gemini may call navigate_to_room, highlight_artifact, save_artifact,
+Tool calling: Gemini may call navigate_to_room, navigate_horizontal, highlight_artifact, save_artifact,
 close_artifact, or end_session. Each tool call is executed by _execute_tool() and
 a live_tool_call WS notification is sent to the frontend before the tool response
 is returned to Gemini.
@@ -31,6 +31,7 @@ from app.agents.tools.tools import (
     execute_web_search,
     highlight_artifact,
     navigate_to_room,
+    navigate_horizontal,
     web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
@@ -106,6 +107,7 @@ ARTIFACT TYPES (use with create_artifact):
 
 TOOLS — use them proactively when relevant:
 - navigate_to_room: when your answer lives in a specific room, navigate there
+- navigate_horizontal: when the user wants to see more artifacts in the same room, move left or right
 - highlight_artifact: when one artifact is the key answer, highlight it
 - create_artifact: when the user shares something they want to remember, save it
 - web_search: when the user asks about something you don't have in memory, search the web for it
@@ -124,7 +126,16 @@ async def _build_room_directory(user_id: str) -> str:
         return "(unavailable)"
     if not rooms:
         return "(no rooms yet)"
-    lines = [f"- [{r.id}] {r.name}: {r.summary or '(no summary yet)'}" for r in rooms]
+    lines = []
+    for r in rooms:
+        date_range = ""
+        if r.firstMemoryAt and r.lastMemoryAt:
+            first = r.firstMemoryAt.strftime("%Y-%m-%d")
+            last = r.lastMemoryAt.strftime("%Y-%m-%d")
+            date_range = f" [{first} → {last}]" if first != last else f" [{first}]"
+        elif r.firstMemoryAt:
+            date_range = f" [{r.firstMemoryAt.strftime('%Y-%m-%d')}]"
+        lines.append(f"- [{r.id}] {r.name}{date_range}: {r.summary or '(no summary yet)'}")
     return "\n".join(lines)
 
 
@@ -212,7 +223,7 @@ class RecallAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, highlight_artifact, create_artifact, web_search, end_session, close_artifact],
+            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, web_search, end_session, close_artifact],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -345,6 +356,16 @@ class RecallAgent:
 
         context_msg += "\nUse this context to answer questions or provide narration if the user asks."
 
+        # Notify the frontend that semantic search ran and how many memories were loaded
+        if results:
+            from app.websocket.manager import manager as ws_manager
+            label = f"Recalled {len(results)} memor{'y' if len(results) == 1 else 'ies'}"
+            await ws_manager.send(user_id, {
+                "type": "live_memory_loaded",
+                "count": len(results),
+                "label": label,
+            })
+
         try:
             await live.session.send_client_content(
                 turns=[
@@ -373,6 +394,11 @@ class RecallAgent:
 
         if fn_name == "navigate_to_room":
             room_id = fn_args.get("room_id", "")
+            # Update the session's tracked room immediately so create_artifact
+            # uses the correct room if called right after navigation.
+            live = self._sessions.get(user_id)
+            if live:
+                live.current_room_id = None if room_id == "lobby" else room_id
             if room_id == "lobby":
                 await notify({
                     "label": "Returning to the palace lobby",
@@ -400,6 +426,18 @@ class RecallAgent:
                 },
             })
             return f"Navigated to room {room_name}"
+
+        elif fn_name == "navigate_horizontal":
+            direction = fn_args.get("direction", "right").lower()
+            if direction not in ["left", "right"]:
+                direction = "right"
+            await notify({
+                "label": f"Moving {direction}",
+                "navigation": {
+                    "moveHorizontal": direction,
+                },
+            })
+            return f"Moved {direction} in the current room."
 
         elif fn_name == "highlight_artifact":
             artifact_id = fn_args.get("artifact_id", "")
@@ -625,7 +663,11 @@ async def _load_room_context_text(user_id: str, room_id: Optional[str]) -> str:
             return f"Room: {room_name}\nNo artifacts in this room yet."
         lines = [f"Room: {room_name} (ID: {room_id})"]
         for a in artifacts:
-            lines.append(f"- [ARTIFACT ID: {a.id}] [{a.type.value}] {a.summary or '(no summary)'}")
+            date_str = ""
+            dt = getattr(a, "capturedAt", None) or getattr(a, "createdAt", None)
+            if dt:
+                date_str = f" | {dt.strftime('%Y-%m-%d')}"
+            lines.append(f"- [ARTIFACT ID: {a.id}] [{a.type.value}]{date_str} {a.summary or '(no summary)'}")
         return "\n".join(lines)
     except Exception:
         logger.exception("_load_room_context_text failed for userId=%s roomId=%s", user_id, room_id)

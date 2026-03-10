@@ -1,7 +1,8 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useWS } from './useWS';
 import { useCaptureStore } from '../stores/captureStore';
-import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessage, CaptureSessionEndedMessage, CaptureTextMessage, CaptureToolCallMessage } from '../services/websocket';
+import { AudioPlayback } from '../services/audioPlayback';
+import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessage, CaptureSessionEndedMessage, CaptureTextMessage, CaptureUserTextMessage } from '../services/websocket';
 
 /**
  * Hook to handle capture session WebSocket messages.
@@ -9,9 +10,11 @@ import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessa
  */
 export function useCaptureWS() {
   const ws = useWS();
+  const playbackRef = useRef<AudioPlayback | null>(null);
   const {
     addToolEvent,
     appendRayanText,
+    appendUserText,
     setShowPanel,
     setStatus,
     clearMessages,
@@ -19,6 +22,9 @@ export function useCaptureWS() {
 
   useEffect(() => {
     const unsubscribers: Array<() => void> = [];
+
+    // Own AudioPlayback instance for capture — decoupled from the recall session's playback
+    playbackRef.current = new AudioPlayback();
 
     // Session started
     unsubscribers.push(
@@ -63,16 +69,24 @@ export function useCaptureWS() {
       })
     );
 
-    // Audio from Rayan
+    // Text transcription from User — shown in ResponsePanel
+    unsubscribers.push(
+      ws.on('capture_user_text', (msg: CaptureUserTextMessage) => {
+        appendUserText(msg.text);
+      })
+    );
+
+    // Audio from Rayan — played via a dedicated AudioPlayback instance for capture
     unsubscribers.push(
       ws.on('capture_audio', (msg: CaptureAudioMessage) => {
-        // Audio would be played by the audio player
-        console.log('[useCaptureWS] Audio chunk received');
+        if (playbackRef.current) void playbackRef.current.enqueue(msg.data);
       })
     );
 
     return () => {
       unsubscribers.forEach(unsub => unsub());
+      playbackRef.current?.stop();
+      playbackRef.current = null;
     };
   }, [ws, addToolEvent, appendRayanText, setShowPanel, setStatus, clearMessages]);
 }

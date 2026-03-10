@@ -39,11 +39,14 @@ function wireListeners(ws: RayanWebSocket): void {
   _playback = new AudioPlayback();
 
   _listenerUnsubs = [
-    ws.on('capture_audio', (msg) => {
-      if (_playback) void _playback.enqueue(msg.data);
+    ws.on('capture_audio', (_msg) => {
+      // Playback handled by useCaptureWS's dedicated AudioPlayback instance
     }),
     ws.on('capture_text', (msg) => {
       useCaptureStore.getState().appendRayanText(msg.text);
+    }),
+    ws.on('capture_user_text', (msg) => {
+      useCaptureStore.getState().appendUserText(msg.text);
     }),
     ws.on('capture_ack', (msg) => {
       useCaptureStore.getState().addConcept(msg.extraction);
@@ -196,7 +199,6 @@ function wireListeners(ws: RayanWebSocket): void {
                 useCameraStore.getState().lookAt({ x: 6, y: 1.7, z: 0 });
                 useCameraStore.getState().setFov(75);
               }
-              _instance?.sendContextUpdate(targetRoomId);
             });
           };
 
@@ -255,6 +257,13 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       }
 
+      // Horizontal strafe: briefly push mobileMovement left or right
+      if (msg.payload.navigation?.moveHorizontal) {
+        const dir = msg.payload.navigation.moveHorizontal === 'left' ? -1 : 1;
+        useCameraStore.getState().setMobileMovement({ x: dir, z: 0 });
+        setTimeout(() => useCameraStore.getState().setMobileMovement({ x: 0, z: 0 }), 600);
+      }
+
       // Cinematic Highlight: Move camera + Open popup + glow
       if (msg.payload.artifactId) {
         const artifactId = msg.payload.artifactId;
@@ -268,6 +277,10 @@ function wireListeners(ws: RayanWebSocket): void {
         stopVoiceSession();
         _instance?.sendLiveSessionEnd();
       }
+    }),
+
+    ws.on('live_memory_loaded' as any, (msg: any) => {
+      useVoiceStore.getState().addToolEvent(msg.label, 'memory_search');
     }),
 
     // ── Legacy: artifact_recall ──────────────────────────────────────────

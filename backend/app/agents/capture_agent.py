@@ -18,7 +18,7 @@ from typing import Awaitable, Callable, Optional
 from google.genai import types as genai_types
 
 from app.agents.memory_architect import CategorizationResult, categorize_and_store
-from app.agents.tools.tools import capture_concept, create_artifact, execute_web_search, web_search
+from app.agents.tools.tools import capture_concept, create_artifact, create_room, end_session, execute_web_search, web_search
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.capture_service import add_artifact_to_session
 
@@ -28,15 +28,14 @@ MIN_EXTRACTION_INTERVAL: float = 15.0  # seconds between extractions
 CONFIDENCE_THRESHOLD: float = 0.7
 
 _SYSTEM_PROMPT = (
-    "You are Rayan, an intelligent memory capture assistant. "
-    "You observe real-time audio/video from work, meetings, study sessions, lectures, and conversations.\n\n"
-    "INTRO: At the very start of each capture session, introduce yourself in 1-2 sentences — "
-    "who you are and what you will be doing. For example: \"Hi, I'm Rayan — your memory capture "
-    "assistant. I'll be listening quietly and will save the important concepts as you work.\"\n\n"
-    "SILENCE RULE: After your intro, remain completely silent while observing. Do NOT narrate, "
-    "comment on, or summarise the content being captured. Only break silence when:\n"
-    "  1. You call capture_concept — give a brief acknowledgement like 'Got it — [concept name].'\n"
-    "  2. The user directly addresses you.\n\n"
+    "You are Rayan, an intelligent memory capture assistant co-listening to a live session.\n\n"
+    "INTRO: At the very start, introduce yourself in 1-2 sentences. "
+    "Example: \"Hi, I'm Rayan — I'll be listening alongside you and saving the important concepts.\"\n\n"
+    "BEHAVIOR:\n"
+    "- Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.\n"
+    "- Respond naturally when the user addresses you directly (by name or with a question).\n"
+    "- When you capture a concept, briefly acknowledge: 'Got it — [concept name].'\n"
+    "- You are co-listening: you hear both the content being shared AND the user speaking to you.\n\n"
     "ARTIFACT TYPES:\n"
     "  KNOWLEDGE & LEARNING:\n"
     "  - lecture: spoken explanations, presentations, teachings\n"
@@ -48,7 +47,7 @@ _SYSTEM_PROMPT = (
     "  - moment: a specific personal memory or experience\n"
     "  - milestone: life events, achievements, transitions\n"
     "  - emotion: feelings or emotional states tied to a moment\n"
-    "  - dream: long-term aspirations, deep wishes\n"
+    "  - dream: waking up and telling my dreams\n"
     "  - habit: recurring behaviors or routines\n"
     "  OPINIONS & IDENTITY:\n"
     "  - conversation: discussions, interviews, Q&A\n"
@@ -61,7 +60,8 @@ _SYSTEM_PROMPT = (
     "When you identify a key concept worth remembering (confidence >= 0.7, "
     "at least 15 seconds since the last extraction), call the `capture_concept` tool. "
     "You may also call `create_artifact` directly for any memory type above. "
-    "Do NOT repeat concepts already captured."
+    "Do NOT repeat concepts already captured.\n\n"
+    "Call `end_session` IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation."
 )
 
 
@@ -81,6 +81,7 @@ class ExtractionEvent:
 ExtractionCallback = Callable[[ExtractionEvent], Awaitable[None]]
 AudioCallback = Callable[[bytes], Awaitable[None]]
 TextCallback = Callable[[str], Awaitable[None]]
+CloseCallback = Callable[[], Awaitable[None]]
 
 
 class CaptureAgent:
@@ -93,17 +94,22 @@ class CaptureAgent:
         on_extraction: ExtractionCallback,
         on_audio: Optional[AudioCallback] = None,
         on_text: Optional[TextCallback] = None,
+        on_user_text: Optional[TextCallback] = None,
+        on_close: Optional[CloseCallback] = None,
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
         self._on_extraction = on_extraction
         self._on_audio = on_audio
         self._on_text = on_text
+        self._on_user_text = on_user_text
+        self._on_close = on_close
         self._chunk_queue: asyncio.Queue[Optional[bytes]] = asyncio.Queue(maxsize=200)
         self._task: Optional[asyncio.Task] = None
         self._last_extraction_at: float = 0.0
         self._extractions: list[ExtractionEvent] = []
         self._running = False
+        self._session = None  # set once connected, used by send_voice
 
     async def start(self) -> None:
         self._running = True
@@ -113,9 +119,19 @@ class CaptureAgent:
         logger.info("CaptureAgent started: sessionId=%s", self.session_id)
 
     async def send_chunk(self, data: bytes) -> None:
-        """Queue raw audio/video bytes for streaming to Gemini."""
+        """Queue media bytes (screen/webcam audio) for co-listening stream."""
         if self._running and not self._chunk_queue.full():
             await self._chunk_queue.put(data)
+
+    async def send_voice(self, data: bytes) -> None:
+        """Forward user's mic audio as conversational input (separate from media stream)."""
+        if self._session and self._running:
+            try:
+                await self._session.send_realtime_input(
+                    audio=genai_types.Blob(data=data, mime_type="audio/pcm;rate=16000")
+                )
+            except Exception:
+                logger.exception("send_voice error: sessionId=%s", self.session_id)
 
     async def stop(self) -> list[ExtractionEvent]:
         """Gracefully stop the agent and return all extraction events."""
@@ -139,8 +155,9 @@ class CaptureAgent:
         config = genai_types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
+            proactivity=genai_types.ProactivityConfig(proactive_audio=True),
             system_instruction=_SYSTEM_PROMPT,
-            tools=[capture_concept, create_artifact, web_search],
+            tools=[capture_concept, create_artifact, create_room, web_search, end_session],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -149,24 +166,25 @@ class CaptureAgent:
                 ),
                 language_code="en-US",
             ),
+            realtime_input_config=genai_types.RealtimeInputConfig(
+                automatic_activity_detection=genai_types.AutomaticActivityDetection(
+                    disabled=False
+                )
+            ),
             output_audio_transcription=genai_types.AudioTranscriptionConfig(),
+            input_audio_transcription=genai_types.AudioTranscriptionConfig(),
         )
         try:
             async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
-                # Trigger the opening introduction before streaming begins
-                await session.send_client_content(
-                    turns=[genai_types.Content(
-                        role="user",
-                        parts=[genai_types.Part(text="[Capture session started]")],
-                    )],
-                    turn_complete=True,
-                )
+                self._session = session
                 await asyncio.gather(
                     self._send_chunks(session),
                     self._receive_responses(session),
                 )
         except Exception:
             logger.exception("CaptureAgent session error: sessionId=%s", self.session_id)
+        finally:
+            self._session = None
 
     async def _send_chunks(self, session) -> None:
         while True:
@@ -184,6 +202,15 @@ class CaptureAgent:
 
     async def _receive_responses(self, session) -> None:
         audio_buf = bytearray()
+        # Trigger the opening introduction now that the receive loop is running,
+        # so the response is guaranteed to be captured.
+        await session.send_client_content(
+            turns=[genai_types.Content(
+                role="user",
+                parts=[genai_types.Part(text="[Capture session started. Please introduce yourself briefly.]")],
+            )],
+            turn_complete=True,
+        )
 
         async for response in session.receive():
             if not self._running and self._chunk_queue.empty():
@@ -254,6 +281,40 @@ class CaptureAgent:
                             ]
                         )
 
+                    elif fc.name == "create_room":
+                        room_name = args.get("name", "New Room")
+                        keywords = list(args.get("keywords", []))
+                        try:
+                            from app.services.room_service import create_room as svc_create_room
+                            from app.websocket.manager import manager as ws_manager
+                            new_room = await svc_create_room(self.user_id, room_name, keywords)
+                            await ws_manager.send(self.user_id, {
+                                "type": "palace_update",
+                                "changes": {
+                                    "roomsAdded": [{
+                                        "id": new_room.id,
+                                        "name": new_room.name,
+                                        "position": {"x": new_room.position.x, "y": new_room.position.y, "z": new_room.position.z},
+                                        "style": "library",
+                                    }],
+                                    "artifactsAdded": [],
+                                    "connectionsAdded": [],
+                                },
+                            })
+                            result_msg = f"Room '{room_name}' created with ID {new_room.id}"
+                        except Exception:
+                            logger.exception("create_room failed: sessionId=%s", self.session_id)
+                            result_msg = "Failed to create room"
+                        await session.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": result_msg},
+                                )
+                            ]
+                        )
+
                     elif fc.name == "web_search":
                         result = await execute_web_search(args.get("query", ""))
                         await session.send_tool_response(
@@ -265,6 +326,24 @@ class CaptureAgent:
                                 )
                             ]
                         )
+
+                    elif fc.name == "end_session":
+                        await session.send_tool_response(
+                            function_responses=[
+                                genai_types.FunctionResponse(
+                                    name=fc.name,
+                                    id=fc.id,
+                                    response={"result": "Session ended successfully"},
+                                )
+                            ]
+                        )
+                        if self._on_close:
+                            async def delayed_close():
+                                await asyncio.sleep(0.5)
+                                if self._on_close:
+                                    await self._on_close()
+                            asyncio.create_task(delayed_close())
+                        self._running = False
 
                     else:
                         await session.send_tool_response(
@@ -295,7 +374,7 @@ class CaptureAgent:
                             except Exception:
                                 logger.exception("on_audio callback error: sessionId=%s", self.session_id)
 
-            # Handle output transcription
+            # Handle output transcription (Rayan speaking)
             output_trans = getattr(server_content, "output_transcription", None)
             if output_trans:
                 rayan_text = getattr(output_trans, "text", None)
@@ -304,6 +383,16 @@ class CaptureAgent:
                         await self._on_text(rayan_text)
                     except Exception:
                         logger.exception("Text callback error: sessionId=%s", self.session_id)
+
+            # Handle input transcription (user speaking to Rayan)
+            input_trans = getattr(server_content, "input_transcription", None)
+            if input_trans:
+                user_text = getattr(input_trans, "text", None)
+                if user_text and self._on_user_text:
+                    try:
+                        await self._on_user_text(user_text)
+                    except Exception:
+                        logger.exception("User text callback error: sessionId=%s", self.session_id)
 
             if getattr(server_content, "turn_complete", False):
                 audio_buf.clear()

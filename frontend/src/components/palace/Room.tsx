@@ -146,6 +146,17 @@ export function Room({ room, index, doors = [], artifacts = [], highlightedIds, 
             {room.name.toUpperCase()}
           </Text>
 
+          <Text
+            position={[w / 2, h + 1.2, d / 2]}
+            fontSize={0.6}
+            color="rgba(255,255,255,0.7)"
+            anchorX="center"
+            anchorY="middle"
+            font="https://cdn.jsdelivr.net/fontsource/fonts/inter@9/latin-400-normal.woff"
+          >
+            {`${room.artifactCount} MEMORIES${room.firstMemoryAt ? ` | ${new Date(room.firstMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt ? ` — ${new Date(room.lastMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : ''}`}
+          </Text>
+
           {/* Invisible click target covering the island volume */}
           <mesh
             position={[w / 2, h / 2, d / 2]}

@@ -26,7 +26,6 @@ from typing import Any
 from fastapi import WebSocket
 
 from app.agents import capture_agent as capture_agent_module
-from app.agents import capture_agent as capture_agent_module
 from app.agents import narrator_agent as narrator_agent_module
 from app.agents.capture_agent import CaptureAgent
 from app.models.capture_session import SessionStatus
@@ -110,7 +109,17 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
             "text": text,
         })
 
-    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text)
+    async def on_user_text(text: str) -> None:
+        await manager.send(user_id, {
+            "type": "capture_user_text",
+            "text": text,
+        })
+
+    async def on_close() -> None:
+        logger.info("CaptureAgent requested closure via tool: userId=%s sessionId=%s", user_id, session_id)
+        await handle_capture_end(user_id, {"sessionId": session_id}, websocket)
+
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
@@ -132,6 +141,23 @@ async def handle_media_chunk(user_id: str, msg: dict, websocket: WebSocket) -> N
         await agent.send_chunk(raw_bytes)
     except Exception:
         logger.exception("media_chunk decode/send error: sessionId=%s", session_id)
+
+
+@_handler("capture_voice_chunk")
+async def handle_capture_voice_chunk(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Forward user's mic audio (PCM) to the capture agent as conversational input."""
+    session_id: str = msg.get("sessionId", "")
+    data_b64: str = msg.get("data", "")
+
+    agent = capture_agent_module.get_agent(session_id)
+    if agent is None:
+        return
+
+    try:
+        audio_bytes = base64.b64decode(data_b64)
+        await agent.send_voice(audio_bytes)
+    except Exception:
+        logger.exception("capture_voice_chunk error: sessionId=%s", session_id)
 
 
 @_handler("capture_end")

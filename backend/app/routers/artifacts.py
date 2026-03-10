@@ -14,8 +14,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from fastapi import Query
+
 from app.middleware.auth import verify_token
 from app.services.artifact_service import get_artifact_by_id, delete_artifact_by_id
+from app.services.search_service import semantic_search
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +70,18 @@ class ArtifactDetail(BaseModel):
 class ArtifactDetailResponse(BaseModel):
     artifact: ArtifactDetail
     enrichments: list[EnrichmentDetail] = []
+
+
+class RelatedMemory(BaseModel):
+    artifactId: str
+    roomId: str
+    roomName: str
+    summary: str
+    similarity: float
+
+
+class RelatedMemoriesResponse(BaseModel):
+    related: list[RelatedMemory]
 
 
 class DeleteResponse(BaseModel):
@@ -150,6 +165,47 @@ async def get_artifact_detail(
             for e in enrichment_docs
         ],
     )
+
+
+@router.get(
+    "/{artifact_id}/related",
+    response_model=RelatedMemoriesResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def get_related_memories(
+    artifact_id: str,
+    threshold: float = Query(default=0.75, ge=0.0, le=1.0),
+    limit: int = Query(default=5, ge=1, le=20),
+    user: dict = Depends(verify_token),
+) -> RelatedMemoriesResponse:
+    """Return semantically similar artifacts above the similarity threshold."""
+    user_id: str = user["user_id"]
+
+    artifact = await get_artifact_by_id(user_id, artifact_id)
+    if artifact is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "Artifact not found"},
+        )
+
+    if not artifact.summary:
+        return RelatedMemoriesResponse(related=[])
+
+    results = await semantic_search(user_id, artifact.summary, limit=limit + 1)
+
+    related = [
+        RelatedMemory(
+            artifactId=r.artifact_id,
+            roomId=r.room_id,
+            roomName=r.room_name,
+            summary=r.summary,
+            similarity=round(r.similarity, 3),
+        )
+        for r in results
+        if r.artifact_id != artifact_id and r.similarity >= threshold
+    ][:limit]
+
+    return RelatedMemoriesResponse(related=related)
 
 
 @router.delete(

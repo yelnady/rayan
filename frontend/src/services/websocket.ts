@@ -38,6 +38,11 @@ export interface CaptureTextMessage {
   text: string;
 }
 
+export interface CaptureUserTextMessage {
+  type: "capture_user_text";
+  text: string;
+}
+
 export interface CaptureToolCallMessage {
   type: "capture_tool_call";
   tool: "capture_concept";
@@ -170,6 +175,7 @@ export type ServerMessage =
   | CaptureSessionEndedMessage
   | CaptureAudioMessage
   | CaptureTextMessage
+  | CaptureUserTextMessage
   | CaptureToolCallMessage
   | ArtifactRecallMessage
   | EnrichmentUpdateMessage
@@ -236,6 +242,10 @@ export class RayanWebSocket {
 
   sendCaptureEnd(sessionId: string): void {
     this._send({ type: "capture_end", sessionId });
+  }
+
+  sendCaptureVoiceChunk(sessionId: string, data: string): void {
+    this._send({ type: "capture_voice_chunk", sessionId, data });
   }
 
 
