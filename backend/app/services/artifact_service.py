@@ -40,6 +40,7 @@ async def create_artifact(
     is_seed_data: bool = False,
     skip_enrichment: bool = False,
     captured_at: Optional[datetime] = None,
+    wall: Optional[str] = None,
 ) -> Artifact:
     artifact_id = f"artifact_{uuid.uuid4().hex[:12]}"
     now = datetime.now(UTC)
@@ -47,9 +48,11 @@ async def create_artifact(
     embed_text = summary + (" " + full_content[:500] if full_content else "")
     embedding = await get_embedding(embed_text)
 
-    if position is None:
+    if position is None or wall is None:
         existing_count = await _count_artifacts(user_id, room_id)
-        position = _next_artifact_position(existing_count)
+        default_pos, default_wall = _next_artifact_position(existing_count)
+        position = position or default_pos
+        wall = wall or default_wall
 
     artifact = Artifact(
         id=artifact_id,
@@ -63,6 +66,7 @@ async def create_artifact(
         createdAt=now,
         captureSessionId=capture_session_id,
         color=color,
+        wall=wall,
         isSeedData=is_seed_data,
         capturedAt=captured_at or now,
     )
@@ -157,13 +161,24 @@ async def _count_artifacts(user_id: str, room_id: str) -> int:
     return len(docs)
 
 
-def _next_artifact_position(index: int) -> Position3D:
-    """Distribute artifacts along room perimeter at eye level."""
-    import math
-    angle = (index * 45.0) % 360.0
-    r = 2.5
-    return Position3D(
-        x=r * math.cos(math.radians(angle)),
-        y=1.5,
-        z=r * math.sin(math.radians(angle)),
-    )
+def _next_artifact_position(index: int) -> tuple[Position3D, str]:
+    """Place artifacts flush against room walls at eye level.
+
+    Room local space is 8×8 (Dimensions3D default).
+    North wall (z≈0) is occupied by the decorative shelf, so artifacts
+    cycle through east, west, and south walls instead.
+    """
+    _SLOTS = [
+        (Position3D(x=0.05, y=1.8, z=2.5), "west"),   # 0 – west wall, lower-front
+        (Position3D(x=7.95, y=1.8, z=2.5), "east"),   # 1 – east wall, lower-front
+        (Position3D(x=0.05, y=1.8, z=5.5), "west"),   # 2 – west wall, lower-back
+        (Position3D(x=7.95, y=1.8, z=5.5), "east"),   # 3 – east wall, lower-back
+        (Position3D(x=2.0,  y=1.8, z=7.95), "south"), # 4 – south wall, left
+        (Position3D(x=6.0,  y=1.8, z=7.95), "south"), # 5 – south wall, right
+        (Position3D(x=0.05, y=2.7, z=2.5), "west"),   # 6 – west wall, upper-front
+        (Position3D(x=7.95, y=2.7, z=2.5), "east"),   # 7 – east wall, upper-front
+        (Position3D(x=0.05, y=2.7, z=5.5), "west"),   # 8 – west wall, upper-back
+        (Position3D(x=7.95, y=2.7, z=5.5), "east"),   # 9 – east wall, upper-back
+        (Position3D(x=4.0,  y=1.8, z=7.95), "south"), # 10 – south wall, center
+    ]
+    return _SLOTS[index % len(_SLOTS)]

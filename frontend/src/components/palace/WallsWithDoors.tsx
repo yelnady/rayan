@@ -1,11 +1,18 @@
 import { useMemo } from 'react';
 import * as THREE from 'three';
-import { useTexture } from '@react-three/drei';
 import type { DoorSpec, WallSide } from '../../types/three';
+
+// 4-step toon gradient — richer mid-tones, sharper highlight
+const TOON_GRADIENT = (() => {
+  const data = new Uint8Array([40, 100, 180, 240]);
+  const tex = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
+  tex.needsUpdate = true;
+  return tex;
+})();
 
 const DOOR_WIDTH = 1.5;
 const DOOR_HEIGHT = 2.5;
-const WALL_THICKNESS = 0.2;
+const WALL_THICKNESS = 0.55;
 
 interface WallsWithDoorsProps {
   width: number;
@@ -13,6 +20,8 @@ interface WallsWithDoorsProps {
   height: number;
   doors: DoorSpec[];
   wallColor?: string;
+  /** Accent color applied to the north (back/facing) wall only */
+  accentWallColor?: string;
 }
 
 interface WallSegment {
@@ -81,26 +90,14 @@ interface WallProps {
 }
 
 function Wall({ segments, position, rotation, color }: WallProps) {
-  // Try loading texture, it must be preloaded or cached, or wrapped in suspense
-  const wallTexture = useTexture('/textures/wall_texture.png');
-
-  // Use a common material for all segments in this wall
-  const material = useMemo(() => {
-    const tex = wallTexture.clone();
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    tex.repeat.set(2, 2);
-    tex.needsUpdate = true;
-    return new THREE.MeshStandardMaterial({
-      color,
-      map: tex,
-      roughness: 0.85
-    });
-  }, [color, wallTexture]);
-
+  const material = useMemo(
+    () => new THREE.MeshToonMaterial({ color, gradientMap: TOON_GRADIENT }),
+    [color],
+  );
   return (
     <group position={position} rotation={rotation}>
       {segments.map((seg, i) => (
-        <mesh key={i} position={seg.position} material={material} castShadow receiveShadow>
+        <mesh key={i} position={seg.position} material={material}>
           <boxGeometry args={seg.scale} />
         </mesh>
       ))}
@@ -113,8 +110,10 @@ export function WallsWithDoors({
   depth,
   height,
   doors,
-  wallColor = '#aaaaaa',
+  wallColor = '#C4B5FD',
+  accentWallColor,
 }: WallsWithDoorsProps) {
+  const accent = accentWallColor ?? wallColor;
   const doorsPerWall = useMemo(() => {
     const map: Record<WallSide, DoorSpec[]> = { north: [], east: [], south: [], west: [] };
     doors.forEach((d) => map[d.wall].push(d));
@@ -125,71 +124,47 @@ export function WallsWithDoors({
     () => [
       {
         side: 'north' as WallSide,
+        color: accent,
         segments: buildWallSegments(width, height, doorsPerWall.north),
-        // Positioned at the origin, extending along +X, inner face at z=0
         position: [0, 0, 0] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
       },
       {
         side: 'south' as WallSide,
+        color: wallColor,
         segments: buildWallSegments(width, height, doorsPerWall.south),
-        // Positioned at opposite corner, extending back along -X, inner face pointing -Z
         position: [width, 0, depth] as [number, number, number],
         rotation: [0, Math.PI, 0] as [number, number, number],
       },
       {
         side: 'east' as WallSide,
+        color: wallColor,
         segments: buildWallSegments(depth, height, doorsPerWall.east),
-        // Positioned at far X corner, extending along +Z
         position: [width, 0, 0] as [number, number, number],
         rotation: [0, -Math.PI / 2, 0] as [number, number, number],
       },
       {
         side: 'west' as WallSide,
+        color: wallColor,
         segments: buildWallSegments(depth, height, doorsPerWall.west),
-        // Positioned at Z corner, extending along -Z
         position: [0, 0, depth] as [number, number, number],
         rotation: [0, Math.PI / 2, 0] as [number, number, number],
       },
     ],
-    [width, depth, height, doorsPerWall],
+    [width, depth, height, doorsPerWall, wallColor, accent],
   );
 
-  // Load the new roof texture
-  const roofTexture = useTexture('/textures/roof_texture.png');
-  const roofMaterial = useMemo(() => {
-    const tex = roofTexture.clone();
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // Tile the texture dynamically based on room size
-    tex.repeat.set(width / 4, depth / 4);
-    tex.needsUpdate = true;
-    return new THREE.MeshStandardMaterial({
-      color: '#FFFFFF', // Keep base white so we don't muddy the texture colors
-      map: tex,
-      roughness: 0.7,
-      metalness: 0.1,
-    });
-  }, [roofTexture, width, depth]);
+  const ceilingMaterial = useMemo(
+    () => new THREE.MeshToonMaterial({ color: wallColor, gradientMap: TOON_GRADIENT }),
+    [wallColor],
+  );
 
   return (
     <>
       {walls.map((w) => (
-        <Wall
-          key={w.side}
-          segments={w.segments}
-          position={w.position}
-          rotation={w.rotation}
-          color={wallColor}
-        />
+        <Wall key={w.side} segments={w.segments} position={w.position} rotation={w.rotation} color={w.color} />
       ))}
-
-      {/* Ceiling Slab */}
-      <mesh
-        position={[width / 2, height + WALL_THICKNESS / 2, depth / 2]}
-        castShadow
-        receiveShadow
-        material={roofMaterial}
-      >
+      <mesh position={[width / 2, height + WALL_THICKNESS / 2, depth / 2]} material={ceilingMaterial}>
         <boxGeometry args={[width + WALL_THICKNESS * 2, WALL_THICKNESS, depth + WALL_THICKNESS * 2]} />
       </mesh>
     </>

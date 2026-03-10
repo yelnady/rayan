@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import * as THREE from 'three';
 import { gsap } from 'gsap';
 import type { Group } from 'three';
 
@@ -11,9 +12,9 @@ interface FramedImageProps {
   onHover?: (hovered: boolean) => void;
 }
 
-const IMG_W = 0.7;
-const IMG_H = 0.5;
-const BORDER = 0.05;
+const IMG_W = 1.1;
+const IMG_H = 0.8;
+const BORDER = 0.08;
 
 export function FramedImage({
   position,
@@ -40,15 +41,15 @@ export function FramedImage({
     <group position={position} rotation={rotation}>
       <group ref={groupRef}>
         {/* Outer frame */}
-        <mesh>
+        <mesh castShadow receiveShadow>
           <boxGeometry args={[IMG_W + BORDER * 2, IMG_H + BORDER * 2, 0.04]} />
-          <meshStandardMaterial color={color} roughness={0.5} metalness={0.3} />
+          <meshPhysicalMaterial color={color} roughness={0.3} clearcoat={1} />
         </mesh>
 
         {/* Inner matte */}
-        <mesh position={[0, 0, 0.021]}>
+        <mesh position={[0, 0, 0.021]} receiveShadow>
           <boxGeometry args={[IMG_W + BORDER * 0.6, IMG_H + BORDER * 0.6, 0.005]} />
-          <meshStandardMaterial color="#F5F0E8" roughness={0.9} />
+          <meshPhysicalMaterial color="#F5F0E8" roughness={0.8} />
         </mesh>
 
         {/* Image surface (solid color placeholder for when no texture) */}
@@ -59,7 +60,7 @@ export function FramedImage({
           onPointerOut={handlePointerOut}
         >
           <planeGeometry args={[IMG_W, IMG_H]} />
-          <meshStandardMaterial color="#8BA8C8" roughness={0.8} />
+          <meshPhysicalMaterial color="#8BA8C8" side={THREE.DoubleSide} emissive="#ffffff" emissiveIntensity={0.05} />
         </mesh>
 
         {/* Subtle highlight on frame top edge */}

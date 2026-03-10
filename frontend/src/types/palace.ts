@@ -107,6 +107,7 @@ export interface Artifact {
   enrichments?: string[];
   relatedArtifacts?: string[];
   color?: string;
+  wall?: WallPosition;
 }
 
 export interface EnrichmentImage {

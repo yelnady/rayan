@@ -7,7 +7,7 @@
  * Each section has an animated icon button + label + state sub-label.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
@@ -368,6 +368,129 @@ function VoiceSection() {
     );
 }
 
+// ─── Movement Section (Desktop Only) ──────────────────────────────────────────
+
+function MovementSection() {
+    const setMobileMovement = useCameraStore((s) => s.setMobileMovement);
+    const [activeKeys, setActiveKeys] = useState({ w: false, a: false, s: false, d: false });
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') setActiveKeys(prev => ({ ...prev, w: true }));
+            if (k === 'a' || k === 'arrowleft') setActiveKeys(prev => ({ ...prev, a: true }));
+            if (k === 's' || k === 'arrowdown') setActiveKeys(prev => ({ ...prev, s: true }));
+            if (k === 'd' || k === 'arrowright') setActiveKeys(prev => ({ ...prev, d: true }));
+        };
+        const handleKeyUp = (e: KeyboardEvent) => {
+            const k = e.key.toLowerCase();
+            if (k === 'w' || k === 'arrowup') setActiveKeys(prev => ({ ...prev, w: false }));
+            if (k === 'a' || k === 'arrowleft') setActiveKeys(prev => ({ ...prev, a: false }));
+            if (k === 's' || k === 'arrowdown') setActiveKeys(prev => ({ ...prev, s: false }));
+            if (k === 'd' || k === 'arrowright') setActiveKeys(prev => ({ ...prev, d: false }));
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        window.addEventListener('keyup', handleKeyUp);
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('keyup', handleKeyUp);
+        };
+    }, []);
+
+    const startMove = (key: 'w' | 'a' | 's' | 'd') => {
+        const next = { ...activeKeys, [key]: true };
+        setActiveKeys(next);
+        updateMovement(next);
+    };
+
+    const stopMove = (key: 'w' | 'a' | 's' | 'd') => {
+        const next = { ...activeKeys, [key]: false };
+        setActiveKeys(next);
+        updateMovement(next);
+    };
+
+    const updateMovement = (keys: { w: boolean, a: boolean, s: boolean, d: boolean }) => {
+        const x = (keys.d ? 1 : 0) - (keys.a ? 1 : 0);
+        const z = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
+        setMobileMovement({ x, z });
+    };
+
+    return (
+        <div className="hidden sm:flex flex-col items-center gap-1 py-1.5 px-3 border-r border-border-light">
+            <div className="flex flex-col items-center gap-0.5">
+                <KeyButton
+                    active={activeKeys.w}
+                    icon={<ArrowIcon direction="up" />}
+                    onStart={() => startMove('w')}
+                    onEnd={() => stopMove('w')}
+                />
+                <div className="flex gap-0.5">
+                    <KeyButton
+                        active={activeKeys.a}
+                        icon={<ArrowIcon direction="left" />}
+                        onStart={() => startMove('a')}
+                        onEnd={() => stopMove('a')}
+                    />
+                    <KeyButton
+                        active={activeKeys.s}
+                        icon={<ArrowIcon direction="down" />}
+                        onStart={() => startMove('s')}
+                        onEnd={() => stopMove('s')}
+                    />
+                    <KeyButton
+                        active={activeKeys.d}
+                        icon={<ArrowIcon direction="right" />}
+                        onStart={() => startMove('d')}
+                        onEnd={() => stopMove('d')}
+                    />
+                </div>
+            </div>
+            <span className="font-body text-[9px] text-text-muted tracking-[0.05em] uppercase font-semibold leading-none">
+                Move
+            </span>
+        </div>
+    );
+}
+
+function KeyButton({ active, icon, onStart, onEnd }: { active: boolean, icon: React.ReactNode, onStart: () => void, onEnd: () => void }) {
+    return (
+        <div
+            onMouseDown={onStart}
+            onMouseUp={onEnd}
+            onMouseLeave={onEnd}
+            onTouchStart={onStart}
+            onTouchEnd={onEnd}
+            className={`w-[18px] h-[18px] rounded-[4px] flex items-center justify-center transition-all duration-75 ${active ? 'bg-primary text-white scale-90 shadow-sm' : 'bg-[rgba(0,0,0,0.04)] text-text-primary hover:bg-[rgba(0,0,0,0.08)]'
+                } cursor-pointer select-none`}
+        >
+            {icon}
+        </div>
+    );
+}
+
+function ArrowIcon({ direction }: { direction: 'up' | 'down' | 'left' | 'right' }) {
+    const rotations = {
+        up: '0deg',
+        down: '180deg',
+        left: '270deg',
+        right: '90deg'
+    };
+    return (
+        <svg
+            width="8"
+            height="8"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            style={{
+                transform: `rotate(${rotations[direction]})`,
+                transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
+            }}
+        >
+            <path d="M12 5l-8 11h16z" />
+        </svg>
+    );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function ActionBar() {
@@ -404,6 +527,7 @@ export function ActionBar() {
                 aria-label="Memory actions"
                 className="fixed bottom-3 sm:bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1 sm:px-2.5 py-1 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[98vw] sm:max-w-none"
             >
+                <MovementSection />
                 <MoreSection />
                 <ResetViewSection />
 

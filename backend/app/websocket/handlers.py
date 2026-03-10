@@ -76,6 +76,12 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
     # Persist session in Firestore
     await capture_service.start_session(user_id, session_id, source_type)
 
+    # Send session started message to frontend
+    await manager.send(user_id, {
+        "type": "capture_session_started",
+        "sessionId": session_id,
+    })
+
     # Build extraction callback — fires on every concept Gemini extracts
     async def on_extraction(event):
         await send_capture_ack(user_id, session_id, event)
@@ -98,7 +104,13 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
             "data": base64.b64encode(audio_bytes).decode(),
         })
 
-    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio)
+    async def on_text(text: str) -> None:
+        await manager.send(user_id, {
+            "type": "capture_text",
+            "text": text,
+        })
+
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
@@ -159,6 +171,12 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
         concept_count=concept_count,
     )
     logger.info("capture_end: userId=%s sessionId=%s concepts=%d", user_id, session_id, concept_count)
+
+    # Send session ended message to frontend
+    await manager.send(user_id, {
+        "type": "capture_session_ended",
+        "sessionId": session_id,
+    })
 
 
 

@@ -19,10 +19,11 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import { useEnrichmentStore } from '../../stores/enrichmentStore';
+import { HighlightGlow } from './HighlightGlow';
 
-const ORB_RADIUS = 0.18;
+const ORB_RADIUS = 0.3;
 const FLOAT_SPEED = 1.1;
-const ORBIT_RADIUS = 0.3;
+const ORBIT_RADIUS = 0.5;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
 
@@ -54,9 +55,23 @@ interface OrbEntry {
 interface OrbInstancedRendererProps {
     artifacts: ArtifactData[];
     onClick?: (artifact: ArtifactData) => void;
+    highlightedIds?: string[];
 }
 
-export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendererProps) {
+function wallRotation(artifact: ArtifactData): [number, number, number] {
+    if (artifact.wall === 'west') return [0, Math.PI / 2, 0];
+    if (artifact.wall === 'east') return [0, -Math.PI / 2, 0];
+    if (artifact.wall === 'south') return [0, Math.PI, 0];
+    if (artifact.wall === 'north') return [0, 0, 0];
+
+    const { x, z } = artifact.position;
+    if (x < 0.2) return [0, Math.PI / 2, 0];
+    if (x > 7.8) return [0, -Math.PI / 2, 0];
+    if (z > 7.8) return [0, Math.PI, 0];
+    return [0, 0, 0];
+}
+
+export function OrbInstancedRenderer({ artifacts, onClick, highlightedIds }: OrbInstancedRendererProps) {
     const count = artifacts.length;
     const particleTotal = count * PARTICLE_COUNT;
     const newEnrichmentIds = useEnrichmentStore((s) => s.newEnrichmentArtifactIds);
@@ -111,15 +126,25 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
             const { x, z } = entry.artifact.position;
             const baseY = entry.artifact.position.y;
 
+            // Compute offset world position once so both orb and particles follow it
+            let ox = x, oz = z;
+            const offset = 0.15;
+            if (entry.artifact.wall === 'west' || x < 0.2) ox += offset;
+            else if (entry.artifact.wall === 'east' || x > 7.8) ox -= offset;
+            else if (entry.artifact.wall === 'south' || z > 7.8) oz -= offset;
+            else if (entry.artifact.wall === 'north' || z < 0.6) oz += offset;
+
             const isPulsing = newEnrichmentIds.has(entry.artifact.id);
             const pulseScale = isPulsing
                 ? 1 + Math.sin(timesRef.current[i] * 4) * 0.1
                 : 1;
             const hoverScale = hoveredIdx === i ? 1.2 : 1;
 
-            DUMMY.position.set(x, baseY, z);
-            DUMMY.rotation.y = orbSpinsRef.current[i].ry;
-            DUMMY.rotation.x = orbSpinsRef.current[i].rx;
+            const rotation = wallRotation(entry.artifact);
+            DUMMY.position.set(ox, baseY, oz);
+            DUMMY.rotation.set(rotation[0], rotation[1], rotation[2]);
+            DUMMY.rotation.y += orbSpinsRef.current[i].ry;
+            DUMMY.rotation.x += orbSpinsRef.current[i].rx;
             DUMMY.scale.setScalar(pulseScale * hoverScale);
             DUMMY.updateMatrix();
             orbRef.current!.setMatrixAt(i, DUMMY.matrix);
@@ -142,7 +167,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                 const ry2 = ly * cosX - rz2 * sinX;
                 const rz3 = ly * sinX + rz2 * cosX;
 
-                DUMMY.position.set(x + rx2, baseY + ry2, z + rz3);
+                DUMMY.position.set(ox + rx2, baseY + ry2, oz + rz3);
                 DUMMY.rotation.set(0, 0, 0);
                 DUMMY.scale.setScalar(1);
                 DUMMY.updateMatrix();
@@ -156,12 +181,19 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
 
     if (count === 0) return null;
 
-    const orbMat = new THREE.MeshStandardMaterial({
-        roughness: 0.05,
-        metalness: 0.8,
-        opacity: 0.85,
-        transparent: true,
+    const orbMat = new THREE.MeshPhysicalMaterial({
+        color: '#ffffff',
         vertexColors: true,
+        transparent: true,
+        opacity: 0.9,
+        roughness: 0,
+        metalness: 0,
+        transmission: 0.95, // Glass/Crystal look
+        thickness: 1.5,
+        clearcoat: 1,
+        emissive: new THREE.Color('#ffffff'),
+        emissiveIntensity: 0.1,
+        side: THREE.DoubleSide,
     });
     const particleMat = new THREE.MeshBasicMaterial({ vertexColors: true });
 
@@ -190,6 +222,18 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                 ref={particleRef}
                 args={[PARTICLE_GEO, particleMat, particleTotal]}
             />
+
+            {/* Highlight glow — rendered per highlighted orb outside the instanced mesh */}
+            {highlightedIds && entries
+                .filter((e) => highlightedIds.includes(e.artifact.id))
+                .map((e) => (
+                    <HighlightGlow
+                        key={e.artifact.id}
+                        color={e.color}
+                        position={[e.artifact.position.x, e.artifact.position.y, e.artifact.position.z]}
+                    />
+                ))
+            }
 
             {/* Hover tooltip */}
             {hoveredIdx !== null && entries[hoveredIdx] && (

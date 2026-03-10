@@ -18,6 +18,34 @@ export interface CaptureAckMessage {
   voiceResponse: string | null;
 }
 
+export interface CaptureSessionStartedMessage {
+  type: "capture_session_started";
+  sessionId: string;
+}
+
+export interface CaptureSessionEndedMessage {
+  type: "capture_session_ended";
+  sessionId: string;
+}
+
+export interface CaptureAudioMessage {
+  type: "capture_audio";
+  data: string;
+}
+
+export interface CaptureTextMessage {
+  type: "capture_text";
+  text: string;
+}
+
+export interface CaptureToolCallMessage {
+  type: "capture_tool_call";
+  tool: "capture_concept";
+  label: string;
+  concept: string;
+  confidence: number;
+}
+
 export interface CaptureCompleteMessage {
   type: "capture_complete";
   sessionId: string;
@@ -138,6 +166,11 @@ export type ServerMessage =
   | CaptureAckMessage
   | CaptureCompleteMessage
   | CaptureCompleteMessage
+  | CaptureSessionStartedMessage
+  | CaptureSessionEndedMessage
+  | CaptureAudioMessage
+  | CaptureTextMessage
+  | CaptureToolCallMessage
   | ArtifactRecallMessage
   | EnrichmentUpdateMessage
   | PalaceUpdateMessage

@@ -16,9 +16,9 @@ interface CrystalOrbProps {
   onHover?: (hovered: boolean) => void;
 }
 
-const ORB_RADIUS = 0.18;
+const ORB_RADIUS = 0.3;
 const FLOAT_SPEED = 1.1;
-const ORBIT_RADIUS = 0.3;
+const ORBIT_RADIUS = 0.5;
 const ORBIT_SPEED = 1.4;
 const PARTICLE_COUNT = 6;
 

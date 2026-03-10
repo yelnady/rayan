@@ -1,6 +1,7 @@
 import { memo, useMemo, useState } from 'react';
 import { Html } from '@react-three/drei';
 import type { Artifact as ArtifactData } from '../../types/palace';
+import { HighlightGlow } from './HighlightGlow';
 import { FloatingBook } from './FloatingBook';
 import { HologramFrame } from './HologramFrame';
 import { FramedImage } from './FramedImage';
@@ -27,15 +28,40 @@ interface ArtifactProps {
   artifact: ArtifactData;
   onClick?: (artifact: ArtifactData) => void;
   onHover?: (artifact: ArtifactData | null) => void;
+  highlighted?: boolean;
 }
 
-export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
+/** Infer which wall the artifact is on from its stored position or explicit wall attribute.
+ *  Wall identity determines the rotation to face into the room:
+ *    west wall  → face +X (rotate Y +90°)
+ *    east wall  → face -X (rotate Y -90°)
+ *    south wall → face -Z (rotate Y 180°)
+ *    north wall → face +Z (no rotation, default)
+ *    else       → floating center
+ */
+function wallRotation(artifact: ArtifactData): [number, number, number] {
+  if (artifact.wall === 'west') return [0, Math.PI / 2, 0];
+  if (artifact.wall === 'east') return [0, -Math.PI / 2, 0];
+  if (artifact.wall === 'south') return [0, Math.PI, 0];
+  if (artifact.wall === 'north') return [0, 0, 0];
+
+  // Fallback to spatial inference
+  const { x, z } = artifact.position;
+  if (x < 0.2) return [0, Math.PI / 2, 0];
+  if (x > 7.8) return [0, -Math.PI / 2, 0];
+  if (z > 7.8) return [0, Math.PI, 0];
+  return [0, 0, 0];
+}
+
+export const Artifact = memo(function Artifact({ artifact, onClick, onHover, highlighted }: ArtifactProps) {
   const [hovered, setHovered] = useState(false);
 
   const pos = useMemo<[number, number, number]>(
     () => [artifact.position.x, artifact.position.y, artifact.position.z],
     [artifact.position.x, artifact.position.y, artifact.position.z],
   );
+
+  const rot = useMemo(() => wallRotation(artifact), [artifact]);
 
   const color = useMemo(() => artifact.color ?? undefined, [artifact.color]);
   const label = useMemo(() => TYPE_LABELS[artifact.visual] ?? 'Memory', [artifact.visual]);
@@ -48,18 +74,21 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
     onHover?.(h ? artifact : null);
   };
 
+  // Each visual is rendered at [0,0,0] inside a positioned+rotated group
+  // so it correctly faces into the room from whichever wall it's mounted on.
   const visual = (() => {
+    const O: [number, number, number] = [0, 0, 0];
     switch (artifact.visual) {
       case 'floating_book':
-        return <FloatingBook position={pos} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <FloatingBook position={O} color={color} onClick={handleClick} onHover={handleHover} />;
       case 'hologram_frame':
-        return <HologramFrame position={pos} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <HologramFrame position={O} color={color} onClick={handleClick} onHover={handleHover} />;
       case 'framed_image':
-        return <FramedImage position={pos} color={color} thumbnailUrl={artifact.thumbnailUrl} onClick={handleClick} onHover={handleHover} />;
+        return <FramedImage position={O} color={color} thumbnailUrl={artifact.thumbnailUrl} onClick={handleClick} onHover={handleHover} />;
       case 'speech_bubble':
-        return <SpeechBubble position={pos} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <SpeechBubble position={O} color={color} onClick={handleClick} onHover={handleHover} />;
       case 'crystal_orb':
-        return <CrystalOrb position={pos} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <CrystalOrb position={O} color={color} onClick={handleClick} onHover={handleHover} />;
       default:
         return null;
     }
@@ -67,7 +96,14 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
 
   return (
     <>
-      {visual}
+      <group position={pos} rotation={rot}>
+        {/* T159: Small local shift to ensure mesh isn't submerged in wall 
+            Local +Z faces INTO the room. */}
+        <group position={[0, 0, 0.08]}>
+          {visual}
+          {highlighted && <HighlightGlow color={accentColor} />}
+        </group>
+      </group>
 
       {/* Invisible hover hitbox — much easier to target than the small artifact mesh */}
       <mesh
@@ -76,7 +112,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
         onPointerOut={() => handleHover(false)}
         onClick={() => handleClick()}
       >
-        <sphereGeometry args={[0.35, 8, 6]} />
+        <sphereGeometry args={[0.7, 8, 6]} />
         <meshBasicMaterial transparent opacity={0} />
       </mesh>
 
@@ -150,5 +186,6 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
   );
 }, (prev: ArtifactProps, next: ArtifactProps) =>
   prev.artifact.id === next.artifact.id &&
-  prev.artifact.visual === next.artifact.visual,
+  prev.artifact.visual === next.artifact.visual &&
+  prev.highlighted === next.highlighted,
 );

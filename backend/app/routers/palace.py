@@ -140,9 +140,26 @@ async def create_palace(user: dict = Depends(verify_token)):
 
     async def _seed_and_notify(uid: str) -> None:
         try:
-            summary = await seed_palace(uid)
             from app.websocket.manager import manager
-            await manager.send(uid, {"type": "palace_update", "data": summary})
+            from app.websocket.responses import broadcast_palace_update
+
+            # Signal that seeding has started
+            await manager.send(uid, {"type": "seeding_started"})
+
+            seed_data = await seed_palace(uid)
+
+            # Signal that seeding is complete
+            await manager.send(uid, {"type": "seeding_complete"})
+
+            # Broadcast the actual rooms and artifacts created
+            await broadcast_palace_update(
+                uid,
+                rooms_added=seed_data["rooms"],
+                artifacts_added=seed_data["artifacts"],
+            )
+
+            # Send the summary for legacy support
+            await manager.send(uid, {"type": "palace_seed_summary", "data": seed_data["summary"]})
         except Exception:
             logger.exception("Seed palace failed for userId=%s", uid)
 

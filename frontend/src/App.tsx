@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { GoogleSignIn } from './components/auth/GoogleSignIn';
 import { PalacePage } from './pages/PalacePage';
+import { Logo } from './components/brand/Logo';
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
 
@@ -17,12 +18,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 function LoadingScreen() {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg gap-4">
-      {/* Spinner */}
-      <div className="w-8 h-8 rounded-full border-2 border-primary-muted border-t-primary animate-spin" />
-      <span className="font-body text-[13px] text-text-muted tracking-wide">
-        Loading…
-      </span>
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-bg gap-6">
+      <div className="relative">
+        <Logo size={60} className="relative z-10" />
+        <div className="absolute inset-0 bg-indigo-500/20 blur-2xl animate-pulse" />
+      </div>
+      <div className="flex flex-col items-center gap-2">
+        <div className="w-6 h-6 rounded-full border-2 border-primary-muted border-t-primary animate-spin" />
+        <span className="font-body text-[13px] text-text-muted tracking-widest uppercase font-medium">
+          Entering ...
+        </span>
+      </div>
     </div>
   );
 }
@@ -43,35 +49,15 @@ function LoginPage() {
       {/* Card */}
       <div className="relative z-10 flex flex-col items-center gap-3 bg-[rgba(14,14,26,0.7)] backdrop-blur-xl border border-[rgba(99,102,241,0.18)] rounded-3xl pt-12 px-11 pb-10 w-full max-w-[380px] shadow-[0_32px_80px_rgba(0,0,0,0.5),inset_0_0_0_1px_rgba(255,255,255,0.04)] animate-[scaleIn_0.4s_ease]">
         {/* Palace icon */}
-        <div className="w-16 h-16 rounded-2xl bg-[rgba(99,102,241,0.12)] border border-[rgba(99,102,241,0.25)] flex items-center justify-center mb-2 shadow-[0_0_20px_rgba(99,102,241,0.2)]">
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            className="block"
-          >
-            <defs>
-              <linearGradient id="icon-grad" x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#6366f1" />
-                <stop offset="100%" stopColor="#8b5cf6" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M3 9.5L12 3l9 6.5V21H3V9.5z"
-              fill="url(#icon-grad)"
-              opacity="0.9"
-            />
-            <rect x="9" y="14" width="6" height="7" rx="1" fill="rgba(255,255,255,0.25)" />
-            <path d="M12 3v18" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
-          </svg>
+        <div className="w-20 h-20 rounded-2xl bg-indigo-500/10 border border-indigo-400/20 flex items-center justify-center mb-4 shadow-[0_0_30px_rgba(99,102,241,0.15)] group transition-transform duration-500 hover:scale-105">
+          <Logo size={48} className="drop-shadow-lg" />
         </div>
 
         {/* Heading */}
-        <h1 className="font-heading text-[34px] font-bold text-white tracking-tight m-0 text-center bg-[linear-gradient(135deg,#fff_0%,rgba(255,255,255,0.7)_100%)] bg-clip-text text-transparent">
+        <h1 className="font-heading text-[38px] font-bold tracking-tight m-0 text-center bg-[linear-gradient(135deg,#fff_30%,#a5b4fc_70%,#818cf8_100%)] bg-clip-text text-transparent drop-shadow-[0_2px_10px_rgba(99,102,241,0.3)]">
           Rayan
         </h1>
-        <p className="font-body text-sm text-text-muted m-0 text-center tracking-wide">
+        <p className="font-body text-[13px] text-indigo-200/60 m-0 text-center tracking-[0.1em] uppercase font-medium">
           Your AI-powered Memory Palace
         </p>
 
@@ -82,9 +68,14 @@ function LoginPage() {
         <GoogleSignIn />
 
         {/* Footer note */}
-        <p className="font-body text-[11px] text-text-faint m-0 text-center leading-relaxed mt-1">
-          Sign in to access your memory rooms &amp; artifacts
-        </p>
+        <div className="w-full pt-4 mt-4 border-t border-white/[0.04] flex flex-col items-center">
+          <p className="font-body text-[12px] text-indigo-200/40 m-0 text-center leading-relaxed max-w-[260px]">
+            Sign in to access your <br />
+            <span className="text-white/60 font-medium tracking-wide">
+              memory rooms &amp; artifacts
+            </span>
+          </p>
+        </div>
       </div>
     </div>
   );

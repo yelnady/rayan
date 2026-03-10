@@ -146,21 +146,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
         Memory Palace
       </Text>
 
-      {/* On-wall "LOBBY" label (North wall) */}
-      {!isOverviewMode && (
-        <Text
-          position={[LOBBY_SIZE / 2, 3.8, 0.15]}
-          fontSize={0.85}
-          color="#f0e0ff"
-          anchorX="center"
-          anchorY="middle"
-          font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
-          outlineColor="#d4af37"
-          outlineWidth={0.03}
-        >
-          LOBBY
-        </Text>
-      )}
+      {/* On-wall "LOBBY" label (North wall) removed per user request */}
 
       {/* ── Centerpiece Microphone ────────────────────────────────────────── */}
       <group position={[LOBBY_SIZE / 2, 1.2, 3]}>
@@ -194,19 +180,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
       {
         isOverviewMode && (
           <>
-            <Text
-              position={[LOBBY_SIZE / 2, LOBBY_HEIGHT + 2.5, LOBBY_SIZE / 2]}
-              fontSize={1.5}
-              letterSpacing={0.2}
-              color="#FFFFFF"
-              anchorX="center"
-              anchorY="middle"
-              font="https://fonts.gstatic.com/s/cinzel/v11/qnVl4DHEMmaAdG4zW_vR5S-v.woff2"
-              outlineWidth={0.07}
-              outlineColor="#000000"
-            >
-              LOBBY
-            </Text>
+            {/* Overview LOBBY label removed per user request */}
 
             <mesh
               position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
