@@ -62,6 +62,7 @@ class ArtifactDetail(BaseModel):
     sourceMediaUrl: Optional[str] = None
     thumbnailUrl: Optional[str] = None
     createdAt: str
+    capturedAt: Optional[str] = None
     captureSessionId: Optional[str] = None
     relatedArtifacts: list[str] = []
     color: Optional[str] = None
@@ -148,6 +149,7 @@ async def get_artifact_detail(
             sourceMediaUrl=getattr(artifact_doc, "sourceMediaUrl", None),
             thumbnailUrl=getattr(artifact_doc, "thumbnailUrl", None),
             createdAt=artifact_doc.createdAt.isoformat(),
+            capturedAt=artifact_doc.capturedAt.isoformat() if artifact_doc.capturedAt else None,
             captureSessionId=getattr(artifact_doc, "captureSessionId", None),
             relatedArtifacts=getattr(artifact_doc, "relatedArtifacts", []),
             color=getattr(artifact_doc, "color", None),
@@ -174,7 +176,7 @@ async def get_artifact_detail(
 )
 async def get_related_memories(
     artifact_id: str,
-    threshold: float = Query(default=0.75, ge=0.0, le=1.0),
+    threshold: float = Query(default=0.50, ge=0.0, le=1.0),
     limit: int = Query(default=5, ge=1, le=20),
     user: dict = Depends(verify_token),
 ) -> RelatedMemoriesResponse:

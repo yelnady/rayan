@@ -19,8 +19,10 @@ import { useTransitionStore } from '../stores/transitionStore';
 import { stopVoiceSession } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;
-/** Singleton AudioPlayback shared across listeners (reset on disconnect). */
+/** Singleton AudioPlayback for recall/voice responses. */
 let _playback: AudioPlayback | null = null;
+/** Dedicated AudioPlayback for capture session (Rayan's voice during capture). */
+let _capturePlayback: AudioPlayback | null = null;
 /** Track whether listeners have been wired to prevent duplicates. */
 let _listenersWired = false;
 let _listenerUnsubs: Array<() => void> = [];
@@ -39,8 +41,22 @@ function wireListeners(ws: RayanWebSocket): void {
   _playback = new AudioPlayback();
 
   _listenerUnsubs = [
-    ws.on('capture_audio', (_msg) => {
-      // Playback handled by useCaptureWS's dedicated AudioPlayback instance
+    ws.on('capture_session_started', (msg) => {
+      _capturePlayback = new AudioPlayback();
+      const store = useCaptureStore.getState();
+      store.setStatus('capturing');
+      store.setShowPanel(true);
+      store.clearMessages();
+      console.log('[WS] Capture session started:', msg.sessionId);
+    }),
+    ws.on('capture_session_ended', (msg) => {
+      _capturePlayback?.stop();
+      _capturePlayback = null;
+      useCaptureStore.getState().setStatus('complete');
+      console.log('[WS] Capture session ended:', msg.sessionId);
+    }),
+    ws.on('capture_audio', (msg) => {
+      if (_capturePlayback) void _capturePlayback.enqueue(msg.data);
     }),
     ws.on('capture_text', (msg) => {
       useCaptureStore.getState().appendRayanText(msg.text);
@@ -50,8 +66,7 @@ function wireListeners(ws: RayanWebSocket): void {
     }),
     ws.on('capture_ack', (msg) => {
       useCaptureStore.getState().addConcept(msg.extraction);
-      // Log extraction in the conversation panel
-      useVoiceStore.getState().addToolEvent(`Memory Captured: ${msg.extraction.concept}`, 'capture_concept');
+      useCaptureStore.getState().addToolEvent(`Memory Captured: ${msg.extraction.concept}`, 'capture_concept');
     }),
     ws.on('capture_complete', (msg) => {
       useCaptureStore.getState().setSummary(msg.summary);
@@ -72,6 +87,9 @@ function wireListeners(ws: RayanWebSocket): void {
           connections: [],
           artifactCount: 0,
         })
+      );
+      msg.changes.artifactsRemoved?.forEach((id: string) =>
+        palaceStore.removeArtifact(id)
       );
       msg.changes.artifactsAdded?.forEach((a) =>
         palaceStore.addArtifact({
@@ -311,6 +329,8 @@ function teardownListeners(): void {
   _listenerUnsubs = [];
   _playback?.stop();
   _playback = null;
+  _capturePlayback?.stop();
+  _capturePlayback = null;
   _listenersWired = false;
 }
 

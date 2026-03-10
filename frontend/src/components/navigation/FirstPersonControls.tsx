@@ -156,13 +156,10 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
             pitch.current = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, pitch.current));
         }
         function onWheel(e: WheelEvent) {
-            // Adjust zoom base FOV depending on scroll delta
-            const zoomSpeed = 0.05;
-            const nextFov = Math.max(
-                MIN_FOV,
-                Math.min(MAX_FOV, zoomFov.current + e.deltaY * zoomSpeed)
-            );
-            useCameraStore.getState().setFov(nextFov);
+            // Scroll forward/backward — same physics as W/S arrow keys
+            const SCROLL_SPEED = 0.15;
+            velocity.current.z += e.deltaY * SCROLL_SPEED;
+            velocity.current.z = Math.max(-MAX_VELOCITY * 2, Math.min(MAX_VELOCITY * 2, velocity.current.z));
         }
         function onContextMenu(e: Event) {
             e.preventDefault(); // suppress right-click menu on canvas

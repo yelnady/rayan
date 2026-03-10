@@ -99,6 +99,40 @@ async def delete_artifact(user_id: str, room_id: str, artifact_id: str) -> None:
     await recompute_room_summary(user_id, room_id)
 
 
+async def update_artifact(
+    user_id: str,
+    artifact_id: str,
+    summary: Optional[str] = None,
+    full_content: Optional[str] = None,
+) -> Artifact | None:
+    """Update an artifact's summary and/or full_content, regenerating its embedding."""
+    artifact = await get_artifact_by_id(user_id, artifact_id)
+    if artifact is None:
+        return None
+
+    room_id = artifact.roomId
+    updates: dict = {}
+
+    if summary is not None:
+        updates["summary"] = summary
+        artifact.summary = summary
+    if full_content is not None:
+        updates["fullContent"] = full_content
+        artifact.fullContent = full_content
+
+    if updates:
+        embed_text = artifact.summary + (" " + artifact.fullContent[:500] if artifact.fullContent else "")
+        updates["embedding"] = await get_embedding(embed_text)
+        await _artifacts_ref(user_id, room_id).document(artifact_id).update(updates)
+        logger.info("Artifact updated: userId=%s artifactId=%s fields=%s", user_id, artifact_id, list(updates.keys()))
+
+    import asyncio
+    from app.services.room_service import recompute_room_summary
+    asyncio.create_task(recompute_room_summary(user_id, room_id), name=f"room-summary-{room_id}")
+
+    return artifact
+
+
 async def get_artifact_by_id(user_id: str, artifact_id: str) -> Artifact | None:
     """Fetch an artifact without knowing its room.
 

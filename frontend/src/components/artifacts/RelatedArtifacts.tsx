@@ -19,9 +19,11 @@ interface RelatedArtifactsProps {
     relatedArtifactIds: string[];
     /** Richer entries from artifact_recall WebSocket message. */
     narrationRelated: NarrationRelated[];
+    /** Similarity scores keyed by artifact ID, from semantic search. */
+    similarityMap?: Map<string, number>;
 }
 
-export function RelatedArtifacts({ relatedArtifactIds, narrationRelated }: RelatedArtifactsProps) {
+export function RelatedArtifacts({ relatedArtifactIds, narrationRelated, similarityMap }: RelatedArtifactsProps) {
     // Prefer narration (richer) entries if available; fall back to bare IDs
     const hasNarration = narrationRelated.length > 0;
 
@@ -36,7 +38,7 @@ export function RelatedArtifacts({ relatedArtifactIds, narrationRelated }: Relat
                     <NarrationCard key={rel.artifactId} rel={rel} />
                 ))
                 : relatedArtifactIds.map((id) => (
-                    <BareIdCard key={id} artifactId={id} />
+                    <BareIdCard key={id} similarity={similarityMap?.get(id)} />
                 ))}
         </div>
     );
@@ -55,11 +57,25 @@ function NarrationCard({ rel }: { rel: NarrationRelated }) {
     );
 }
 
-function BareIdCard(_props: { artifactId: string }) {
+function BareIdCard({ similarity }: { similarity?: number }) {
+    const pct = similarity !== undefined ? Math.round(similarity * 100) : undefined;
+    const color = pct !== undefined
+        ? pct >= 90 ? '#10b981' : pct >= 80 ? '#6366f1' : '#f59e0b'
+        : undefined;
+
     return (
         <div className="inline-flex items-center gap-1.5 bg-surface-hover border border-border rounded-md py-1.5 px-2.5">
             <span className="text-primary text-[12px]">↗</span>
-            <span className="text-text-muted text-[11px] font-mono">Related Memory</span>
+            {pct !== undefined && color ? (
+                <span
+                    className="text-[10px] font-bold rounded-full px-2 py-0.5 font-body"
+                    style={{ color, background: `${color}22`, border: `1px solid ${color}44` }}
+                >
+                    {pct}%
+                </span>
+            ) : (
+                <span className="text-text-muted text-[11px] font-body">Related Memory</span>
+            )}
         </div>
     );
 }

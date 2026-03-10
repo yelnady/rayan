@@ -27,6 +27,7 @@ from google.genai import types as genai_types
 from app.agents.tools.tools import (
     close_artifact,
     create_artifact,
+    delete_artifact,
     end_session,
     execute_web_search,
     highlight_artifact,
@@ -111,6 +112,7 @@ TOOLS — use them proactively when relevant:
 - highlight_artifact: when one artifact is the key answer, highlight it
 - create_artifact: when the user shares something they want to remember, save it
 - web_search: when the user asks about something you don't have in memory, search the web for it
+- delete_artifact: when the user explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling
 - end_session: call this IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation.
 
 MEMORIES:
@@ -223,7 +225,7 @@ class RecallAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, web_search, end_session, close_artifact],
+            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, delete_artifact, web_search, end_session, close_artifact],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -502,6 +504,31 @@ class RecallAgent:
             except Exception:
                 logger.exception("save_artifact failed for userId=%s", user_id)
                 return "Failed to save artifact"
+
+        elif fn_name == "delete_artifact":
+            artifact_id = fn_args.get("artifact_id", "")
+            await notify({"label": f"Deleting artifact {artifact_id[:12]}…"})
+            try:
+                from app.services.artifact_service import delete_artifact_by_id
+                from app.websocket.manager import manager as ws_manager
+                await delete_artifact_by_id(user_id, artifact_id)
+                await ws_manager.send(user_id, {
+                    "type": "palace_update",
+                    "changes": {
+                        "roomsAdded": [],
+                        "artifactsAdded": [],
+                        "artifactsRemoved": [artifact_id],
+                        "connectionsAdded": [],
+                    },
+                })
+                # Refresh context so Gemini no longer references the deleted artifact
+                live = self._sessions.get(user_id)
+                await self.update_context(user_id, live.current_room_id if live else None)
+                logger.info("[RecallAgent] Artifact deleted: userId=%s artifactId=%s", user_id, artifact_id)
+                return f"Artifact {artifact_id} deleted successfully."
+            except Exception:
+                logger.exception("delete_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
+                return "Failed to delete artifact."
 
         elif fn_name == "web_search":
             query = fn_args.get("query", "")
