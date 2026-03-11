@@ -12,7 +12,6 @@ interface SpeechBubbleProps {
 
 export function SpeechBubble({
   position,
-  color = '#A8D8EA',
   onClick,
   onHover,
 }: SpeechBubbleProps) {
@@ -20,31 +19,16 @@ export function SpeechBubble({
 
   const { scene } = useGLTF('/models/chat_bubble_icon.glb');
 
-  // T164: Upgrade to MeshPhysicalMaterial for 'Premium' glass-like look.
-  // It uses the global Environment map for reflections, so it's never pitch black.
+  // Preserve the GLB's original materials so the white bubble + blue dots show correctly.
   const clonedScene = useMemo(() => {
     const clone = scene.clone(true);
-    const material = new THREE.MeshPhysicalMaterial({
-      color: color,
-      emissive: color,
-      emissiveIntensity: 0.15,
-      roughness: 0.1,
-      metalness: 0.2, // Low metalness + Environment = Glassy sheen
-      clearcoat: 1, // Shiny protective layer
-      transmission: 0.2, // Slight translucency for 'Premium' feel
-      thickness: 0.5,
-      side: THREE.DoubleSide,
-    });
-
     clone.traverse((child) => {
       if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh;
-        mesh.material = material;
-        mesh.castShadow = true;
+        (child as THREE.Mesh).castShadow = true;
       }
     });
     return clone;
-  }, [scene, color]);
+  }, [scene]);
 
   function handlePointerOver() {
     if (!groupRef.current) return;
@@ -70,7 +54,6 @@ export function SpeechBubble({
           <primitive object={clonedScene} />
         </group>
 
-        <pointLight color={color} intensity={0.4} distance={2} decay={2} />
       </group>
     </group>
   );

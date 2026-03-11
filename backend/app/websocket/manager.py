@@ -13,14 +13,23 @@ class ConnectionManager:
     def __init__(self) -> None:
         # userId → WebSocket
         self._connections: dict[str, WebSocket] = {}
+        # userId → display name (set at auth time, cleared on disconnect)
+        self._display_names: dict[str, str] = {}
 
     async def connect(self, user_id: str, websocket: WebSocket) -> None:
         await websocket.accept()
         self._connections[user_id] = websocket
         logger.info("WebSocket connected: userId=%s (total=%d)", user_id, len(self._connections))
 
+    def set_display_name(self, user_id: str, display_name: str) -> None:
+        self._display_names[user_id] = display_name
+
+    def get_display_name(self, user_id: str) -> str:
+        return self._display_names.get(user_id, "")
+
     def disconnect(self, user_id: str) -> None:
         self._connections.pop(user_id, None)
+        self._display_names.pop(user_id, None)
         logger.info("WebSocket disconnected: userId=%s", user_id)
 
     async def send(self, user_id: str, message: dict[str, Any]) -> bool:

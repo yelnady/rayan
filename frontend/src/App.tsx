@@ -2,6 +2,8 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { GoogleSignIn } from './components/auth/GoogleSignIn';
 import { PalacePage } from './pages/PalacePage';
+import { LandingPage } from './pages/LandingPage';
+import { HowItWorksPage } from './pages/HowItWorksPage';
 import { Logo } from './components/brand/Logo';
 
 // ── Auth Guard ────────────────────────────────────────────────────────────────
@@ -12,6 +14,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   return <>{children}</>;
+
 }
 
 // ── Loading Screen ────────────────────────────────────────────────────────────
@@ -38,7 +41,7 @@ function LoadingScreen() {
 function LoginPage() {
   const { user, loading } = useAuth();
   if (loading) return <LoadingScreen />;
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to="/palace" replace />;
 
   return (
     <div className="relative flex items-center justify-center min-h-[100dvh] bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,rgba(99,102,241,0.12)_0%,transparent_70%),radial-gradient(ellipse_60%_50%_at_80%_100%,rgba(139,92,246,0.08)_0%,transparent_60%)] bg-bg overflow-hidden">
@@ -87,9 +90,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/how-it-works" element={<HowItWorksPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route
-          path="/"
+          path="/palace"
           element={
             <AuthGuard>
               <PalacePage />

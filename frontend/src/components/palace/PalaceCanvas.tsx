@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
 import { Lobby } from './Lobby';
@@ -87,6 +87,13 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
       camera.lookAt(centerX, 0, centerZ);
     }
   }, [camera, centerX, centerZ]);
+
+  useEffect(() => {
+    const controls = controlsRef.current;
+    if (!controls) return;
+    controls.listenToKeyEvents(window);
+    return () => controls.stopListenToKeyEvents?.();
+  }, []);
 
   return (
     <OrbitControls

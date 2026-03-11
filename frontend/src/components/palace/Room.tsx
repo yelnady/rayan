@@ -32,44 +32,103 @@ interface RoomProps {
   children?: React.ReactNode;
 }
 
-// Bruno Simon–inspired palette
-const THEMES = [
-  {
-    name: 'studio',
-    sideWall: '#4C1D95', // Rich deep purple
-    accentWall: '#BE185D', // Bold rose-pink (north / back wall)
-    floorLight: '#FDE68A', // Warm honey-wood plank A
-    floorDark: '#FCD34D', // Warm honey-wood plank B
-    shelfFrame: '#2E1065', // Near-black purple
-    ambientColor: '#E879F9',
-    ambientIntensity: 2.2,
-    bookColors: ['#10B981', '#F97316', '#3B82F6', '#EF4444'],
-  },
-  {
-    name: 'lounge',
-    sideWall: '#7C3AED', // Medium purple
-    accentWall: '#0F172A', // Near-black deep indigo (dramatic contrast)
-    floorLight: '#DDD6FE', // Soft lavender plank A
-    floorDark: '#C4B5FD', // Slightly deeper lavender plank B
-    shelfFrame: '#3B0764',
-    ambientColor: '#C084FC',
+// Per-style palette — keyed to RoomStyle.
+// ⚠ Toon shading tip: sideWall must be a mid-tone (RGB ≥ 80 in at least one channel)
+// or it will render near-black. Lighter = more visible under the 4-step gradient.
+const STYLE_THEMES = {
+  library: {
+    sideWall: '#7A5230',   // Warm mahogany (mid-tone brown)
+    accentWall: '#A06840', // Lighter amber back wall
+    floorLight: '#C8A882', // Warm wood plank A
+    floorDark: '#A0805A',  // Warm wood plank B
+    ambientColor: '#FFA040',
     ambientIntensity: 2.0,
-    bookColors: ['#FCD34D', '#60A5FA', '#34D399', '#F87171'],
+    bookColors: ['#D97706', '#B45309', '#92400E', '#78350F'],
   },
-  {
-    name: 'lab',
-    sideWall: '#818CF8', // Indigo-blue
-    accentWall: '#EAB308', // Golden yellow
-    floorLight: '#E2E8F0', // Cool slate plank A
-    floorDark: '#CBD5E1', // Slightly deeper plank B
-    shelfFrame: '#6366F1',
-    ambientColor: '#FEF08A',
+  lab: {
+    sideWall: '#2A5F8A',   // Medium navy-blue
+    accentWall: '#38A0D0', // Bright cyan accent
+    floorLight: '#CBD5E1', // Cool slate plank A
+    floorDark: '#94A3B8',  // Slightly deeper plank B
+    ambientColor: '#7DD3FC',
+    ambientIntensity: 2.2,
+    bookColors: ['#38BDF8', '#818CF8', '#34D399', '#F472B6'],
+  },
+  gallery: {
+    sideWall: '#D8D0C8',   // Warm off-white (visible but clean)
+    accentWall: '#C0B8B0', // Slightly deeper off-white
+    floorLight: '#F5F0EB', // Light warm plank A
+    floorDark: '#E0DAD3',  // Slightly deeper plank B
+    ambientColor: '#FFF8F0',
+    ambientIntensity: 3.2,
+    bookColors: ['#6B7280', '#374151', '#111827', '#9CA3AF'],
+  },
+  garden: {
+    sideWall: '#2D6E4E',   // Medium forest green
+    accentWall: '#4A9A70', // Lighter green accent
+    floorLight: '#74C69D', // Light sage plank A
+    floorDark: '#52B788',  // Deeper sage plank B
+    ambientColor: '#B7E4C7',
+    ambientIntensity: 2.2,
+    bookColors: ['#40916C', '#52B788', '#95D5B2', '#D8F3DC'],
+  },
+  workshop: {
+    sideWall: '#7A4520',   // Medium burnt sienna
+    accentWall: '#A85A28', // Warmer rust accent
+    floorLight: '#C68642', // Worn oak plank A
+    floorDark: '#A0522D',  // Sienna plank B
+    ambientColor: '#FDBA74',
     ambientIntensity: 1.8,
-    bookColors: ['#A855F7', '#22C55E', '#EF4444', '#F97316'],
+    bookColors: ['#F97316', '#EA580C', '#DC2626', '#B45309'],
   },
-] as const;
+  museum: {
+    sideWall: '#8A7255',   // Warm sandstone (mid-tone)
+    accentWall: '#B09A78', // Lighter ochre accent
+    floorLight: '#D4C5A9', // Pale marble plank A
+    floorDark: '#B8A88A',  // Deeper sandstone plank B
+    ambientColor: '#FFD89B',
+    ambientIntensity: 2.0,
+    bookColors: ['#C8A45A', '#A07840', '#8B6530', '#6B4C20'],
+  },
+  observatory: {
+    sideWall: '#1E4B8B',   // Deep indigo-blue (mid-dark but visible)
+    accentWall: '#4A90D9', // Bright sky-blue accent
+    floorLight: '#2A5080', // Midnight blue plank A
+    floorDark: '#1A3860',  // Deeper midnight plank B
+    ambientColor: '#60D0FF',
+    ambientIntensity: 2.0,
+    bookColors: ['#38BDF8', '#818CF8', '#C084FC', '#E879F9'],
+  },
+  sanctuary: {
+    sideWall: '#7B9E87',   // Soft sage (already good)
+    accentWall: '#A8C5A0', // Lighter sage accent
+    floorLight: '#F0E6D3', // Warm cream plank A
+    floorDark: '#E2D4BC',  // Deeper cream plank B
+    ambientColor: '#D1FAE5',
+    ambientIntensity: 2.6,
+    bookColors: ['#6EE7B7', '#34D399', '#A7F3D0', '#6EE7B7'],
+  },
+  studio: {
+    sideWall: '#9A5030',   // Medium terracotta
+    accentWall: '#C87848', // Warm burnt orange accent
+    floorLight: '#DEB887', // Burlywood plank A
+    floorDark: '#CD853F',  // Peru plank B
+    ambientColor: '#FFCC80',
+    ambientIntensity: 2.0,
+    bookColors: ['#FBBF24', '#F59E0B', '#D97706', '#B45309'],
+  },
+  dojo: {
+    sideWall: '#6B2A1A',   // Medium dark crimson-cedar
+    accentWall: '#9A1A1A', // Deep crimson accent
+    floorLight: '#8B6020', // Warm dark wood plank A
+    floorDark: '#6A4810',  // Deeper plank B
+    ambientColor: '#FF8C42',
+    ambientIntensity: 1.8,
+    bookColors: ['#DC2626', '#B91C1C', '#F97316', '#7F1D1D'],
+  },
+} as const;
 
-type Theme = typeof THEMES[number];
+type Theme = typeof STYLE_THEMES[keyof typeof STYLE_THEMES];
 
 const ROOM_HEIGHT = 4.5;
 
@@ -88,8 +147,7 @@ function wallDoorPosition(wall: string, doorIndex: number, w: number, d: number)
 
 export function Room({ room, index, doors = [], artifacts = [], highlightedIds, onArtifactClick, onEnter, onExitLobby, onEnterRoom, children }: RoomProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
-  const themeIdx = index % THEMES.length;
-  const theme = THEMES[themeIdx];
+  const theme = STYLE_THEMES[(room.style ?? 'library') as keyof typeof STYLE_THEMES] ?? STYLE_THEMES.library;
   const h = ROOM_HEIGHT;
   const w = room.dimensions.w;
   const d = room.dimensions.d;
@@ -152,7 +210,6 @@ export function Room({ room, index, doors = [], artifacts = [], highlightedIds, 
             color="rgba(255,255,255,0.7)"
             anchorX="center"
             anchorY="middle"
-            font="https://cdn.jsdelivr.net/fontsource/fonts/inter@9/latin-400-normal.woff"
           >
             {`${room.artifactCount} MEMORIES${room.firstMemoryAt ? ` | ${new Date(room.firstMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt ? ` — ${new Date(room.lastMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : ''}`}
           </Text>

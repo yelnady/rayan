@@ -147,12 +147,9 @@ export function PalacePage() {
     usePalaceStore.getState().setAgentSelectedArtifactId(null);
   }, [agentSelectedArtifactId]);
 
-  /** T115 — send artifact_click WS message and open the detail modal. */
+  /** Open the detail modal for a clicked artifact. */
   function handleArtifactClick(artifact: Artifact) {
-    // Clear old narration before fetching the new one
-    useVoiceStore.getState().resetTranscript();
     const roomId = artifact.roomId ?? currentRoomId ?? '';
-    ws.sendArtifactClick(artifact.id, roomId);
     setSelectedArtifact({ id: artifact.id, roomId });
   }
 

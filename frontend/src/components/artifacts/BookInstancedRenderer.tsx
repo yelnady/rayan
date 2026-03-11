@@ -12,6 +12,7 @@ import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import { HighlightGlow } from './HighlightGlow';
+import { usePalaceStore } from '../../stores/palaceStore';
 
 interface BookInstancedRendererProps {
     artifacts: ArtifactData[];
@@ -38,12 +39,22 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
     return [0, 0, 0];
 }
 
+function formatDate(iso?: string): { datePart: string; timePart: string } {
+    const d = new Date(iso ?? Date.now());
+    return {
+        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+}
+
 function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
     const { scene } = useGLTF('/models/document.glb');
     const groupRef = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
 
     const rotation = useMemo(() => wallRotation(artifact), [artifact]);
+    const dateLabel = useMemo(() => formatDate(artifact.capturedAt ?? artifact.createdAt), [artifact.capturedAt, artifact.createdAt]);
+    const currentRoomId = usePalaceStore((s) => s.currentRoomId);
 
     // T164: Upgrade to MeshPhysicalMaterial for 'Premium' glossy document look.
     // Reflections from Environment map will keep details visible in shadows.
@@ -75,7 +86,7 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
 
     useFrame((_, delta) => {
         if (!groupRef.current) return;
-        const targetScale = hovered ? 0.6 : 0.5;
+        const targetScale = hovered ? 2.6 : 2.4;
         const s = groupRef.current.scale.x;
         groupRef.current.scale.setScalar(s + (targetScale - s) * Math.min(delta * 10, 1));
     });
@@ -86,7 +97,7 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
                 ref={groupRef}
                 position={[artifact.position.x, artifact.position.y, artifact.position.z]}
                 rotation={rotation}
-                scale={0.5}
+                scale={2.4}
                 onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
                 onPointerOut={() => setHovered(false)}
                 onClick={(e) => { e.stopPropagation(); onClick?.(artifact); }}
@@ -99,11 +110,39 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
                 {highlighted && <HighlightGlow color="#60A8FF" />}
             </group>
 
+            {/* Date/time plaque — only when inside this artifact's room */}
+            {currentRoomId === artifact.roomId && <Html
+                position={[artifact.position.x, artifact.position.y + 0.15, artifact.position.z]}
+                center
+                distanceFactor={10}
+                zIndexRange={[10, 0]}
+                style={{ pointerEvents: 'none' }}
+            >
+                <div style={{
+                    background: 'rgba(5, 5, 18, 0.72)',
+                    backdropFilter: 'blur(6px)',
+                    border: '1px solid #60A8FF50',
+                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    fontFamily: 'system-ui, -apple-system, sans-serif',
+                    textAlign: 'center',
+                    whiteSpace: 'nowrap',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 #60A8FF20',
+                }}>
+                    <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.07em', color: '#60A8FF', lineHeight: 1.4 }}>
+                        {dateLabel.datePart}
+                    </div>
+                    <div style={{ fontSize: '9px', letterSpacing: '0.05em', color: '#60A8FF', opacity: 0.55, lineHeight: 1.3 }}>
+                        {dateLabel.timePart}
+                    </div>
+                </div>
+            </Html>}
+
             {hovered && (
                 <Html
                     position={[
                         artifact.position.x,
-                        artifact.position.y + 0.75,
+                        artifact.position.y + 1.4,
                         artifact.position.z,
                     ]}
                     center

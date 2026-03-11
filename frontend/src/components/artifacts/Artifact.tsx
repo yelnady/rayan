@@ -1,10 +1,9 @@
 import { memo, useMemo, useState } from 'react';
 import { Html, useGLTF } from '@react-three/drei';
 import type { Artifact as ArtifactData, ArtifactVisual } from '../../types/palace';
+import { usePalaceStore } from '../../stores/palaceStore';
 import { HighlightGlow } from './HighlightGlow';
 import { FloatingBook } from './FloatingBook';
-import { HologramFrame } from './HologramFrame';
-import { FramedImage } from './FramedImage';
 import { SpeechBubble } from './SpeechBubble';
 import { CrystalOrb } from './CrystalOrb';
 
@@ -14,15 +13,15 @@ const TYPE_LABELS: Record<string, string> = {
   framed_image: 'Visual',
   speech_bubble: 'Conversation',
   crystal_orb: 'Enrichment',
-  lesson:     'Lesson',
-  brain:      'Insight',
-  question:   'Question',
-  coffee:     'Moment',
-  milestone:  'Milestone',
-  heart:      'Emotion',
-  dream:      'Dream',
-  tree:       'Habit',
-  opinion:    'Opinion',
+  lesson: 'Lesson',
+  brain: 'Insight',
+  question: 'Question',
+  coffee: 'Moment',
+  milestone: 'Milestone',
+  heart: 'Emotion',
+  dream: 'Dream',
+  tree: 'Habit',
+  opinion: 'Opinion',
   headphones: 'Media',
   cash_stack: 'Goal',
 };
@@ -33,30 +32,32 @@ const TYPE_COLORS: Record<string, string> = {
   framed_image: '#FF8C60',
   speech_bubble: '#60C8A0',
   crystal_orb: '#FF60B8',
-  lesson:     '#7EC8E3',
-  brain:      '#C084FC',
-  question:   '#FCD34D',
-  coffee:     '#D97706',
-  milestone:  '#34D399',
-  heart:      '#F87171',
-  dream:      '#A78BFA',
-  tree:       '#4ADE80',
-  opinion:    '#FB923C',
+  lesson: '#7EC8E3',
+  brain: '#C084FC',
+  question: '#FCD34D',
+  coffee: '#D97706',
+  milestone: '#34D399',
+  heart: '#F87171',
+  dream: '#A78BFA',
+  tree: '#4ADE80',
+  opinion: '#FB923C',
   headphones: '#38BDF8',
   cash_stack: '#FBBF24',
 };
 
 /** GLB file path for each model-based visual. */
 const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
-  lesson:     '/models/lesson.glb',
-  brain:      '/models/Brain.glb',
-  question:   '/models/question.glb',
-  coffee:     '/models/coffee.glb',
-  milestone:  '/models/Milestone.glb',
-  heart:      '/models/heart.glb',
-  dream:      '/models/Dream.glb',
-  tree:       '/models/Tree.glb',
-  opinion:    '/models/Opinion.glb',
+  hologram_frame: '/models/lecture.glb',
+  framed_image: '/models/Photo.glb',
+  lesson: '/models/lesson.glb',
+  brain: '/models/Brain.glb',
+  question: '/models/question.glb',
+  coffee: '/models/coffee.glb',
+  milestone: '/models/Milestone.glb',
+  heart: '/models/heart.glb',
+  dream: '/models/Dream.glb',
+  tree: '/models/Tree.glb',
+  opinion: '/models/Opinion.glb',
   headphones: '/models/Headphones.glb',
   cash_stack: '/models/Cash Stack.glb',
 };
@@ -66,18 +67,27 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
  * Derived from bounding-box analysis of each file.
  */
 const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
-  lesson:     0.004,
-  brain:      0.030,
-  question:   0.052,
-  coffee:     0.019,
-  milestone:  13.5,
-  heart:      0.275,
-  dream:      0.001,
-  tree:       0.001,
-  opinion:    0.003,
+  hologram_frame: 0.5,
+  framed_image: 0.5,
+  lesson: 0.004,
+  brain: 0.030,
+  question: 0.052,
+  coffee: 0.019,
+  milestone: 13.5,
+  heart: 0.275,
+  dream: 0.001,
+  tree: 0.001,
+  opinion: 0.003,
   headphones: 0.050,
   cash_stack: 12.5,
 };
+
+/** Y offset (local space) from artifact origin to the date plaque. Override per visual as needed. */
+const DATE_Y_OFFSETS: Partial<Record<ArtifactVisual | string, number>> = {
+  opinion: -0.22,
+  tree:    -0.08,
+};
+const DEFAULT_DATE_Y_OFFSET = -0.45;
 
 // Preload all GLB models so they're ready when a room loads
 Object.values(GLB_PATHS).forEach((p) => useGLTF.preload(p));
@@ -85,11 +95,13 @@ Object.values(GLB_PATHS).forEach((p) => useGLTF.preload(p));
 function GlbArtifact({
   path,
   scale,
+  rotation,
   onClick,
   onHover,
 }: {
   path: string;
   scale: number;
+  rotation?: [number, number, number];
   onClick?: () => void;
   onHover?: (h: boolean) => void;
 }) {
@@ -99,6 +111,7 @@ function GlbArtifact({
     <primitive
       object={cloned}
       scale={scale}
+      rotation={rotation}
       onClick={onClick}
       onPointerOver={() => onHover?.(true)}
       onPointerOut={() => onHover?.(false)}
@@ -137,6 +150,7 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
 
 export const Artifact = memo(function Artifact({ artifact, onClick, onHover, highlighted }: ArtifactProps) {
   const [hovered, setHovered] = useState(false);
+  const currentRoomId = usePalaceStore((s) => s.currentRoomId);
 
   const pos = useMemo<[number, number, number]>(
     () => [artifact.position.x, artifact.position.y, artifact.position.z],
@@ -148,6 +162,13 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
   const color = useMemo(() => artifact.color ?? undefined, [artifact.color]);
   const label = useMemo(() => TYPE_LABELS[artifact.visual] ?? 'Memory', [artifact.visual]);
   const accentColor = useMemo(() => TYPE_COLORS[artifact.visual] ?? '#60A8FF', [artifact.visual]);
+
+  const dateLabel = useMemo(() => {
+    const d = new Date(artifact.capturedAt ?? artifact.createdAt);
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    return { datePart, timePart };
+  }, [artifact.capturedAt, artifact.createdAt]);
 
   const handleClick = () => onClick?.(artifact);
 
@@ -162,15 +183,15 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
     const O: [number, number, number] = [0, 0, 0];
     switch (artifact.visual) {
       case 'floating_book':
-        return <FloatingBook position={O} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <FloatingBook position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       case 'hologram_frame':
-        return <HologramFrame position={O} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <GlbArtifact path="/models/lecture.glb" scale={1.5} rotation={[0, -Math.PI / 2, 0]} onClick={handleClick} onHover={handleHover} />;
       case 'framed_image':
-        return <FramedImage position={O} color={color} thumbnailUrl={artifact.thumbnailUrl} onClick={handleClick} onHover={handleHover} />;
+        return <GlbArtifact path="/models/Photo.glb" scale={0.5} rotation={[0, Math.PI, 0]} onClick={handleClick} onHover={handleHover} />;
       case 'speech_bubble':
-        return <SpeechBubble position={O} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <SpeechBubble position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       case 'crystal_orb':
-        return <CrystalOrb position={O} color={color} onClick={handleClick} onHover={handleHover} />;
+        return <CrystalOrb position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       default: {
         const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
         const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
@@ -190,10 +211,50 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
         <group position={[0, 0, 0.08]}>
           {visual}
           {highlighted && <HighlightGlow color={accentColor} />}
+
+          {/* ── Date/time plaque — only when inside this artifact's room ── */}
+          {currentRoomId === artifact.roomId && <Html
+            position={[0, DATE_Y_OFFSETS[artifact.visual] ?? DEFAULT_DATE_Y_OFFSET, 0.12]}
+            center
+            distanceFactor={10}
+            zIndexRange={[10, 0]}
+            style={{ pointerEvents: 'none' }}
+          >
+            <div style={{
+              background: 'rgba(5, 5, 18, 0.72)',
+              backdropFilter: 'blur(6px)',
+              border: `1px solid ${accentColor}50`,
+              borderRadius: '6px',
+              padding: '4px 10px',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              textAlign: 'center',
+              whiteSpace: 'nowrap',
+              boxShadow: `0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 ${accentColor}20`,
+            }}>
+              <div style={{
+                fontSize: '10px',
+                fontWeight: 600,
+                letterSpacing: '0.07em',
+                color: accentColor,
+                lineHeight: 1.4,
+              }}>
+                {dateLabel.datePart}
+              </div>
+              <div style={{
+                fontSize: '9px',
+                letterSpacing: '0.05em',
+                color: accentColor,
+                opacity: 0.55,
+                lineHeight: 1.3,
+              }}>
+                {dateLabel.timePart}
+              </div>
+            </div>
+          </Html>}
         </group>
       </group>
 
-      {/* Invisible hover hitbox — much easier to target than the small artifact mesh */}
+      {/* Invisible hover hitbox — depthWrite:false so it never clips Html/geometry below it */}
       <mesh
         position={pos}
         onPointerOver={() => handleHover(true)}
@@ -201,7 +262,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
         onClick={() => handleClick()}
       >
         <sphereGeometry args={[0.7, 8, 6]} />
-        <meshBasicMaterial transparent opacity={0} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
       {/* Tooltip — rendered in the Room's coordinate space so position is correct */}

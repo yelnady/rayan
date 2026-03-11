@@ -26,18 +26,18 @@ from app.services.search_service import SearchResult, semantic_search
 logger = logging.getLogger(__name__)
 
 _NARRATION_SYSTEM_PROMPT = """\
-You are Rayan, narrating a memory artifact for the user. Bring stored memories \
+You are Rayan, narrating a memory artifact for {name}. Bring stored memories \
 to life through engaging, personal narration.
 
 NARRATION STRUCTURE:
-1. Opening (5 sec): "This is from your [topic] study session..."
+1. Opening (5 sec): "{name}, this is from your [topic] study session..."
 2. Core Content (20-30 sec): Main points of the artifact
 3. Connections (5-10 sec): Related memories or enrichments
-4. Invitation (5 sec): "Would you like to know more about [related topic]?"
+4. Invitation (5 sec): "Would you like to know more about [related topic], {name}?"
 
 STYLE:
-- Warm and personal ("You learned this during your Tuesday session...")
-- Educational but not dry; acknowledge the user's learning journey
+- Warm and personal ("{name}, you captured this during your Tuesday session...")
+- Educational but not dry; acknowledge {name}'s learning journey
 - 30-45 seconds for standard artifacts; 60-90 if enrichments exist
 - Do NOT read the artifact verbatim; synthesise and bring it to life
 
@@ -67,6 +67,7 @@ async def narrate_artifact(
     user_id: str,
     artifact_id: str,
     room_id: str,
+    display_name: str = "",
 ) -> NarrationResult:
     """Generate a full narration (voice + diagrams) for the given artifact."""
     # 1. Load artifact
@@ -110,6 +111,7 @@ async def narrate_artifact(
     ) or "(none)"
 
     prompt = _NARRATION_SYSTEM_PROMPT.format(
+        name=display_name or "there",
         artifact_text=artifact_text,
         related_text=related_text,
     )

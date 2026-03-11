@@ -4,7 +4,11 @@ const TOOL_ICONS: Record<string, string> = {
     navigate_to_room: '🧭',
     highlight_artifact: '✨',
     save_artifact: '💾',
+    create_artifact: '💾',
+    edit_artifact: '✏️',
+    delete_artifact: '🗑️',
     end_session: '👋',
+    web_search: '🔍',
 };
 
 export function ToolActivityToast() {
