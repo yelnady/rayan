@@ -28,6 +28,7 @@ from app.agents.tools.tools import (
     close_artifact,
     create_artifact,
     delete_artifact,
+    edit_artifact,
     end_session,
     execute_web_search,
     highlight_artifact,
@@ -64,7 +65,7 @@ class LiveSession:
 # ── System prompt ──────────────────────────────────────────────────────────────
 
 _BASE_SYSTEM_PROMPT = """\
-You are Rayan, a knowledgeable memory recall assistant. You help users explore \
+You are Rayan, a knowledgeable memory recall assistant. You help {name} explore \
 and understand their stored memories in the Memory Palace.
 
 Today's date is {current_date}.
@@ -74,7 +75,7 @@ ROOM DIRECTORY (use these exact IDs with navigate_to_room):
 
 RULES:
 - ONLY use information from the provided MEMORIES section below.
-- If you don't have relevant memories say "I don't have that in your palace yet."
+- If you don't have relevant memories say "I don't have that in {name}'s palace yet."
 - NEVER hallucinate or invent information.
 - Cite which artifact/room the information comes from.
 - Keep responses conversational but informative (under 60 seconds unless asked).
@@ -112,6 +113,7 @@ TOOLS — use them proactively when relevant:
 - highlight_artifact: when one artifact is the key answer, highlight it
 - create_artifact: when the user shares something they want to remember, save it
 - web_search: when the user asks about something you don't have in memory, search the web for it
+- edit_artifact: when the user wants to update, correct, or expand an existing memory — always confirm what to change before calling
 - delete_artifact: when the user explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling
 - end_session: call this IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation.
 
@@ -141,10 +143,12 @@ async def _build_room_directory(user_id: str) -> str:
     return "\n".join(lines)
 
 
-def _build_system_prompt(results: list[SearchResult], room_directory: str = "") -> str:
+def _build_system_prompt(results: list[SearchResult], room_directory: str = "", display_name: str = "") -> str:
     current_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    name = display_name or "the user"
     if not results:
         return _BASE_SYSTEM_PROMPT.format(
+            name=name,
             current_date=current_date,
             room_directory=room_directory or "(unavailable)",
             memories="(none found)",
@@ -160,6 +164,7 @@ def _build_system_prompt(results: list[SearchResult], room_directory: str = "") 
             lines.append(f"Full content: {r.full_content[:800]}")
         lines.append("")
     return _BASE_SYSTEM_PROMPT.format(
+        name=name,
         current_date=current_date,
         room_directory=room_directory or "(unavailable)",
         memories="\n".join(lines),
@@ -182,6 +187,7 @@ class RecallAgent:
         on_turn_complete: OnTurnComplete,
         on_user_text: Optional[OnUserText] = None,
         on_tool_activity: Optional[OnToolActivity] = None,
+        display_name: str = "",
     ) -> None:
         """Open a persistent Gemini Live connection for the user."""
         # Close any existing session first
@@ -219,13 +225,13 @@ class RecallAgent:
         logger.info("[RecallAgent] Room directory built: %d room(s)", room_directory.count("\n- [") + (1 if "- [" in room_directory else 0))
 
         # Start the session immediately with basic prompt, retrieve context asynchronously
-        system_prompt = _build_system_prompt([], room_directory)
+        system_prompt = _build_system_prompt([], room_directory, display_name=display_name)
 
         config = genai_types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, delete_artifact, web_search, end_session, close_artifact],
+            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, edit_artifact, delete_artifact, web_search, end_session, close_artifact],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -504,6 +510,47 @@ class RecallAgent:
             except Exception:
                 logger.exception("save_artifact failed for userId=%s", user_id)
                 return "Failed to save artifact"
+
+        elif fn_name == "edit_artifact":
+            artifact_id = fn_args.get("artifact_id", "").strip()
+            new_summary = fn_args.get("summary", "").strip() or None
+            new_full_content = fn_args.get("full_content", "").strip() or None
+            if not artifact_id:
+                return "Cannot edit artifact: artifact_id is required."
+            if not new_summary and not new_full_content:
+                return "Cannot edit artifact: at least one of summary or full_content must be provided."
+            await notify({"label": f"Editing artifact {artifact_id[:12]}…"})
+            try:
+                from app.services.artifact_service import update_artifact
+                from app.websocket.manager import manager as ws_manager
+                updated = await update_artifact(
+                    user_id=user_id,
+                    artifact_id=artifact_id,
+                    summary=new_summary,
+                    full_content=new_full_content,
+                )
+                if updated is None:
+                    return f"Artifact {artifact_id} not found."
+                # Push palace_update so the frontend reflects the new summary
+                await ws_manager.send(user_id, {
+                    "type": "palace_update",
+                    "changes": {
+                        "roomsAdded": [],
+                        "artifactsAdded": [],
+                        "artifactsUpdated": [{
+                            "id": updated.id,
+                            "summary": updated.summary,
+                        }],
+                        "connectionsAdded": [],
+                    },
+                })
+                live = self._sessions.get(user_id)
+                await self.update_context(user_id, live.current_room_id if live else None)
+                logger.info("[RecallAgent] Artifact edited: userId=%s artifactId=%s", user_id, artifact_id)
+                return f"Artifact {artifact_id} updated successfully."
+            except Exception:
+                logger.exception("edit_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
+                return "Failed to edit artifact."
 
         elif fn_name == "delete_artifact":
             artifact_id = fn_args.get("artifact_id", "")

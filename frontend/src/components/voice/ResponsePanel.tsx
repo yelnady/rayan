@@ -9,12 +9,15 @@ const TOOL_ICONS: Record<string, string> = {
     navigate_to_room: '🧭',
     highlight_artifact: '✨',
     save_artifact: '💾',
+    create_artifact: '💾',
+    edit_artifact: '✏️',
+    delete_artifact: '🗑️',
     end_session: '👋',
+    web_search: '🔍',
+    memory_search: '🔮',
     capture_concept: '🧠',
     session_start: '🎙️',
     session_end: '🏁',
-    memory_search: '🔍',
-    delete_artifact: '🗑️',
 };
 
 type PanelMode = 'voice' | 'capture' | null;

@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 _SEED_ROOMS: list[dict[str, Any]] = [
     {
         "name": "Natural Museum Visit",
+        "style": "museum",
         "keywords": ["museum", "nature", "exhibits", "paleontology"],
         "artifacts": [
             {
@@ -58,6 +59,7 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Machine Learning Lab",
+        "style": "lab",
         "keywords": ["machine-learning", "neural-networks", "AI", "algorithms"],
         "artifacts": [
             {
@@ -96,6 +98,7 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Mountain Hiking",
+        "style": "garden",
         "keywords": ["hiking", "mountains", "outdoors", "nature"],
         "artifacts": [
             {
@@ -132,6 +135,7 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Biology Garden",
+        "style": "sanctuary",
         "keywords": ["biology", "cells", "genetics", "botany"],
         "artifacts": [
             {
@@ -169,6 +173,7 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "Coffee Shop Moments",
+        "style": "studio",
         "keywords": ["coffee", "conversations", "ideas", "social"],
         "artifacts": [
             {
@@ -205,6 +210,7 @@ _SEED_ROOMS: list[dict[str, Any]] = [
     },
     {
         "name": "My Daughter",
+        "style": "library",
         "keywords": ["family", "daughter", "milestones", "parenting"],
         "artifacts": [
             {
@@ -264,6 +270,7 @@ async def seed_palace(user_id: str) -> dict:
             user_id=user_id,
             name=room_def["name"],
             keywords=room_def["keywords"],
+            style=room_def.get("style"),
         )
         created_room_ids.append(room.id)
         created_rooms.append(room)

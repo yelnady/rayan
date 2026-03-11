@@ -119,7 +119,8 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
         logger.info("CaptureAgent requested closure via tool: userId=%s sessionId=%s", user_id, session_id)
         await handle_capture_end(user_id, {"sessionId": session_id}, websocket)
 
-    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close)
+    display_name = manager.get_display_name(user_id)
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
@@ -188,7 +189,9 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
             if ev.categorization.action == "suggested_new":
                 new_room_ids.append(ev.categorization.room.id)
 
-    concept_count = session.conceptCount if session else len(extractions)
+    # Prefer in-memory count (always accurate) over Firestore, which can lag
+    # or be 0 if add_artifact_to_session failed or was cancelled mid-write.
+    concept_count = len(extractions) or (session.conceptCount if session else 0)
     await send_capture_complete(
         user_id, session_id,
         artifact_ids=artifact_ids,
@@ -246,7 +249,7 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
         return
 
     try:
-        result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id)
+        result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id, display_name=manager.get_display_name(user_id))
     except Exception:
         logger.exception("narrator_agent failed: userId=%s artifactId=%s", user_id, artifact_id)
         await manager.send(user_id, {
@@ -309,6 +312,7 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
         await recall_agent.start_session(
             user_id=user_id,
             context=context,
+            display_name=manager.get_display_name(user_id),
             on_audio=on_audio,
             on_text=on_text,
             on_interrupted=on_interrupted,

@@ -61,6 +61,9 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str) -> None:
         if user is None:
             return  # auth.py already closed the connection
 
+        if user.get("display_name"):
+            manager.set_display_name(user_id, user["display_name"])
+
         while True:
             raw = await websocket.receive_text()
             await route_message(user["user_id"], raw, websocket)

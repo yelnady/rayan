@@ -19,10 +19,8 @@ import { useTransitionStore } from '../stores/transitionStore';
 import { stopVoiceSession } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;
-/** Singleton AudioPlayback for recall/voice responses. */
+/** Singleton AudioPlayback shared across listeners (reset on disconnect). */
 let _playback: AudioPlayback | null = null;
-/** Dedicated AudioPlayback for capture session (Rayan's voice during capture). */
-let _capturePlayback: AudioPlayback | null = null;
 /** Track whether listeners have been wired to prevent duplicates. */
 let _listenersWired = false;
 let _listenerUnsubs: Array<() => void> = [];
@@ -41,33 +39,9 @@ function wireListeners(ws: RayanWebSocket): void {
   _playback = new AudioPlayback();
 
   _listenerUnsubs = [
-    ws.on('capture_session_started', (msg) => {
-      _capturePlayback = new AudioPlayback();
-      const store = useCaptureStore.getState();
-      store.setStatus('capturing');
-      store.setShowPanel(true);
-      store.clearMessages();
-      console.log('[WS] Capture session started:', msg.sessionId);
-    }),
-    ws.on('capture_session_ended', (msg) => {
-      _capturePlayback?.stop();
-      _capturePlayback = null;
-      useCaptureStore.getState().setStatus('complete');
-      console.log('[WS] Capture session ended:', msg.sessionId);
-    }),
-    ws.on('capture_audio', (msg) => {
-      if (_capturePlayback) void _capturePlayback.enqueue(msg.data);
-    }),
-    ws.on('capture_text', (msg) => {
-      useCaptureStore.getState().appendRayanText(msg.text);
-    }),
-    ws.on('capture_user_text', (msg) => {
-      useCaptureStore.getState().appendUserText(msg.text);
-    }),
-    ws.on('capture_ack', (msg) => {
-      useCaptureStore.getState().addConcept(msg.extraction);
-      useCaptureStore.getState().addToolEvent(`Memory Captured: ${msg.extraction.concept}`, 'capture_concept');
-    }),
+    // capture_session_started/ended, capture_text/user_text, capture_ack, capture_audio
+    // are all handled by useCaptureWS (mounted in PalacePage). Only handle the
+    // messages that useCaptureWS does NOT cover.
     ws.on('capture_complete', (msg) => {
       useCaptureStore.getState().setSummary(msg.summary);
       useCaptureStore.getState().setStatus('complete');
@@ -329,8 +303,6 @@ function teardownListeners(): void {
   _listenerUnsubs = [];
   _playback?.stop();
   _playback = null;
-  _capturePlayback?.stop();
-  _capturePlayback = null;
   _listenersWired = false;
 }
 

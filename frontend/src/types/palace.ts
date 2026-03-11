@@ -20,7 +20,9 @@ export interface Dimensions3D {
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
-export type RoomStyle = 'library' | 'lab' | 'gallery' | 'garden' | 'workshop';
+export type RoomStyle =
+  | 'library' | 'lab' | 'gallery' | 'garden' | 'workshop'
+  | 'museum' | 'observatory' | 'sanctuary' | 'studio' | 'dojo';
 
 export type ArtifactType =
   // Knowledge & Learning

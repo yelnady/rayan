@@ -4,20 +4,19 @@
  * Triggered when the user clicks an artifact in the 3D palace.
  * Displays:
  *   - Artifact summary and full content
- *   - Generated diagrams from artifact_recall
- *   - Related artifacts (RelatedArtifacts component)
- *   - Enrichments (US4, shown as placeholders if empty)
+ *   - Rayan's Summary (from voiceStore narration)
+ *   - Similar memories (vector search)
  *   - Delete action
  *
  * Data sources:
  *   - REST: GET /artifacts/{artifactId} for full content
+ *   - REST: GET /artifacts/{artifactId}/related for similar memories
  *   - WebSocket: artifact_recall message wired into voiceStore
  */
 
 import { useEffect, useState } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { usePalaceStore } from '../../stores/palaceStore';
-import { RelatedArtifacts } from './RelatedArtifacts';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 
@@ -31,7 +30,6 @@ export interface ArtifactDetailData {
     thumbnailUrl?: string;
     createdAt: string;
     capturedAt?: string;
-    relatedArtifacts: string[];
     color?: string;
 }
 
@@ -88,7 +86,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
         return () => { cancelled = true; };
     }, [artifactId, user]);
 
-    // ── Fetch related memories ──────────────────────────────────────────────────
+    // ── Fetch similar memories via vector search ────────────────────────────────
     useEffect(() => {
         if (!user || loading) return;
         let cancelled = false;
@@ -104,7 +102,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                 const json = await res.json();
                 if (!cancelled) setRelatedMemories(json.related ?? []);
             } catch {
-                // silently ignore — related memories are non-critical
+                // silently ignore — similar memories are non-critical
             } finally {
                 if (!cancelled) setRelatedLoading(false);
             }
@@ -125,6 +123,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                 method: 'DELETE',
                 headers: { Authorization: `Bearer ${token}` },
             });
+            usePalaceStore.getState().removeArtifact(artifactId);
             onClose();
         } catch {
             setDeleting(false);
@@ -189,42 +188,13 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                         </section>
                     )}
 
-                    {/* Voice narration summary (from artifact_recall) */}
+                    {/* Rayan's Summary (from artifact_recall narration) */}
                     {narration?.summary && (
                         <section>
                             <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Rayan's Summary</h3>
                             <p className="text-[rgba(99,102,241,0.9)] text-[14px] leading-[1.7] m-0 font-body">{narration.summary}</p>
                         </section>
                     )}
-
-                    {/* Related artifacts */}
-                    {(() => {
-                        const similarityMap = new Map(relatedMemories.map((m) => [m.artifactId, m.similarity]));
-                        return (
-                            <>
-                                {(artifact?.relatedArtifacts.length ?? 0) > 0 && (
-                                    <section>
-                                        <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
-                                        <RelatedArtifacts
-                                            relatedArtifactIds={artifact!.relatedArtifacts}
-                                            narrationRelated={narration?.relatedArtifacts ?? []}
-                                            similarityMap={similarityMap}
-                                        />
-                                    </section>
-                                )}
-                                {(narration?.relatedArtifacts.length ?? 0) > 0 && (artifact?.relatedArtifacts.length ?? 0) === 0 && (
-                                    <section>
-                                        <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Related Memories</h3>
-                                        <RelatedArtifacts
-                                            relatedArtifactIds={[]}
-                                            narrationRelated={narration!.relatedArtifacts}
-                                            similarityMap={similarityMap}
-                                        />
-                                    </section>
-                                )}
-                            </>
-                        );
-                    })()}
 
                     {/* Similar memories via semantic search */}
                     {(relatedLoading || relatedMemories.length > 0) && (

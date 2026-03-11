@@ -18,6 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
+import { usePalaceStore } from '../../stores/palaceStore';
 import { useEnrichmentStore } from '../../stores/enrichmentStore';
 import { HighlightGlow } from './HighlightGlow';
 
@@ -37,6 +38,14 @@ const PARTICLE_GEO = new THREE.SphereGeometry(0.025, 6, 6);
 const DUMMY = new THREE.Object3D();
 
 const DEFAULT_ORB_COLOR = '#FF60B8';
+
+function formatDate(iso?: string): { datePart: string; timePart: string } {
+    const d = new Date(iso ?? Date.now());
+    return {
+        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    };
+}
 
 function toColor(c?: string): THREE.Color {
     try {
@@ -74,6 +83,7 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
 export function OrbInstancedRenderer({ artifacts, onClick, highlightedIds }: OrbInstancedRendererProps) {
     const count = artifacts.length;
     const particleTotal = count * PARTICLE_COUNT;
+    const currentRoomId = usePalaceStore((s) => s.currentRoomId);
     const newEnrichmentIds = useEnrichmentStore((s) => s.newEnrichmentArtifactIds);
 
     const entries = useMemo<OrbEntry[]>(
@@ -234,6 +244,41 @@ export function OrbInstancedRenderer({ artifacts, onClick, highlightedIds }: Orb
                     />
                 ))
             }
+
+            {/* Date/time plaques — only when inside this room */}
+            {entries.filter((e) => currentRoomId === e.artifact.roomId).map((entry) => {
+                const dl = formatDate(entry.artifact.capturedAt ?? entry.artifact.createdAt);
+                const color = entry.color ?? DEFAULT_ORB_COLOR;
+                return (
+                    <Html
+                        key={`date-${entry.artifact.id}`}
+                        position={[entry.artifact.position.x, entry.artifact.position.y - 0.45, entry.artifact.position.z]}
+                        center
+                        distanceFactor={10}
+                        zIndexRange={[10, 0]}
+                        style={{ pointerEvents: 'none' }}
+                    >
+                        <div style={{
+                            background: 'rgba(5, 5, 18, 0.72)',
+                            backdropFilter: 'blur(6px)',
+                            border: `1px solid ${color}50`,
+                            borderRadius: '6px',
+                            padding: '4px 10px',
+                            fontFamily: 'system-ui, -apple-system, sans-serif',
+                            textAlign: 'center',
+                            whiteSpace: 'nowrap',
+                            boxShadow: `0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 ${color}20`,
+                        }}>
+                            <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.07em', color, lineHeight: 1.4 }}>
+                                {dl.datePart}
+                            </div>
+                            <div style={{ fontSize: '9px', letterSpacing: '0.05em', color, opacity: 0.55, lineHeight: 1.3 }}>
+                                {dl.timePart}
+                            </div>
+                        </div>
+                    </Html>
+                );
+            })}
 
             {/* Hover tooltip */}
             {hoveredIdx !== null && entries[hoveredIdx] && (

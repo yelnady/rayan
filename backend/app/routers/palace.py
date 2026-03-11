@@ -68,7 +68,7 @@ async def get_palace(user: dict = Depends(verify_token)):
             "name": room.name,
             "position": room.position.model_dump(),
             "dimensions": room.dimensions.model_dump(),
-            "style": "library", # Default since style was removed from DB model
+            "style": room.style,
             "connections": room.connections,
             "artifactCount": room.artifactCount,
         })
@@ -257,4 +257,63 @@ async def fix_room_positions(user: dict = Depends(verify_token)):
         "lobbyDoors": len(lobby_doors),
         "positions": [{"roomId": rooms[i]["id"], "position": _grid_pos(i)} for i in range(len(rooms))],
     }
+
+
+# Seed name → style mapping used by fix-styles
+_SEED_STYLE_MAP: dict[str, str] = {
+    "natural museum visit": "museum",
+    "machine learning lab": "lab",
+    "mountain hiking": "garden",
+    "biology garden": "sanctuary",
+    "coffee shop moments": "studio",
+    "my daughter": "library",
+}
+
+_ALL_STYLES = [
+    "library", "lab", "gallery", "garden", "workshop",
+    "museum", "observatory", "sanctuary", "studio", "dojo",
+]
+
+
+@router.post("/palace/fix-styles")
+async def fix_room_styles(user: dict = Depends(verify_token)):
+    """One-shot repair: assign a style to every room that is missing one.
+
+    Seed rooms are matched by name; all others get a unique style cycling
+    through the full palette. Safe to call multiple times — skips rooms
+    that already have a style set.
+    """
+    import random as _random
+    user_id = user["user_id"]
+    db = get_firestore_client()
+    rooms_ref = db.collection("users").document(user_id).collection("rooms")
+
+    room_docs = await rooms_ref.get()
+    rooms = sorted(
+        [{"id": d.id, **d.to_dict()} for d in room_docs if d.exists],
+        key=lambda r: r.get("createdAt", ""),
+    )
+
+    used_styles: set[str] = {r["style"] for r in rooms if r.get("style") and r["style"] != "library"}
+    updated = []
+
+    for room in rooms:
+        if room.get("style") and room["style"] != "library":
+            continue  # already has a real style set
+
+        # Try to match seed room by name
+        name_key = room.get("name", "").strip().lower()
+        style = _SEED_STYLE_MAP.get(name_key)
+
+        if style is None:
+            # Pick an unused style; wrap around when all are used
+            unused = [s for s in _ALL_STYLES if s not in used_styles]
+            style = _random.choice(unused) if unused else _random.choice(_ALL_STYLES)
+
+        used_styles.add(style)
+        await rooms_ref.document(room["id"]).update({"style": style})
+        updated.append({"roomId": room["id"], "name": room.get("name"), "style": style})
+
+    logger.info("fix-styles: userId=%s updated=%d", user_id, len(updated))
+    return {"updated": len(updated), "rooms": updated}
 

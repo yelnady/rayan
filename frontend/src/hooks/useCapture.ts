@@ -10,6 +10,57 @@ import { stopVoiceSession } from './useVoice';
 
 let _captureInstance: MediaCapture | null = null;
 let _audioStreamer: AudioStreamer | null = null;
+let _speechRecognition: SpeechRecognition | null = null;
+let _speechRecognitionActive = false;
+
+function startSpeechRecognition() {
+  const SpeechRecognitionAPI =
+    (window as unknown as { SpeechRecognition?: typeof SpeechRecognition }).SpeechRecognition ??
+    (window as unknown as { webkitSpeechRecognition?: typeof SpeechRecognition }).webkitSpeechRecognition;
+  if (!SpeechRecognitionAPI) return;
+
+  _speechRecognitionActive = true;
+  const recognition = new SpeechRecognitionAPI();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  recognition.onresult = (event: SpeechRecognitionEvent) => {
+    const result = event.results[event.results.length - 1];
+    if (result.isFinal) {
+      const transcript = result[0].transcript.trim();
+      if (transcript) useCaptureStore.getState().appendUserText(transcript);
+    }
+  };
+  recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      console.warn('[Capture] SpeechRecognition error:', event.error);
+    }
+  };
+  // Auto-restart on end so it stays alive for the whole session
+  recognition.onend = () => {
+    if (_speechRecognitionActive) {
+      try { recognition.start(); } catch { /* ignore */ }
+    }
+  };
+
+  try {
+    recognition.start();
+    _speechRecognition = recognition;
+  } catch (err) {
+    console.warn('[Capture] SpeechRecognition failed to start:', err);
+    _speechRecognitionActive = false;
+  }
+}
+
+function stopSpeechRecognition() {
+  _speechRecognitionActive = false;
+  if (_speechRecognition) {
+    _speechRecognition.onend = null; // prevent auto-restart
+    try { _speechRecognition.stop(); } catch { /* ignore */ }
+    _speechRecognition = null;
+  }
+}
 
 /** Standalone stop function to be called from other hooks to ensure exclusivity. */
 export function stopCapture() {
@@ -21,6 +72,8 @@ export function stopCapture() {
 
   _audioStreamer?.stop();
   _audioStreamer = null;
+
+  stopSpeechRecognition();
 
   // useWS needs to be accessible, but stopCapture is used by useVoice which has access to ws singleton
   // Actually easier to just send the WS message via store or direct singleton if available
@@ -75,6 +128,9 @@ export function useCapture() {
       await streamer.start((base64Pcm) => {
         ws.sendCaptureVoiceChunk(sessionId, base64Pcm);
       });
+
+      // Start browser speech recognition to display what the user says in the panel
+      startSpeechRecognition();
     },
     [ws, store],
   );
@@ -88,6 +144,8 @@ export function useCapture() {
 
     _audioStreamer?.stop();
     _audioStreamer = null;
+
+    stopSpeechRecognition();
 
     ws.sendCaptureEnd(sessionId);
     store.setStatus('processing');

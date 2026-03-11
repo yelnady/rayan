@@ -4,13 +4,14 @@ Paths per agent-prompts.md:
   users/{userId}/rooms/{roomId}
 """
 
+import random
 import uuid
 import logging
 from datetime import UTC, datetime
 
 from app.core.firestore import get_firestore_client
 from app.models.common import Dimensions3D, Position3D
-from app.models.room import Room
+from app.models.room import ALL_ROOM_STYLES, Room
 from app.services.embedding_service import cosine_similarity, get_embedding
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,7 @@ async def create_room(
     name: str,
     keywords: list[str],
     position: Position3D | None = None,
+    style: str | None = None,
 ) -> Room:
     room_id = f"room_{uuid.uuid4().hex[:12]}"
     now = datetime.now(UTC)
@@ -48,9 +50,19 @@ async def create_room(
         existing = await get_all_rooms(user_id)
         position = _next_grid_position(existing)
 
+    # Pick a random style if not specified, avoiding repeats where possible
+    if style is None:
+        try:
+            existing_styles = {r.style for r in await get_all_rooms(user_id) if r.style}
+            unused = [s for s in ALL_ROOM_STYLES if s not in existing_styles]
+            style = random.choice(unused) if unused else random.choice(ALL_ROOM_STYLES)
+        except Exception:
+            style = random.choice(ALL_ROOM_STYLES)
+
     room = Room(
         id=room_id,
         name=name,
+        style=style,
         position=position,
         dimensions=Dimensions3D(),
         createdAt=now,

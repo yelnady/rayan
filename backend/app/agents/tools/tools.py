@@ -134,6 +134,15 @@ def end_session() -> str:
     return ""
 
 
+def close_session() -> str:
+    """Save and close the current capture session, finalizing all captured memories.
+
+    Use this when the user explicitly asks to close, finish, or stop the capture session.
+    This saves all captured artifacts and ends the session gracefully.
+    """
+    return ""
+
+
 def close_artifact() -> str:
     """Close the currently open artifact detail modal or memory view."""
     return ""

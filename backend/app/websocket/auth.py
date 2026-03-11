@@ -56,6 +56,7 @@ async def authenticate_websocket(websocket: WebSocket, url_user_id: str) -> dict
     user = {
         "user_id": token_uid,
         "email": decoded.get("email", ""),
+        "display_name": decoded.get("name", ""),
     }
 
     await websocket.send_text(json.dumps({"type": "auth_success", "userId": token_uid}))

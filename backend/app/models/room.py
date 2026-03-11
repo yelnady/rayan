@@ -1,18 +1,20 @@
 from datetime import datetime
-from enum import Enum
 from typing import Optional
 
 from pydantic import BaseModel
 
 from app.models.common import Dimensions3D, Position3D
 
-
-# Removed RoomStyle
+ALL_ROOM_STYLES = [
+    "library", "lab", "gallery", "garden", "workshop",
+    "museum", "observatory", "sanctuary", "studio", "dojo",
+]
 
 
 class Room(BaseModel):
     id: str
     name: str
+    style: str = "library"
     position: Position3D
     dimensions: Dimensions3D = Dimensions3D()
     connections: list[str] = []
