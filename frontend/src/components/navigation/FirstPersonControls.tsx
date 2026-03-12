@@ -7,13 +7,13 @@ import { usePalaceStore } from '../../stores/palaceStore';
 const LOBBY_SIZE = 12;
 const WALL_MARGIN = 0.5; // camera stays this far from each wall
 
-const MOVE_SPEED = 30;
-const MAX_VELOCITY = 6;
+const MOVE_SPEED = 55;
+const MAX_VELOCITY = 12;
 const CAMERA_HEIGHT = 1.7;
 const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6);
 const DEFAULT_FOV = 75;
 const MAX_SPEED_FOV_BOOST = 10;
-const DAMPING = 8.0;
+const DAMPING = 7.0;
 const MOUSE_SENSITIVITY = 0.002;
 
 interface FirstPersonControlsProps {
