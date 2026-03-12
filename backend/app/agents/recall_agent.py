@@ -709,9 +709,13 @@ class RecallAgent:
                                 dict(fn_call.args),
                                 on_tool_activity,
                             )
+                            response: dict = {"result": result}
+                            scheduling = RECALL_SCHEDULING.get(fn_call.name)
+                            if scheduling:
+                                response["scheduling"] = scheduling
                             function_responses.append({
                                 "name": fn_call.name,
-                                "response": {"result": result},
+                                "response": response,
                                 "id": fn_call.id,
                             })
                         await session.send_tool_response(function_responses=function_responses)
