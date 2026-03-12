@@ -13,6 +13,7 @@ interface PalaceState {
   highlightedArtifactIds: string[];
   agentSelectedArtifactId: string | null;
   highlightedLobbyDoorRoomId: string | null;
+  hoveredArtifactId: string | null;
 
   setPalace: (palace: Palace | null) => void;
   setLayout: (layout: Layout | null) => void;
@@ -26,9 +27,11 @@ interface PalaceState {
   setLoading: (loading: boolean) => void;
   setIsSeeding: (isSeeding: boolean) => void;
   setError: (error: string | null) => void;
+  updateArtifact: (artifactId: string, patch: Partial<Artifact>) => void;
   setHighlightedArtifacts: (ids: string[]) => void;
   setAgentSelectedArtifactId: (id: string | null) => void;
   setHighlightedLobbyDoorRoomId: (id: string | null) => void;
+  setHoveredArtifactId: (id: string | null) => void;
 }
 
 export const usePalaceStore = create<PalaceState>((set) => ({
@@ -43,6 +46,7 @@ export const usePalaceStore = create<PalaceState>((set) => ({
   highlightedArtifactIds: [],
   agentSelectedArtifactId: null,
   highlightedLobbyDoorRoomId: null,
+  hoveredArtifactId: null,
 
   setPalace: (palace) => set({ palace }),
   setLayout: (layout) => set({ layout }),
@@ -72,6 +76,14 @@ export const usePalaceStore = create<PalaceState>((set) => ({
       }
       return { artifacts: updated };
     }),
+  updateArtifact: (artifactId, patch) =>
+    set((state) => {
+      const updated: Record<string, Artifact[]> = {};
+      for (const [roomId, arts] of Object.entries(state.artifacts)) {
+        updated[roomId] = arts.map((a) => a.id === artifactId ? { ...a, ...patch } : a);
+      }
+      return { artifacts: updated };
+    }),
   setCurrentRoomId: (currentRoomId) => set({ currentRoomId }),
   setLoading: (loading) => set({ loading }),
   setIsSeeding: (isSeeding) => set({ isSeeding }),
@@ -79,4 +91,5 @@ export const usePalaceStore = create<PalaceState>((set) => ({
   setHighlightedArtifacts: (highlightedArtifactIds) => set({ highlightedArtifactIds }),
   setAgentSelectedArtifactId: (agentSelectedArtifactId) => set({ agentSelectedArtifactId }),
   setHighlightedLobbyDoorRoomId: (highlightedLobbyDoorRoomId) => set({ highlightedLobbyDoorRoomId }),
+  setHoveredArtifactId: (hoveredArtifactId) => set({ hoveredArtifactId }),
 }));
