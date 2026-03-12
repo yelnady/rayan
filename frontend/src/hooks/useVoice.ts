@@ -10,7 +10,7 @@
  * The hook exposes a mute/unmute toggle (pauses sending chunks, keeps session open).
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { AudioStreamer } from '../services/audioCapture';
 import { useVoiceStore } from '../stores/voiceStore';
 import { usePalaceStore } from '../stores/palaceStore';
@@ -43,8 +43,9 @@ export function useVoice() {
 
     const store = useVoiceStore();
 
-    /** Start the live session and audio streaming. */
-    const connect = useCallback(async () => {
+    /** Start the live session and audio streaming.
+     *  Pass focusedArtifactId to pre-load a specific artifact into Rayan's context. */
+    const connect = useCallback(async (focusedArtifactId: string | null = null) => {
         if (_started) return;
 
         // Ensure mutual exclusivity
@@ -60,7 +61,7 @@ export function useVoice() {
         const currentRoomId = usePalaceStore.getState().currentRoomId;
         wsRef.current.sendLiveSessionStart({
             currentRoomId,
-            focusedArtifactId: null,
+            focusedArtifactId,
         });
 
         // Start audio capture
@@ -102,21 +103,6 @@ export function useVoice() {
     }, []);
 
 
-
-    // Clean up when the user signs out / page unloads
-    useEffect(() => {
-        return () => {
-            if (_started) {
-                _streamer?.stop();
-                _streamer = null;
-                wsRef.current.sendLiveSessionEnd();
-                useVoiceStore.getState().setStatus('disconnected');
-                _started = false;
-                _muted = false;
-            }
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
 
     return {
         status: store.status,
