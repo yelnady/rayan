@@ -9,6 +9,8 @@ const TOOL_ICONS: Record<string, string> = {
     delete_artifact: '🗑️',
     end_session: '👋',
     web_search: '🔍',
+    synthesize_room: '🗺️',
+    semantic_jump: '🔀',
 };
 
 export function ToolActivityToast() {

@@ -25,16 +25,9 @@ from typing import Awaitable, Callable, Optional
 from google.genai import types as genai_types
 
 from app.agents.tools.tools import (
-    close_artifact,
-    create_artifact,
-    delete_artifact,
-    edit_artifact,
-    end_session,
+    RECALL_LIVE_TOOLS,
+    RECALL_SCHEDULING,
     execute_web_search,
-    highlight_artifact,
-    navigate_to_room,
-    navigate_horizontal,
-    web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.search_service import SearchResult, semantic_search
@@ -108,10 +101,12 @@ ARTIFACT TYPES (use with create_artifact):
   - enrichment   → research or supplementary material          (crystal orb)
 
 TOOLS — use them proactively when relevant:
-- navigate_to_room: when your answer lives in a specific room, navigate there
+- navigate_to_room: when your answer lives in a specific room, navigate there; use "lobby" to return home
+- navigate_to_map_view: toggle the bird's-eye overview map — use when user asks to see the map, overview, all rooms, or to exit back to first-person
 - navigate_horizontal: when the user wants to see more artifacts in the same room, move left or right
 - highlight_artifact: when one artifact is the key answer, highlight it
 - create_artifact: when the user shares something they want to remember, save it
+- synthesize_room: when the user asks to summarize, visualize, or make a mind map of the current room — generates a beautiful AI mind map of all memories here
 - web_search: when the user asks about something you don't have in memory, search the web for it
 - edit_artifact: when the user wants to update, correct, or expand an existing memory — always confirm what to change before calling
 - delete_artifact: when the user explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling
@@ -231,7 +226,7 @@ class RecallAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=system_prompt,
-            tools=[navigate_to_room, navigate_horizontal, highlight_artifact, create_artifact, edit_artifact, delete_artifact, web_search, end_session, close_artifact],
+            tools=[{"function_declarations": RECALL_LIVE_TOOLS}],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -447,6 +442,13 @@ class RecallAgent:
             })
             return f"Moved {direction} in the current room."
 
+        elif fn_name == "navigate_to_map_view":
+            await notify({
+                "label": "Toggling map overview",
+                "toggleMapView": True,
+            })
+            return "Map view toggled."
+
         elif fn_name == "highlight_artifact":
             artifact_id = fn_args.get("artifact_id", "")
             live = self._sessions.get(user_id)
@@ -467,10 +469,12 @@ class RecallAgent:
             summary = fn_args.get("summary", "").strip()
             if not summary:
                 return "Cannot save artifact: summary is required."
+            title = fn_args.get("title", "").strip()
+            keywords = list(fn_args.get("keywords", []))
             full_content = fn_args.get("full_content", "").strip() or None
             artifact_type_str = fn_args.get("artifact_type", "conversation")
 
-            await notify({"label": f"Saving: {summary[:50]}…"})
+            await notify({"label": f"Saving: {title or summary[:50]}…"})
             try:
                 from app.models.artifact import ArtifactType
                 from app.services.artifact_service import create_artifact
@@ -484,6 +488,8 @@ class RecallAgent:
                     user_id=user_id,
                     room_id=room_id,
                     artifact_type=artifact_type,
+                    title=title,
+                    keywords=keywords,
                     summary=summary,
                     full_content=full_content,
                 )
@@ -576,6 +582,46 @@ class RecallAgent:
             except Exception:
                 logger.exception("delete_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
                 return "Failed to delete artifact."
+
+        elif fn_name == "synthesize_room":
+            live = self._sessions.get(user_id)
+            room_id = live.current_room_id if live else None
+            if not room_id:
+                return "Cannot synthesize: no room selected. Ask the user to navigate to a room first."
+            await notify({"label": "Generating mind map synthesis…"})
+            try:
+                from app.services.synthesis_service import synthesize_room as svc_synthesize
+                from app.websocket.manager import manager as ws_manager
+                artifact = await svc_synthesize(user_id=user_id, room_id=room_id)
+                await ws_manager.send(user_id, {
+                    "type": "palace_update",
+                    "changes": {
+                        "roomsAdded": [],
+                        "artifactsAdded": [{
+                            "id": artifact.id,
+                            "roomId": artifact.roomId,
+                            "type": artifact.type.value,
+                            "position": {
+                                "x": artifact.position.x,
+                                "y": artifact.position.y,
+                                "z": artifact.position.z,
+                            },
+                            "visual": artifact.visual.value,
+                            "summary": artifact.summary,
+                            "sourceMediaUrl": artifact.sourceMediaUrl,
+                            "color": artifact.color,
+                            "wall": artifact.wall,
+                        }],
+                        "connectionsAdded": [],
+                    },
+                })
+                logger.info("[RecallAgent] Room synthesized: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact.id)
+                return f"Mind map generated and added to the room. Artifact id={artifact.id}"
+            except ValueError as e:
+                return str(e)
+            except Exception:
+                logger.exception("synthesize_room failed for userId=%s roomId=%s", user_id, room_id)
+                return "Failed to generate mind map synthesis."
 
         elif fn_name == "web_search":
             query = fn_args.get("query", "")

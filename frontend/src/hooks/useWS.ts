@@ -82,7 +82,7 @@ function wireListeners(ws: RayanWebSocket): void {
       msg.changes.artifactsRemoved?.forEach((id: string) =>
         palaceStore.removeArtifact(id)
       );
-      msg.changes.artifactsAdded?.forEach((a) =>
+      msg.changes.artifactsAdded?.forEach((a) => {
         palaceStore.addArtifact({
           id: a.id,
           roomId: a.roomId,
@@ -94,8 +94,14 @@ function wireListeners(ws: RayanWebSocket): void {
           color: a.color,
           wall: a.wall,
           createdAt: new Date().toISOString(),
-        } as never)
-      );
+        } as never);
+        // Reveal synthesis result overlay when the mind map artifact arrives
+        if (a.type === 'synthesis' && a.sourceMediaUrl) {
+          useVoiceStore.getState().setSynthesisImageUrl(a.sourceMediaUrl);
+          useVoiceStore.getState().setSynthesisState('done');
+          useVoiceStore.getState().setToolActivity(null);
+        }
+      });
       msg.changes.artifactsUpdated?.forEach((patch: { id: string; [key: string]: unknown }) =>
         palaceStore.updateArtifact(patch.id, patch as never)
       );
@@ -193,9 +199,14 @@ function wireListeners(ws: RayanWebSocket): void {
     ws.on('live_tool_call', (msg) => {
       // Add inline event to conversation log
       useVoiceStore.getState().addToolEvent(msg.label, msg.tool);
-      // Show activity toast
+      // Show activity toast (skip auto-dismiss for synthesis — SynthesisOverlay handles it)
       useVoiceStore.getState().setToolActivity({ tool: msg.tool, label: msg.label });
-      setTimeout(() => useVoiceStore.getState().setToolActivity(null), 4_000);
+      if (msg.tool === 'synthesize_room') {
+        useVoiceStore.getState().setSynthesisState('loading');
+        useVoiceStore.getState().setSynthesisImageUrl(null);
+      } else {
+        setTimeout(() => useVoiceStore.getState().setToolActivity(null), 4_000);
+      }
 
       // Navigate to room: cinematic fly to lobby door → highlight → enter room
       if (msg.payload.navigation?.enterRoom) {

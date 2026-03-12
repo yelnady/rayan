@@ -6,6 +6,9 @@ Gemini SDK to generate the function-calling schema sent to the model.
 Execution logic lives in the agent that owns each tool:
   - capture_concept  → CaptureAgent._receive_responses()
   - all others       → RecallAgent._execute_tool()
+
+Live API tool declarations (with NON_BLOCKING behavior and scheduling) are defined
+at the bottom as CAPTURE_LIVE_TOOLS and RECALL_LIVE_TOOLS.
 """
 
 
@@ -199,6 +202,262 @@ def delete_artifact(artifact_id: str) -> str:
         artifact_id: The exact artifact ID from MEMORIES to delete.
     """
     return ""
+
+
+# ── Live API tool declarations (NON_BLOCKING + scheduling) ────────────────────
+#
+# Used instead of bare Python callables in LiveConnectConfig so we can set
+# behavior="NON_BLOCKING" per tool and include scheduling in each FunctionResponse.
+#
+# Tools without behavior default to BLOCKING (e.g. end_session, close_session).
+
+_ARTIFACT_TYPE_DESC = (
+    "The type of memory. One of: lecture, document, lesson, insight, question, "
+    "moment, milestone, emotion, dream, habit, conversation, opinion, visual, media, goal, enrichment."
+)
+
+CAPTURE_LIVE_TOOLS = [
+    {
+        "name": "capture_concept",
+        "description": (
+            "Extract and save a key concept to the memory palace. "
+            "Invoke autonomously when confidence >= 0.7 and at least 15 seconds have passed since the last capture. "
+            "Do NOT call for minor details or topics already captured."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Short title for the concept (3-7 words)."},
+                "summary": {"type": "string", "description": "Detailed summary of the concept (50-150 words)."},
+                "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-4 topic keywords for categorisation."},
+                "confidence": {"type": "number", "description": "Confidence score 0.0-1.0."},
+            },
+            "required": ["title", "summary", "artifact_type", "keywords", "confidence"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "create_artifact",
+        "description": (
+            "Create and save a new artifact when the user EXPLICITLY asks to save, add, capture, or remember something. "
+            "No confidence or time restriction applies. Invoke immediately on explicit user request."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
+                "title": {"type": "string", "description": "Short descriptive name (3-7 words)."},
+                "summary": {"type": "string", "description": "Concise summary of the artifact."},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-5 topic keywords."},
+                "full_content": {"type": "string", "description": "Full detailed content (optional but recommended)."},
+            },
+            "required": ["artifact_type", "title", "summary"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "create_room",
+        "description": (
+            "Create a new room in the memory palace. "
+            "Invoke only when the user explicitly asks, or when the topic is clearly distinct from all existing rooms."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Short descriptive room name (3-5 words)."},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-4 topic keywords for the room theme."},
+            },
+            "required": ["name", "keywords"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "web_search",
+        "description": "Search the web for facts or context about a topic mentioned during the session.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "A clear, specific search query."},
+            },
+            "required": ["query"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "end_session",
+        "description": "End the current voice session when the user asks to stop, disconnect, or end the conversation.",
+        "parameters": {"type": "object", "properties": {}},
+        # BLOCKING by default — session teardown must complete before anything else
+    },
+    {
+        "name": "close_session",
+        "description": (
+            "Save and close the current capture session, finalizing all captured memories. "
+            "Invoke only when the user explicitly asks to close, finish, or stop the capture session."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+        # BLOCKING by default — session teardown must complete before anything else
+    },
+]
+
+# Scheduling for each NON_BLOCKING capture tool response
+CAPTURE_SCHEDULING: dict[str, str] = {
+    "capture_concept": "SILENT",    # background save — don't disrupt speech
+    "create_artifact": "INTERRUPT", # user asked explicitly — confirm right away
+    "create_room": "INTERRUPT",     # significant action — confirm right away
+    "web_search": "WHEN_IDLE",      # heavy op — share results when Rayan finishes speaking
+}
+
+RECALL_LIVE_TOOLS = [
+    {
+        "name": "navigate_to_room",
+        "description": (
+            "Navigate the user to a specific room in their memory palace, or back to the lobby. "
+            "Invoke immediately when the user names a room or asks to go somewhere."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "The exact room ID from the ROOM DIRECTORY, or 'lobby'."},
+            },
+            "required": ["room_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "navigate_to_map_view",
+        "description": (
+            "Toggle the bird's-eye map overview of the entire memory palace. "
+            "Invoke when the user asks to see the map, overview, or all rooms at once, or to exit map view."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "navigate_horizontal",
+        "description": "Move left or right within the current room to see more artifacts.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "direction": {"type": "string", "description": "Must be 'left' or 'right'."},
+            },
+            "required": ["direction"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "highlight_artifact",
+        "description": "Highlight a specific artifact to draw the user's attention to it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID from MEMORIES."},
+            },
+            "required": ["artifact_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "create_artifact",
+        "description": (
+            "Create and save a new artifact when the user EXPLICITLY asks to save, add, or remember something. "
+            "Invoke immediately on explicit user request."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
+                "title": {"type": "string", "description": "Short descriptive name (3-7 words)."},
+                "summary": {"type": "string", "description": "Concise summary of the artifact."},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-5 topic keywords."},
+                "full_content": {"type": "string", "description": "Full detailed content (optional but recommended)."},
+            },
+            "required": ["artifact_type", "title", "summary"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "edit_artifact",
+        "description": (
+            "Edit an existing artifact's summary or full content. "
+            "Invoke only when the user explicitly asks to update, correct, or expand a memory. "
+            "At least one of summary or full_content must be provided."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID from MEMORIES."},
+                "summary": {"type": "string", "description": "New summary (leave empty to keep unchanged)."},
+                "full_content": {"type": "string", "description": "New full content (leave empty to keep unchanged)."},
+            },
+            "required": ["artifact_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "delete_artifact",
+        "description": (
+            "Permanently delete an artifact from the memory palace. "
+            "Invoke ONLY when the user explicitly asks to delete, remove, or forget a specific memory."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID from MEMORIES."},
+            },
+            "required": ["artifact_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "synthesize_room",
+        "description": (
+            "Generate a mind map image that synthesizes all memories in the current room. "
+            "Invoke when the user asks to summarize, visualize, or make a mind map of the room."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "web_search",
+        "description": "Search the web for facts, definitions, or context about anything mentioned.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "A clear, specific search query."},
+            },
+            "required": ["query"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "end_session",
+        "description": "End the current voice session when the user asks to stop, disconnect, or end the conversation.",
+        "parameters": {"type": "object", "properties": {}},
+        # BLOCKING by default
+    },
+    {
+        "name": "close_artifact",
+        "description": "Close the currently open artifact detail modal or memory view.",
+        "parameters": {"type": "object", "properties": {}},
+        "behavior": "NON_BLOCKING",
+    },
+]
+
+# Scheduling for each NON_BLOCKING recall tool response
+RECALL_SCHEDULING: dict[str, str] = {
+    "navigate_to_room": "INTERRUPT",
+    "navigate_to_map_view": "INTERRUPT",
+    "navigate_horizontal": "INTERRUPT",
+    "highlight_artifact": "INTERRUPT",
+    "create_artifact": "INTERRUPT",
+    "edit_artifact": "INTERRUPT",
+    "delete_artifact": "INTERRUPT",
+    "synthesize_room": "WHEN_IDLE",
+    "web_search": "WHEN_IDLE",
+    "close_artifact": "INTERRUPT",
+}
 
 
 # ── Execution helpers ──────────────────────────────────────────────────────────

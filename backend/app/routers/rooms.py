@@ -2,8 +2,9 @@
 
 import logging
 from datetime import UTC, datetime
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.middleware.auth import verify_token
 from app.services.artifact_service import get_room_artifacts
@@ -74,3 +75,98 @@ async def record_room_access(room_id: str, user: dict = Depends(verify_token)):
     logger.info("Room accessed: userId=%s roomId=%s", user_id, room_id)
 
     return {"success": True, "lastAccessedAt": now}
+
+
+@router.post("/rooms/{room_id}/synthesize")
+async def synthesize_room_endpoint(
+    room_id: str,
+    replace_artifact_id: Optional[str] = Query(default=None),
+    user: dict = Depends(verify_token),
+):
+    """Generate (or regenerate) a mind map synthesis artifact for a room.
+
+    Creates a new synthesis artifact containing a Gemini-generated mind map image
+    of all memories in the room. If replace_artifact_id is provided, regenerates
+    the image for that existing synthesis artifact in-place.
+    """
+    user_id = user["user_id"]
+
+    room = await get_room(user_id, room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "RESOURCE_NOT_FOUND", "message": "Room not found"}},
+        )
+
+    try:
+        from app.services.synthesis_service import synthesize_room
+        artifact = await synthesize_room(
+            user_id=user_id,
+            room_id=room_id,
+            replace_artifact_id=replace_artifact_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": {"code": "BAD_REQUEST", "message": str(e)}})
+    except Exception:
+        logger.exception("synthesize_room failed: userId=%s roomId=%s", user_id, room_id)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "INTERNAL_ERROR", "message": "Synthesis failed."}},
+        )
+
+    # Push palace_update so the 3D scene updates immediately.
+    try:
+        from app.websocket.manager import manager as ws_manager
+        if replace_artifact_id:
+            await ws_manager.send(user_id, {
+                "type": "palace_update",
+                "changes": {
+                    "roomsAdded": [],
+                    "artifactsAdded": [],
+                    "artifactsUpdated": [{
+                        "id": artifact.id,
+                        "sourceMediaUrl": artifact.sourceMediaUrl,
+                        "summary": artifact.summary,
+                    }],
+                    "connectionsAdded": [],
+                },
+            })
+        else:
+            await ws_manager.send(user_id, {
+                "type": "palace_update",
+                "changes": {
+                    "roomsAdded": [],
+                    "artifactsAdded": [{
+                        "id": artifact.id,
+                        "roomId": artifact.roomId,
+                        "type": artifact.type.value,
+                        "position": {
+                            "x": artifact.position.x,
+                            "y": artifact.position.y,
+                            "z": artifact.position.z,
+                        },
+                        "visual": artifact.visual.value,
+                        "summary": artifact.summary,
+                        "sourceMediaUrl": artifact.sourceMediaUrl,
+                        "color": artifact.color,
+                        "wall": artifact.wall,
+                    }],
+                    "connectionsAdded": [],
+                },
+            })
+    except Exception:
+        logger.exception("WS push failed after synthesize_room: userId=%s", user_id)
+
+    return {
+        "artifact": {
+            "id": artifact.id,
+            "roomId": artifact.roomId,
+            "type": artifact.type.value,
+            "visual": artifact.visual.value,
+            "summary": artifact.summary,
+            "sourceMediaUrl": artifact.sourceMediaUrl,
+            "color": artifact.color,
+            "position": artifact.position.model_dump(),
+            "wall": artifact.wall,
+        }
+    }

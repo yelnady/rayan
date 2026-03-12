@@ -99,7 +99,7 @@ async def broadcast_palace_update(
             "id": room.id,
             "name": room.name,
             "position": room.position.model_dump(),
-            "style": "library", # Default since style was removed from model
+            "style": room.style,
         })
 
     for artifact in (artifacts_added or []):

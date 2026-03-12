@@ -75,7 +75,7 @@ async def categorize_and_store(
     )
 
     if best_room and similarity >= HIGH_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, captured_at)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
         await increment_artifact_count(user_id, best_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -85,7 +85,7 @@ async def categorize_and_store(
         )
 
     elif best_room and similarity >= LOW_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, captured_at)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
         return CategorizationResult(
             artifact=artifact,
             room=best_room,
@@ -109,7 +109,7 @@ async def categorize_and_store(
     else:
         room_name = _infer_room_name(concept_title, concept_keywords)
         new_room = await create_room(user_id, room_name, concept_keywords)
-        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, captured_at)
+        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
         await increment_artifact_count(user_id, new_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -136,13 +136,16 @@ async def _store(
     artifact_type: ArtifactType,
     title: str,
     summary: str,
+    keywords: list[str] | None = None,
     captured_at: Optional[datetime] = None,
 ) -> Artifact:
     return await create_artifact(
         user_id=user_id,
         room_id=room_id,
         artifact_type=artifact_type,
-        summary=f"{title}: {summary}",
+        title=title,
+        keywords=keywords or [],
+        summary=summary,
         capture_session_id=session_id,
         captured_at=captured_at,
     )
