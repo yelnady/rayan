@@ -48,6 +48,9 @@ interface VoiceState {
   showPanel: boolean;
   /** Active tool call notification — cleared after display */
   toolActivity: { tool: string; label: string } | null;
+  /** Synthesis overlay state */
+  synthesisState: 'idle' | 'loading' | 'done';
+  synthesisImageUrl: string | null;
 
   // ── Actions ──────────────────────────────────────────────────────────────
   setStatus: (status: VoiceStatus) => void;
@@ -65,6 +68,8 @@ interface VoiceState {
   setError: (error: string | null) => void;
   setToolActivity: (activity: { tool: string; label: string } | null) => void;
   setShowPanel: (show: boolean) => void;
+  setSynthesisState: (state: 'idle' | 'loading' | 'done') => void;
+  setSynthesisImageUrl: (url: string | null) => void;
   /** Reset transient state (transcript, diagrams) but keep session status */
   resetTranscript: () => void;
   /** Clear all messages from the conversation log */
@@ -86,6 +91,8 @@ const defaultState = {
   error: null,
   toolActivity: null as { tool: string; label: string } | null,
   showPanel: false,
+  synthesisState: 'idle' as 'idle' | 'loading' | 'done',
+  synthesisImageUrl: null as string | null,
 };
 
 export const useVoiceStore = create<VoiceState>((set) => ({
@@ -128,6 +135,8 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   setError: (error) => set({ error, status: 'error' }),
   setToolActivity: (toolActivity) => set({ toolActivity }),
   setShowPanel: (showPanel) => set({ showPanel }),
+  setSynthesisState: (synthesisState) => set({ synthesisState }),
+  setSynthesisImageUrl: (synthesisImageUrl) => set({ synthesisImageUrl }),
   resetTranscript: () => set({ transcript: '', diagrams: [], currentNarration: null }),
   clearMessages: () => set({ messages: [] }),
   reset: () => set(defaultState),

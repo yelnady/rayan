@@ -29,6 +29,8 @@ class ArtifactType(str, Enum):
     media = "media"
     # Goals
     goal = "goal"
+    # Synthesis
+    synthesis = "synthesis"
 
 
 class ArtifactVisual(str, Enum):
@@ -38,6 +40,8 @@ class ArtifactVisual(str, Enum):
     framed_image = "framed_image"
     speech_bubble = "speech_bubble"
     crystal_orb = "crystal_orb"
+    # Synthesis
+    synthesis_map = "synthesis_map"
     # GLB models
     lesson = "lesson"           # lesson.glb
     brain = "brain"             # Brain.glb
@@ -70,6 +74,7 @@ ARTIFACT_VISUAL_MAP: dict[ArtifactType, ArtifactVisual] = {
     ArtifactType.opinion: ArtifactVisual.opinion,
     ArtifactType.media: ArtifactVisual.headphones,
     ArtifactType.goal: ArtifactVisual.cash_stack,
+    ArtifactType.synthesis: ArtifactVisual.synthesis_map,
 }
 
 
@@ -79,6 +84,8 @@ class Artifact(BaseModel):
     type: ArtifactType
     position: Position3D
     visual: ArtifactVisual
+    title: str = ""
+    keywords: list[str] = []
     summary: str
     fullContent: Optional[str] = None
     embedding: list[float] = []

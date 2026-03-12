@@ -19,13 +19,9 @@ from google.genai import types as genai_types
 
 from app.agents.memory_architect import CategorizationResult, categorize_and_store
 from app.agents.tools.tools import (
-    capture_concept,
-    close_session,
-    create_artifact,
-    create_room,
-    end_session,
+    CAPTURE_LIVE_TOOLS,
+    CAPTURE_SCHEDULING,
     execute_web_search,
-    web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
 from app.services.capture_service import add_artifact_to_session
@@ -184,7 +180,7 @@ class CaptureAgent:
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
             system_instruction=self._system_prompt,
-            tools=[capture_concept, create_artifact, create_room, web_search, end_session, close_session],
+            tools=[{"function_declarations": CAPTURE_LIVE_TOOLS}],
             speech_config=genai_types.SpeechConfig(
                 voice_config=genai_types.VoiceConfig(
                     prebuilt_voice_config=genai_types.PrebuiltVoiceConfig(
@@ -228,9 +224,13 @@ class CaptureAgent:
                                 fn_call.name,
                                 dict(fn_call.args) if fn_call.args else {},
                             )
+                            response: dict = {"result": result}
+                            scheduling = CAPTURE_SCHEDULING.get(fn_call.name)
+                            if scheduling:
+                                response["scheduling"] = scheduling
                             function_responses.append({
                                 "name": fn_call.name,
-                                "response": {"result": result},
+                                "response": response,
                                 "id": fn_call.id,
                             })
                         await session.send_tool_response(function_responses=function_responses)

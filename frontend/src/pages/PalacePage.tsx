@@ -12,6 +12,7 @@ import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
 import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
 import { ActionBar } from '../components/hud/ActionBar';
 import { ToolActivityToast } from '../components/hud/ToolActivityToast';
+import { SynthesisOverlay } from '../components/hud/SynthesisOverlay';
 import { ResponsePanel } from '../components/voice/ResponsePanel';
 import { Joystick } from '../components/navigation/Joystick';
 import { TransitionOverlay } from '../components/hud/TransitionOverlay';
@@ -218,6 +219,9 @@ export function PalacePage() {
 
       {/* Tool activity toast — appears when Gemini calls a tool */}
       <ToolActivityToast />
+
+      {/* Synthesis overlay — loading + reveal when synthesize_room runs */}
+      <SynthesisOverlay />
 
       {/* Mobile Joystick */}
       {isMobile && !isOverviewMode && <Joystick />}

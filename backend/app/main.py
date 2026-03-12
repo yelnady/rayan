@@ -74,3 +74,5 @@ async def websocket_endpoint(websocket: WebSocket, user_id: str) -> None:
         logger.exception("Unexpected WebSocket error: userId=%s", user_id)
     finally:
         manager.disconnect(user_id)
+        from app.agents.recall_agent import recall_agent
+        await recall_agent.close_session(user_id)

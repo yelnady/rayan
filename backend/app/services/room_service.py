@@ -113,6 +113,29 @@ async def recompute_room_summary(user_id: str, room_id: str) -> str:
     return summary
 
 
+async def find_similar_room(
+    user_id: str,
+    current_room_id: str,
+) -> Room | None:
+    """Return the room most semantically similar to current_room_id (excluding itself)."""
+    rooms = await get_all_rooms(user_id)
+    current = next((r for r in rooms if r.id == current_room_id), None)
+    if current is None or not current.topicEmbedding:
+        return None
+
+    best_room: Room | None = None
+    best_score = -1.0
+    for room in rooms:
+        if room.id == current_room_id or not room.topicEmbedding:
+            continue
+        score = cosine_similarity(current.topicEmbedding, room.topicEmbedding)
+        if score > best_score:
+            best_score = score
+            best_room = room
+
+    return best_room
+
+
 async def find_best_room_match(
     user_id: str,
     artifact_embedding: list[float],
