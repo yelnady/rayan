@@ -32,11 +32,15 @@ export type ArtifactType =
   // Opinions & Identity
   | 'conversation' | 'opinion' | 'visual' | 'media'
   // Goals
-  | 'goal' | 'enrichment';
+  | 'goal' | 'enrichment'
+  // Synthesis
+  | 'synthesis';
 
 export type ArtifactVisual =
   // Procedural
   | 'floating_book' | 'hologram_frame' | 'framed_image' | 'speech_bubble' | 'crystal_orb'
+  // Synthesis
+  | 'synthesis_map'
   // GLB models
   | 'lesson' | 'brain' | 'question' | 'coffee' | 'milestone'
   | 'heart' | 'dream' | 'tree' | 'opinion' | 'headphones' | 'cash_stack';
@@ -111,6 +115,8 @@ export interface Artifact {
   type: ArtifactType;
   position: Position3D;
   visual: ArtifactVisual;
+  title?: string;
+  keywords?: string[];
   summary: string;
   fullContent?: string;
   sourceMediaUrl?: string;
@@ -120,7 +126,7 @@ export interface Artifact {
   enrichments?: string[];
   relatedArtifacts?: string[];
   color?: string;
-  wall?: WallPosition;
+  wall?: WallPosition | 'center';
   capturedAt?: string;
 }
 

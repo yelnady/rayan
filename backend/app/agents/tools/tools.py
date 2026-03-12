@@ -46,6 +46,19 @@ def navigate_to_room(room_id: str) -> str:
     return ""
 
 
+def navigate_to_map_view() -> str:
+    """Toggle the bird's-eye map overview of the entire memory palace.
+
+    Use this when the user asks to see the map, overview, bird's-eye view,
+    or wants to see all their rooms at once — e.g. "show me the map",
+    "go to overview", "show me everything", "zoom out".
+
+    Also use this to exit map view when the user asks to go back to
+    first-person view — e.g. "exit map", "go back", "first person".
+    """
+    return ""
+
+
 def navigate_horizontal(direction: str) -> str:
     """Move left or right within the current room to see more artifacts.
 
@@ -65,7 +78,7 @@ def highlight_artifact(artifact_id: str) -> str:
 
 
 
-def create_artifact(artifact_type: str, summary: str, full_content: str = "") -> str:
+def create_artifact(artifact_type: str, title: str, summary: str, keywords: list[str] = [], full_content: str = "") -> str:
     """Create and save a new artifact to the current room in the memory palace.
 
     Use this when the user shares something they want to remember — a thought, experience,
@@ -98,7 +111,9 @@ def create_artifact(artifact_type: str, summary: str, full_content: str = "") ->
             - "goal"         → aspirations, objectives, things to achieve   (cash stack model)
             - "enrichment"   → research or supplementary material           (crystal orb)
 
+        title: A short, descriptive name for the artifact (3-7 words).
         summary: A concise summary of what this artifact contains (required).
+        keywords: 2-5 topic keywords that describe the artifact's content.
         full_content: The full detailed content (optional but recommended).
     """
     return ""
@@ -139,6 +154,18 @@ def close_session() -> str:
 
     Use this when the user explicitly asks to close, finish, or stop the capture session.
     This saves all captured artifacts and ends the session gracefully.
+    """
+    return ""
+
+
+def synthesize_room() -> str:
+    """Generate a beautiful mind map image that synthesizes all memories in the current room.
+
+    Use this when the user asks you to summarize, visualize, or synthesize the current room —
+    e.g. "summarize everything here", "make a mind map of this room", "show me an overview".
+
+    No arguments needed — the current room context is used automatically.
+    The mind map is stored as a special synthesis artifact floating in the center of the room.
     """
     return ""
 
