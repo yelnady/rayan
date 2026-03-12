@@ -11,7 +11,6 @@ import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
-import { HighlightGlow } from './HighlightGlow';
 import { usePalaceStore } from '../../stores/palaceStore';
 
 interface BookInstancedRendererProps {
@@ -98,8 +97,8 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
                 position={[artifact.position.x, artifact.position.y, artifact.position.z]}
                 rotation={rotation}
                 scale={2.4}
-                onPointerOver={(e) => { e.stopPropagation(); setHovered(true); }}
-                onPointerOut={() => setHovered(false)}
+                onPointerOver={(e) => { e.stopPropagation(); setHovered(true); usePalaceStore.getState().setHoveredArtifactId(artifact.id); }}
+                onPointerOut={() => { setHovered(false); usePalaceStore.getState().setHoveredArtifactId(null); }}
                 onClick={(e) => { e.stopPropagation(); onClick?.(artifact); }}
             >
                 {/* T159: Model origin shift — model is centered, so we push it 10cm "forward" 
@@ -107,7 +106,6 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
                 <group position={[0, 0, 0.1]}>
                     <primitive object={clonedScene} />
                 </group>
-                {highlighted && <HighlightGlow color="#60A8FF" />}
             </group>
 
             {/* Date/time plaque — only when inside this artifact's room */}

@@ -20,7 +20,6 @@ import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useEnrichmentStore } from '../../stores/enrichmentStore';
-import { HighlightGlow } from './HighlightGlow';
 
 const ORB_RADIUS = 0.3;
 const FLOAT_SPEED = 1.1;
@@ -232,18 +231,6 @@ export function OrbInstancedRenderer({ artifacts, onClick, highlightedIds }: Orb
                 ref={particleRef}
                 args={[PARTICLE_GEO, particleMat, particleTotal]}
             />
-
-            {/* Highlight glow — rendered per highlighted orb outside the instanced mesh */}
-            {highlightedIds && entries
-                .filter((e) => highlightedIds.includes(e.artifact.id))
-                .map((e) => (
-                    <HighlightGlow
-                        key={e.artifact.id}
-                        color={e.color}
-                        position={[e.artifact.position.x, e.artifact.position.y, e.artifact.position.z]}
-                    />
-                ))
-            }
 
             {/* Date/time plaques — only when inside this room */}
             {entries.filter((e) => currentRoomId === e.artifact.roomId).map((entry) => {

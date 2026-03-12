@@ -2,10 +2,10 @@ import { memo, useMemo, useState } from 'react';
 import { Html, useGLTF } from '@react-three/drei';
 import type { Artifact as ArtifactData, ArtifactVisual } from '../../types/palace';
 import { usePalaceStore } from '../../stores/palaceStore';
-import { HighlightGlow } from './HighlightGlow';
 import { FloatingBook } from './FloatingBook';
 import { SpeechBubble } from './SpeechBubble';
 import { CrystalOrb } from './CrystalOrb';
+import { SynthesisMap } from './SynthesisMap';
 
 const TYPE_LABELS: Record<string, string> = {
   floating_book: 'Document',
@@ -13,6 +13,7 @@ const TYPE_LABELS: Record<string, string> = {
   framed_image: 'Visual',
   speech_bubble: 'Conversation',
   crystal_orb: 'Enrichment',
+  synthesis_map: 'Mind Map',
   lesson: 'Lesson',
   brain: 'Insight',
   question: 'Question',
@@ -32,6 +33,7 @@ const TYPE_COLORS: Record<string, string> = {
   framed_image: '#FF8C60',
   speech_bubble: '#60C8A0',
   crystal_orb: '#FF60B8',
+  synthesis_map: '#FFD700',
   lesson: '#7EC8E3',
   brain: '#C084FC',
   question: '#FCD34D',
@@ -139,6 +141,7 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
   if (artifact.wall === 'east') return [0, -Math.PI / 2, 0];
   if (artifact.wall === 'south') return [0, Math.PI, 0];
   if (artifact.wall === 'north') return [0, 0, 0];
+  if (artifact.wall === 'center') return [0, Math.PI, 0]; // face entrance
 
   // Fallback to spatial inference
   const { x, z } = artifact.position;
@@ -174,6 +177,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
 
   const handleHover = (h: boolean) => {
     setHovered(h);
+    usePalaceStore.getState().setHoveredArtifactId(h ? artifact.id : null);
     onHover?.(h ? artifact : null);
   };
 
@@ -192,6 +196,8 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
         return <SpeechBubble position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       case 'crystal_orb':
         return <CrystalOrb position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
+      case 'synthesis_map':
+        return <SynthesisMap position={O} onClick={handleClick} onHover={handleHover} />;
       default: {
         const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
         const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
@@ -210,7 +216,6 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
             Local +Z faces INTO the room. */}
         <group position={[0, 0, 0.08]}>
           {visual}
-          {highlighted && <HighlightGlow color={accentColor} />}
 
           {/* ── Date/time plaque — only when inside this artifact's room ── */}
           {currentRoomId === artifact.roomId && <Html
