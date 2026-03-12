@@ -19,6 +19,7 @@ import { useVoiceStore } from '../../stores/voiceStore';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
+import { useVoice } from '../../hooks/useVoice';
 
 export interface ArtifactDetailData {
     id: string;
@@ -27,6 +28,7 @@ export interface ArtifactDetailData {
     visual: string;
     summary: string;
     fullContent?: string;
+    sourceMediaUrl?: string;
     thumbnailUrl?: string;
     createdAt: string;
     capturedAt?: string;
@@ -51,10 +53,13 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [deleting, setDeleting] = useState(false);
+    const [regenerating, setRegenerating] = useState(false);
     const [relatedMemories, setRelatedMemories] = useState<RelatedMemory[]>([]);
     const [relatedLoading, setRelatedLoading] = useState(false);
 
     const narration = useVoiceStore((s) => s.currentNarration);
+    const voiceStatus = useVoiceStore((s) => s.status);
+    const { connect } = useVoice();
     const { user } = useAuthStore();
 
     // ── Fetch full artifact details from REST API ───────────────────────────────
@@ -111,6 +116,36 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
         void fetchRelated();
         return () => { cancelled = true; };
     }, [artifactId, user, loading]);
+
+    // ── Chat with Rayan about this artifact ────────────────────────────────────
+    const handleChatWithRayan = async () => {
+        if (!artifact) return;
+        onClose();
+        // Connect with this artifact pre-loaded into Rayan's context so she
+        // can immediately discuss it and run web searches on it.
+        await connect(artifact.id);
+    };
+
+    // ── Regenerate synthesis handler ────────────────────────────────────────────
+    const handleRegenerate = async () => {
+        if (!user || !artifact || regenerating) return;
+        setRegenerating(true);
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(
+                `${API_BASE_URL}/api/v1/rooms/${artifact.roomId}/synthesize?replace_artifact_id=${artifact.id}`,
+                { method: 'POST', headers: { Authorization: `Bearer ${token}` } },
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            // Update local artifact state so the modal refreshes without a reload
+            setArtifact((prev) => prev ? { ...prev, sourceMediaUrl: json.artifact.sourceMediaUrl } : prev);
+        } catch (err) {
+            console.error('[Regenerate]', err);
+        } finally {
+            setRegenerating(false);
+        }
+    };
 
     // ── Delete handler ──────────────────────────────────────────────────────────
     const handleDelete = async () => {
@@ -180,8 +215,25 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                         <p className="text-error text-[13px] font-body m-0 py-3">{error}</p>
                     )}
 
+                    {/* Synthesis mind map image */}
+                    {!loading && artifact?.type === 'synthesis' && artifact.sourceMediaUrl && (
+                        <section>
+                            <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-3 mt-0 font-body">Mind Map</h3>
+                            <div
+                                className="rounded-xl overflow-hidden border border-[#FFD70033]"
+                                style={{ boxShadow: '0 0 32px rgba(255,215,0,0.15)' }}
+                            >
+                                <img
+                                    src={artifact.sourceMediaUrl}
+                                    alt="Room mind map synthesis"
+                                    className="w-full h-auto block"
+                                />
+                            </div>
+                        </section>
+                    )}
+
                     {/* Full content */}
-                    {!loading && artifact?.fullContent && (
+                    {!loading && artifact?.fullContent && artifact.type !== 'synthesis' && (
                         <section>
                             <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Content</h3>
                             <p className="text-text-secondary text-[14px] leading-[1.7] m-0 font-body">{artifact.fullContent}</p>
@@ -252,7 +304,42 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                 </div>
 
                 {/* Footer */}
-                <div className="py-3 px-5 border-t border-border-light flex justify-end shrink-0">
+                <div className="py-3 px-5 border-t border-border-light flex justify-between items-center shrink-0 gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Chat with Rayan — shown when voice is not active */}
+                        {!loading && artifact && voiceStatus === 'disconnected' && (
+                            <button
+                                onClick={handleChatWithRayan}
+                                className="rounded-md text-[13px] py-[7px] px-3.5 font-body font-medium transition-colors"
+                                style={{
+                                    background: 'rgba(99,102,241,0.1)',
+                                    border: '1px solid rgba(99,102,241,0.35)',
+                                    color: '#818cf8',
+                                }}
+                                aria-label="Start voice chat about this artifact"
+                            >
+                                ✦ Ask Rayan
+                            </button>
+                        )}
+
+                        {/* Regenerate mind map — synthesis only */}
+                        {artifact?.type === 'synthesis' && (
+                            <button
+                                onClick={handleRegenerate}
+                                disabled={regenerating || loading}
+                                className="rounded-md text-[13px] py-[7px] px-3.5 font-body font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{
+                                    background: 'rgba(255,215,0,0.1)',
+                                    border: '1px solid rgba(255,215,0,0.35)',
+                                    color: '#FFD700',
+                                }}
+                                aria-label="Regenerate mind map"
+                            >
+                                {regenerating ? 'Generating…' : '✦ Regenerate Mind Map'}
+                            </button>
+                        )}
+                    </div>
+
                     <button
                         onClick={handleDelete}
                         disabled={deleting || loading}
