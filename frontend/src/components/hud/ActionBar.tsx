@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
+import { useVoiceStore } from '../../stores/voiceStore';
 import { useCameraStore } from '../../stores/cameraStore';
 import { useTransitionStore } from '../../stores/transitionStore';
 import { usePalaceStore } from '../../stores/palaceStore';
@@ -158,12 +159,14 @@ function CaptureSection() {
     const { startCapture, stopCapture } = useCapture();
     const status = useCaptureStore((s) => s.status);
     const concepts = useCaptureStore((s) => s.concepts);
+    const voiceStatus = useVoiceStore((s) => s.status);
     const [selectedSource, setSelectedSource] = useState<'webcam' | 'screen_share' | 'voice'>('webcam');
     const [showMenu, setShowMenu] = useState(false);
 
     const isCapturing = status === 'capturing';
     const isProcessing = status === 'processing';
-    const disabled = isProcessing;
+    const voiceActive = voiceStatus !== 'disconnected' && voiceStatus !== 'error';
+    const disabled = isProcessing || voiceActive;
 
     function handleMainClick() {
         if (isCapturing) stopCapture();
@@ -184,13 +187,15 @@ function CaptureSection() {
         ? 'shadow-[0_0_0_6px_rgba(248,113,113,0.1),0_4px_16px_rgba(239,68,68,0.35)]'
         : 'shadow-[0_0_0_6px_rgba(99,102,241,0.12),0_4px_16px_rgba(99,102,241,0.35)]';
 
-    const subLabel = isProcessing
-        ? 'Thinking…'
-        : isCapturing
-            ? concepts.length > 0
-                ? `${concepts.length} concept${concepts.length !== 1 ? 's' : ''} found`
-                : 'Listening…'
-            : selectedSource === 'webcam' ? 'Webcam' : selectedSource === 'voice' ? 'Voice' : 'Screen Share';
+    const subLabel = voiceActive
+        ? 'Unavailable during chat'
+        : isProcessing
+            ? 'Thinking…'
+            : isCapturing
+                ? concepts.length > 0
+                    ? `${concepts.length} concept${concepts.length !== 1 ? 's' : ''} found`
+                    : 'Listening…'
+                : selectedSource === 'webcam' ? 'Webcam' : selectedSource === 'voice' ? 'Voice' : 'Screen Share';
 
     return (
         <div className="relative">
@@ -222,7 +227,7 @@ function CaptureSection() {
                 onClick={handleMainClick}
                 disabled={disabled}
                 aria-label={isCapturing ? 'Stop capture' : 'Open capture menu'}
-                className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
+                className={`action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] group ${disabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-hover'}`}
             >
                 {/* Icon */}
                 <div
@@ -268,6 +273,7 @@ function SourceOption({ onClick, icon, label, active }: { onClick: () => void, i
 
 function VoiceSection() {
     const { status, muted, toggleMute, connect, disconnect } = useVoice();
+    const captureStatus = useCaptureStore((s) => s.status);
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') await connect();
@@ -283,6 +289,8 @@ function VoiceSection() {
     const isActive = status === 'connected' && !muted;
     const isResponding = status === 'responding';
     const isConnecting = status === 'connecting';
+    const captureActive = captureStatus === 'capturing' || captureStatus === 'processing';
+    const voiceDisabled = isConnecting || captureActive;
 
     const btnColor = isResponding
         ? 'bg-secondary'
@@ -298,8 +306,9 @@ function VoiceSection() {
             ? 'shadow-[0_0_0_6px_rgba(167,139,250,0.15),0_4px_16px_rgba(139,92,246,0.3)]'
             : 'shadow-none';
 
-    const subLabel =
-        status === 'disconnected' ? 'Tap to connect'
+    const subLabel = captureActive
+        ? 'Unavailable during capture'
+        : status === 'disconnected' ? 'Tap to connect'
             : status === 'connecting' ? 'Connecting…'
                 : status === 'error' ? 'Connection error'
                     : isResponding ? 'Rayan is speaking…'
@@ -314,9 +323,9 @@ function VoiceSection() {
     return (
         <button
             onClick={handleClick}
-            disabled={isConnecting}
+            disabled={voiceDisabled}
             aria-label={ariaLabel}
-            className="action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] hover:bg-surface-hover group"
+            className={`action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] group ${voiceDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-hover'}`}
         >
             {/* Icon */}
             <div

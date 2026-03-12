@@ -8,30 +8,9 @@ interface AuthState {
   setLoading: (loading: boolean) => void;
 }
 
-const getCachedUser = () => {
-  try {
-    const cached = localStorage.getItem('rayan-auth-user');
-    return cached ? JSON.parse(cached) : null;
-  } catch {
-    return null;
-  }
-};
-
 export const useAuthStore = create<AuthState>((set) => ({
-  user: getCachedUser(),
-  loading: !getCachedUser(),
-  setUser: (user) => {
-    if (user) {
-      localStorage.setItem('rayan-auth-user', JSON.stringify({
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      }));
-    } else {
-      localStorage.removeItem('rayan-auth-user');
-    }
-    set({ user });
-  },
+  user: null,
+  loading: true,
+  setUser: (user) => set({ user }),
   setLoading: (loading) => set({ loading }),
 }));
