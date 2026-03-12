@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Text, useTexture } from '@react-three/drei';
+import { useTexture, Text, Billboard } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Group } from 'three';
 import type { WallSide } from '../../types/three';
@@ -117,17 +117,23 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
           <primitive object={frameMaterial} attach="material" />
         </mesh>
 
-        {/* Room label above door */}
+
+        {/* Room label above door — Billboard ensures it always faces the camera */}
         {targetRoomName && (
-          <Text
-            position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.35, 0.05]}
-            fontSize={0.2}
-            color={hovered ? '#D4AF37' : '#C1AA9A'}
-            anchorX="center"
-            anchorY="bottom"
-          >
-            {targetRoomName}
-          </Text>
+          <Billboard position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.45, 0]} follow={true}>
+            <Text
+              fontSize={0.2}
+              color={hovered ? '#D4AF37' : '#C1AA9A'}
+              anchorX="center"
+              anchorY="middle"
+              outlineColor="#1a0a00"
+              outlineWidth={0.025}
+              maxWidth={3}
+              textAlign="center"
+            >
+              {targetRoomName}
+            </Text>
+          </Billboard>
         )}
 
         {/* Highlight glow: golden pulsing light + emissive overlay around the frame */}

@@ -1,6 +1,10 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
+import { ParticleCanvas } from './ParticleCanvas';
+import { PalaceMinimap } from './PalaceMinimap';
+import { CameraSync } from './CameraSync.tsx';
+import { ArtifactConnectionLines } from './ArtifactConnectionLines';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
 import { Corridor } from './Corridor';
@@ -9,8 +13,9 @@ import { usePalaceStore } from '../../stores/palaceStore';
 import { useCameraStore } from '../../stores/cameraStore';
 import { useTransitionStore } from '../../stores/transitionStore';
 import type { Artifact as ArtifactData } from '../../types/palace';
-import type { DoorSpec } from '../../types/three';
+import type { DoorSpec, WallSide } from '../../types/three';
 import type { LobbyDoor, WallPosition } from '../../types/palace';
+import type { RoomPortal } from './Room';
 
 // ─── T156 (deferred): When texture assets are added, register KTX2Loader here:
 //   import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader';
@@ -210,6 +215,70 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
     });
   }, []);
 
+  // Compute spatially adjacent room pairs (rooms one grid step apart, ~30 units)
+  const roomPortals = useMemo(() => {
+    const GRID_STEP = 30;
+    const EPS = 8;
+    const map: Record<string, RoomPortal[]> = {};
+    const exitWallMap: Record<string, WallSide> = { north: 'south', south: 'north', east: 'west', west: 'east' };
+
+    for (let i = 0; i < rooms.length; i++) {
+      for (let j = i + 1; j < rooms.length; j++) {
+        const a = rooms[i], b = rooms[j];
+        const dx = b.position.x - a.position.x;
+        const dz = b.position.z - a.position.z;
+        let wallA: WallSide | null = null, wallB: WallSide | null = null;
+
+        if (Math.abs(Math.abs(dx) - GRID_STEP) < EPS && Math.abs(dz) < EPS) {
+          wallA = dx > 0 ? 'east' : 'west';
+          wallB = dx > 0 ? 'west' : 'east';
+        } else if (Math.abs(Math.abs(dz) - GRID_STEP) < EPS && Math.abs(dx) < EPS) {
+          wallA = dz > 0 ? 'south' : 'north';
+          wallB = dz > 0 ? 'north' : 'south';
+        }
+        if (!wallA || !wallB) continue;
+
+        // Skip portal if it conflicts with the lobby exit door for that room
+        const exitA = lobbyDoors.find(d => d.roomId === a.id);
+        const exitB = lobbyDoors.find(d => d.roomId === b.id);
+        const occupiedA = exitA ? exitWallMap[exitA.wallPosition] : null;
+        const occupiedB = exitB ? exitWallMap[exitB.wallPosition] : null;
+        if (wallA === occupiedA || wallB === occupiedB) continue;
+
+        if (!map[a.id]) map[a.id] = [];
+        if (!map[b.id]) map[b.id] = [];
+        map[a.id].push({ wall: wallA, targetRoomId: b.id, targetRoomName: b.name });
+        map[b.id].push({ wall: wallB, targetRoomId: a.id, targetRoomName: a.name });
+      }
+    }
+    return map;
+  }, [rooms, lobbyDoors]);
+
+  // Direct room-to-room portal navigation (no lobby flythrough)
+  const handlePortalEnter = useCallback((fromWall: WallSide, toRoomId: string) => {
+    useTransitionStore.getState().startTransition('enter', () => {
+      const palaceStore = usePalaceStore.getState();
+      const target = palaceStore.rooms.find(r => r.id === toRoomId);
+      if (!target) return;
+      palaceStore.setCurrentRoomId(toRoomId);
+      useCameraStore.getState().exitOverview();
+      const { w, d } = target.dimensions;
+      const { x: rx, z: rz } = target.position;
+      // Enter from the wall opposite to the portal we came through
+      const opposite: Record<WallSide, WallSide> = { east: 'west', west: 'east', north: 'south', south: 'north' };
+      let ex = rx + w / 2, ez = rz + d / 2, lx = ex, lz = ez;
+      switch (opposite[fromWall]) {
+        case 'west':  ex = rx + 0.5;     ez = rz + d / 2; lx = rx + w;     lz = rz + d / 2; break;
+        case 'east':  ex = rx + w - 0.5; ez = rz + d / 2; lx = rx;         lz = rz + d / 2; break;
+        case 'north': ex = rx + w / 2;   ez = rz + d - 0.5; lx = rx + w / 2; lz = rz;       break;
+        case 'south': ex = rx + w / 2;   ez = rz + 0.5;  lx = rx + w / 2; lz = rz + d;     break;
+      }
+      useCameraStore.getState().teleport({ x: ex, y: 1.7, z: ez });
+      useCameraStore.getState().lookAt({ x: lx, y: 1.7, z: lz });
+      useCameraStore.getState().setFov(100);
+    });
+  }, []);
+
   // Show nothing until the palace record itself exists (very brief flash at most)
   const canvasStyle = { ...CANVAS_BASE_STYLE, left: leftOffset };
 
@@ -219,6 +288,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
 
   return (
     <>
+      <ParticleCanvas />
       <Canvas
         style={canvasStyle}
         // T154: Tightened far plane (500→200) — all rooms are within ~100 units.
@@ -235,9 +305,10 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
       >
         <fog attach="fog" args={['#060614', isOverviewMode ? 60 : 20, isOverviewMode ? 200 : 80]} />
 
+        <CameraSync leftOffset={leftOffset} />
         <ambientLight intensity={0.5} color="#fff8f0" />
         {/* T165: Global Environment — this is the #1 trick for 'premium' WebGL.
-            It provides reflection/ambient light derived from a city map, so even 
+            It provides reflection/ambient light derived from a city map, so even
             in a 'shadow', objects reflect the city lights and never turn black. */}
         <Environment preset="city" />
 
@@ -293,11 +364,13 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
                 room={room}
                 index={index}
                 doors={roomDoors}
+                portals={roomPortals[room.id] ?? []}
                 artifacts={roomArtifacts}
                 highlightedIds={highlightedArtifactIds}
                 onArtifactClick={onArtifactClick}
                 onEnter={() => handleEnterRoom(room.id)}
                 onExitLobby={handleEnterLobby}
+                onEnterPortal={handlePortalEnter}
               >
                 {nonInstancedArtifacts.map((artifact) => (
                   <Artifact
@@ -328,7 +401,8 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
         }
       </Canvas>
 
-      {/* Target Crosshair Removed */}
+      <ArtifactConnectionLines />
+      <PalaceMinimap onEnterRoom={handleEnterRoom} onEnterLobby={handleEnterLobby} />
     </>
   );
 }

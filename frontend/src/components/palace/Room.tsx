@@ -1,12 +1,12 @@
 import { memo, useMemo } from 'react';
 import * as THREE from 'three';
-import { Text } from '@react-three/drei';
+import { Text, Billboard } from '@react-three/drei';
 import { useCameraStore } from '../../stores/cameraStore';
 import { WallsWithDoors } from './WallsWithDoors';
 import { BookInstancedRenderer } from '../artifacts/BookInstancedRenderer';
 import { OrbInstancedRenderer } from '../artifacts/OrbInstancedRenderer';
 import type { Room as RoomData, Artifact as ArtifactData } from '../../types/palace';
-import type { DoorSpec } from '../../types/three';
+import type { DoorSpec, WallSide } from '../../types/three';
 
 // 4-step toon gradient — gives richer mid-tones and a sharper highlight
 const TOON_GRADIENT = (() => {
@@ -16,12 +16,18 @@ const TOON_GRADIENT = (() => {
   return tex;
 })();
 
-import { Door } from './Door';
+
+export interface RoomPortal {
+  wall: WallSide;
+  targetRoomId: string;
+  targetRoomName: string;
+}
 
 interface RoomProps {
   room: RoomData;
   index: number;
   doors?: DoorSpec[];
+  portals?: RoomPortal[];
   /** T153: artifacts array so Room can render instanced books/orbs */
   artifacts?: ArtifactData[];
   highlightedIds?: string[];
@@ -29,6 +35,7 @@ interface RoomProps {
   onEnter?: () => void;
   onExitLobby?: () => void;
   onEnterRoom?: (roomId: string) => void;
+  onEnterPortal?: (wall: WallSide, targetRoomId: string) => void;
   children?: React.ReactNode;
 }
 
@@ -145,7 +152,7 @@ function wallDoorPosition(wall: string, doorIndex: number, w: number, d: number)
   }
 }
 
-export function Room({ room, index, doors = [], artifacts = [], highlightedIds, onArtifactClick, onEnter, onExitLobby, onEnterRoom, children }: RoomProps) {
+export function Room({ room, index, doors = [], portals = [], artifacts = [], highlightedIds, onArtifactClick, onEnter, onExitLobby, onEnterRoom, onEnterPortal, children }: RoomProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
   const theme = STYLE_THEMES[(room.style ?? 'library') as keyof typeof STYLE_THEMES] ?? STYLE_THEMES.library;
   const h = ROOM_HEIGHT;
@@ -168,21 +175,6 @@ export function Room({ room, index, doors = [], artifacts = [], highlightedIds, 
         accentWallColor={theme.accentWall}
       />
 
-      {/* Render physical doors in walls */}
-      {doors.map((ds, i) => {
-        const pos = wallDoorPosition(ds.wall, ds.index, w, d);
-        const isLobby = ds.targetRoomId === 'lobby';
-        return (
-          <Door
-            key={i}
-            wall={ds.wall}
-            position={pos}
-            targetRoomName={isLobby ? undefined : 'Room'}
-            onEnter={() => isLobby ? onExitLobby?.() : onEnterRoom?.(ds.targetRoomId!)}
-            initialOpen={false}
-          />
-        );
-      })}
 
       <BookInstancedRenderer artifacts={bookArtifacts} onClick={onArtifactClick} highlightedIds={highlightedIds} />
       <OrbInstancedRenderer artifacts={orbArtifacts} onClick={onArtifactClick} highlightedIds={highlightedIds} />
@@ -197,6 +189,9 @@ export function Room({ room, index, doors = [], artifacts = [], highlightedIds, 
             color="#FFFFFF"
             anchorX="center"
             anchorY="middle"
+            maxWidth={w}
+            textAlign="center"
+            overflowWrap="break-word"
             font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
             outlineWidth={0.06}
             outlineColor="#000000"
@@ -230,20 +225,23 @@ export function Room({ room, index, doors = [], artifacts = [], highlightedIds, 
         </>
       )}
 
-      {/* On-wall Room Label (First Person) */}
+      {/* Room Label (First Person) — always faces the camera */}
       {!isOverviewMode && (
-        <Text
-          position={[w / 2, h * 0.78, 0.1]}
-          fontSize={0.5}
-          color="#FFFFFF"
-          anchorX="center"
-          anchorY="middle"
-          font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
-          outlineColor="#000000"
-          outlineWidth={0.04}
-        >
-          {room.name.toUpperCase()}
-        </Text>
+        <Billboard position={[w / 2, h * 0.78, d / 2]} follow={true}>
+          <Text
+            fontSize={0.5}
+            maxWidth={Math.min(w, d) - 1}
+            textAlign="center"
+            color="#FFFFFF"
+            anchorX="center"
+            anchorY="middle"
+            font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
+            outlineColor="#000000"
+            outlineWidth={0.04}
+          >
+            {room.name.toUpperCase()}
+          </Text>
+        </Billboard>
       )}
 
       {children}
