@@ -51,7 +51,9 @@ function wireListeners(ws: RayanWebSocket): void {
     }),
     ws.on('palace_update', (msg) => {
       const palaceStore = usePalaceStore.getState();
-      msg.changes.roomsAdded?.forEach((r) =>
+      const newRooms: Array<{ id: string; position: { x: number; y: number; z: number } }> = [];
+
+      msg.changes.roomsAdded?.forEach((r) => {
         palaceStore.addRoom({
           id: r.id,
           name: r.name,
@@ -60,8 +62,23 @@ function wireListeners(ws: RayanWebSocket): void {
           style: r.style as never,
           connections: [],
           artifactCount: 0,
-        })
-      );
+        });
+        newRooms.push({ id: r.id, position: r.position });
+      });
+
+      msg.changes.lobbyDoorsAdded?.forEach((door: { roomId: string; wallPosition: string; doorIndex: number }) => {
+        const currentLayout = palaceStore.layout;
+        if (currentLayout) {
+          palaceStore.setLayout({
+            ...currentLayout,
+            lobbyDoors: [
+              ...currentLayout.lobbyDoors.filter((d) => d.roomId !== door.roomId),
+              door as never,
+            ],
+          });
+        }
+      });
+
       msg.changes.artifactsRemoved?.forEach((id: string) =>
         palaceStore.removeArtifact(id)
       );
@@ -73,10 +90,53 @@ function wireListeners(ws: RayanWebSocket): void {
           position: a.position,
           visual: a.visual as never,
           summary: a.summary,
-          embedding: [],
+          sourceMediaUrl: a.sourceMediaUrl,
+          color: a.color,
+          wall: a.wall,
           createdAt: new Date().toISOString(),
         } as never)
       );
+      msg.changes.artifactsUpdated?.forEach((patch: { id: string; [key: string]: unknown }) =>
+        palaceStore.updateArtifact(patch.id, patch as never)
+      );
+
+      // If new rooms were added and we're in the lobby, fly the camera to face the
+      // last new room's lobby door so the user sees it appear.
+      if (newRooms.length > 0 && palaceStore.currentRoomId === null) {
+        const target = newRooms[newRooms.length - 1];
+        const allRooms = [...palaceStore.rooms, { id: target.id, position: target.position }];
+        const roomIndex = Math.max(allRooms.findIndex(r => r.id === target.id), 0);
+        const WALL_CYCLE = ['north', 'east', 'south', 'west'] as const;
+        const DOOR_SPACING = 2.2;
+        const LOBBY_SIZE = 12;
+        const wallPosition = WALL_CYCLE[roomIndex % 4];
+        const doorIndex = Math.floor(roomIndex / 4);
+        const offset = doorIndex * DOOR_SPACING;
+
+        let facingX = 0, facingZ = 0, doorCX = 0, doorCZ = 0;
+        switch (wallPosition) {
+          case 'south':
+            facingX = LOBBY_SIZE / 2 + offset; facingZ = LOBBY_SIZE - 3;
+            doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = LOBBY_SIZE; break;
+          case 'east':
+            facingX = LOBBY_SIZE - 3; facingZ = LOBBY_SIZE / 2 + offset;
+            doorCX  = LOBBY_SIZE;     doorCZ  = LOBBY_SIZE / 2 + offset; break;
+          case 'west':
+            facingX = 3; facingZ = LOBBY_SIZE / 2 + offset;
+            doorCX  = 0; doorCZ  = LOBBY_SIZE / 2 + offset; break;
+          default: // north
+            facingX = LOBBY_SIZE / 2 + offset; facingZ = 3;
+            doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = 0; break;
+        }
+
+        useCameraStore.getState().flyTo(
+          { x: facingX, y: 1.7, z: facingZ },
+          { x: doorCX, y: 1.25, z: doorCZ },
+        );
+        // Briefly highlight the door so it's obvious which one is new
+        palaceStore.setHighlightedLobbyDoorRoomId(target.id);
+        setTimeout(() => usePalaceStore.getState().setHighlightedLobbyDoorRoomId(null), 3000);
+      }
     }),
     ws.on('seeding_started' as any, () => {
       usePalaceStore.getState().setIsSeeding(true);
@@ -249,11 +309,11 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       }
 
-      // Horizontal strafe: briefly push mobileMovement left or right
+      // Horizontal strafe: push mobileMovement left or right for long enough to feel meaningful
       if (msg.payload.navigation?.moveHorizontal) {
         const dir = msg.payload.navigation.moveHorizontal === 'left' ? -1 : 1;
         useCameraStore.getState().setMobileMovement({ x: dir, z: 0 });
-        setTimeout(() => useCameraStore.getState().setMobileMovement({ x: 0, z: 0 }), 600);
+        setTimeout(() => useCameraStore.getState().setMobileMovement({ x: 0, z: 0 }), 1400);
       }
 
       // Cinematic Highlight: Move camera + Open popup + glow
@@ -268,6 +328,16 @@ function wireListeners(ws: RayanWebSocket): void {
       if (msg.tool === 'end_session') {
         stopVoiceSession();
         _instance?.sendLiveSessionEnd();
+      }
+
+      // Map view toggle
+      if (msg.payload.toggleMapView) {
+        const { isOverviewMode, enterOverview, exitOverview } = useCameraStore.getState();
+        const { startTransition } = useTransitionStore.getState();
+        startTransition('enter', () => {
+          if (isOverviewMode) exitOverview();
+          else enterOverview();
+        });
       }
     }),
 

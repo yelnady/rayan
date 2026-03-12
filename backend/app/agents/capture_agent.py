@@ -70,6 +70,11 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` "
     "immediately — no confidence or time restrictions apply. Then verbally confirm: 'Got it, {name} — saved.'\n"
     "- Do NOT repeat concepts already captured.\n\n"
+    "CREATING ROOMS:\n"
+    "- Call `create_room` when the user explicitly asks to create a new room or section in their palace, "
+    "or when you notice a clearly distinct topic area that has no suitable existing room.\n"
+    "- Pass a descriptive `name` and relevant `keywords` so the room is placed correctly.\n"
+    "- Confirm verbally: 'Created a new room for [topic], {name}.'\n\n"
     "ENDING THE SESSION:\n"
     "- Call `close_session` when the user asks to close, finish, or stop the capture session.\n"
     "- Call `end_session` when the user asks to stop, disconnect, or end the voice conversation.\n"
@@ -292,10 +297,10 @@ class CaptureAgent:
         elif name == "create_artifact":
             self._last_extraction_at = time.monotonic()
             event = ExtractionEvent(
-                concept_title=args.get("summary", "")[:60],
+                concept_title=args.get("title", "") or args.get("summary", "")[:60],
                 concept_summary=args.get("summary", ""),
                 concept_type=args.get("artifact_type", "moment"),
-                concept_keywords=[],
+                concept_keywords=list(args.get("keywords", [])),
                 confidence=1.0,
             )
             await self._handle_extraction(event)
@@ -307,7 +312,26 @@ class CaptureAgent:
             try:
                 from app.services.room_service import create_room as svc_create_room
                 from app.websocket.manager import manager as ws_manager
+                from app.core.firestore import get_firestore_client
                 new_room = await svc_create_room(self.user_id, room_name, keywords)
+
+                # Compute the lobby door entry for this new room and persist it.
+                _WALL_CYCLE = ["north", "east", "south", "west"]
+                layout_ref = (
+                    get_firestore_client()
+                    .collection("users").document(self.user_id)
+                    .collection("layout").document("main")
+                )
+                layout_doc = await layout_ref.get()
+                existing_doors = (layout_doc.to_dict() or {}).get("lobbyDoors", []) if layout_doc.exists else []
+                door_idx = len(existing_doors)
+                new_door = {
+                    "roomId": new_room.id,
+                    "wallPosition": _WALL_CYCLE[door_idx % 4],
+                    "doorIndex": door_idx // 4,
+                }
+                await layout_ref.set({"lobbyDoors": existing_doors + [new_door]}, merge=True)
+
                 await ws_manager.send(self.user_id, {
                     "type": "palace_update",
                     "changes": {
@@ -319,10 +343,11 @@ class CaptureAgent:
                                 "y": new_room.position.y,
                                 "z": new_room.position.z,
                             },
-                            "style": "library",
+                            "style": new_room.style,
                         }],
                         "artifactsAdded": [],
                         "connectionsAdded": [],
+                        "lobbyDoorsAdded": [new_door],
                     },
                 })
                 return f"Room '{room_name}' created with ID {new_room.id}"
