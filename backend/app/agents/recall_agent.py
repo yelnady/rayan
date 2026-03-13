@@ -26,7 +26,6 @@ from google.genai import types as genai_types
 
 from app.agents.tools.tools import (
     RECALL_LIVE_TOOLS,
-    RECALL_SCHEDULING,
     execute_web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
@@ -140,7 +139,7 @@ async def _build_room_directory(user_id: str) -> str:
 
 def _build_system_prompt(results: list[SearchResult], room_directory: str = "", display_name: str = "") -> str:
     current_date = datetime.now(UTC).strftime("%Y-%m-%d")
-    name = display_name or "the user"
+    name = display_name.split()[0] if display_name else "there"
     if not results:
         return _BASE_SYSTEM_PROMPT.format(
             name=name,
@@ -462,10 +461,6 @@ class RecallAgent:
             return f"Highlighted artifact {artifact_id}. I have also loaded its full content into my memory."
 
         elif fn_name == "create_artifact":
-            live = self._sessions.get(user_id)
-            room_id = live.current_room_id if live else None
-            if not room_id:
-                return "Cannot save artifact: no room selected. Ask the user to navigate to a room first."
             summary = fn_args.get("summary", "").strip()
             if not summary:
                 return "Cannot save artifact: summary is required."
@@ -476,28 +471,38 @@ class RecallAgent:
 
             await notify({"label": f"Saving: {title or summary[:50]}…"})
             try:
-                from app.models.artifact import ArtifactType
-                from app.services.artifact_service import create_artifact
+                from app.agents.memory_architect import categorize_and_store
+                from app.services.room_service import add_lobby_door
                 from app.websocket.manager import manager as ws_manager
-                try:
-                    artifact_type = ArtifactType(artifact_type_str)
-                except ValueError:
-                    artifact_type = ArtifactType.conversation
 
-                artifact = await create_artifact(
+                result = await categorize_and_store(
                     user_id=user_id,
-                    room_id=room_id,
-                    artifact_type=artifact_type,
-                    title=title,
-                    keywords=keywords,
-                    summary=summary,
+                    session_id=None,
+                    concept_title=title,
+                    concept_summary=summary,
+                    concept_type=artifact_type_str,
+                    concept_keywords=keywords,
+                    concept_confidence=1.0,
                     full_content=full_content,
                 )
-                # Push palace_update so the artifact appears immediately in the 3D scene
+                artifact = result.artifact
+                room = result.room
+
+                rooms_added: list[dict] = []
+                lobby_doors_added: list[dict] = []
+                if result.action == "suggested_new":
+                    rooms_added = [{
+                        "id": room.id,
+                        "name": room.name,
+                        "position": {"x": room.position.x, "y": room.position.y, "z": room.position.z},
+                        "style": room.style,
+                    }]
+                    lobby_doors_added = [await add_lobby_door(user_id, room.id)]
+
                 await ws_manager.send(user_id, {
                     "type": "palace_update",
                     "changes": {
-                        "roomsAdded": [],
+                        "roomsAdded": rooms_added,
                         "artifactsAdded": [{
                             "id": artifact.id,
                             "roomId": artifact.roomId,
@@ -507,14 +512,21 @@ class RecallAgent:
                             "summary": artifact.summary,
                         }],
                         "connectionsAdded": [],
+                        "lobbyDoorsAdded": lobby_doors_added,
                     },
                 })
-                # Refresh Gemini's context so it knows about the new artifact
-                await self.update_context(user_id, room_id)
-                logger.info("[RecallAgent] Artifact saved: userId=%s artifactId=%s roomId=%s", user_id, artifact.id, room_id)
-                return f"Artifact saved: id={artifact.id} summary={summary[:60]}"
+                # Track the resolved room and refresh Gemini's context
+                live = self._sessions.get(user_id)
+                if live:
+                    live.current_room_id = room.id
+                await self.update_context(user_id, room.id)
+                logger.info(
+                    "[RecallAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
+                    user_id, artifact.id, room.id, result.action,
+                )
+                return f"Artifact saved in room '{room.name}' (action={result.action}): id={artifact.id}"
             except Exception:
-                logger.exception("save_artifact failed for userId=%s", user_id)
+                logger.exception("create_artifact failed for userId=%s", user_id)
                 return "Failed to save artifact"
 
         elif fn_name == "edit_artifact":
@@ -583,45 +595,79 @@ class RecallAgent:
                 logger.exception("delete_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
                 return "Failed to delete artifact."
 
+        elif fn_name == "delete_room":
+            live = self._sessions.get(user_id)
+            room_id = live.current_room_id if live else None
+            if not room_id:
+                return "Cannot delete: no room selected. Ask the user to navigate to a room first."
+            try:
+                from app.services.room_service import get_room, delete_room as svc_delete_room
+                from app.websocket.manager import manager as ws_manager
+                room = await get_room(user_id, room_id)
+                room_name = room.name if room else room_id
+                await notify({"label": f"Deleting \"{room_name}\"…"})
+                await svc_delete_room(user_id, room_id)
+                if live:
+                    live.current_room_id = None
+                await ws_manager.send(user_id, {
+                    "type": "palace_update",
+                    "changes": {
+                        "roomsRemoved": [room_id],
+                        "roomsAdded": [],
+                        "artifactsAdded": [],
+                        "connectionsAdded": [],
+                    },
+                })
+                await self.update_context(user_id, None)
+                logger.info("[RecallAgent] Room deleted: userId=%s roomId=%s", user_id, room_id)
+                return f"Room \"{room_name}\" deleted successfully."
+            except Exception:
+                logger.exception("delete_room failed for userId=%s roomId=%s", user_id, room_id)
+                return "Failed to delete the room."
+
         elif fn_name == "synthesize_room":
             live = self._sessions.get(user_id)
             room_id = live.current_room_id if live else None
             if not room_id:
                 return "Cannot synthesize: no room selected. Ask the user to navigate to a room first."
             await notify({"label": "Generating mind map synthesis…"})
-            try:
-                from app.services.synthesis_service import synthesize_room as svc_synthesize
-                from app.websocket.manager import manager as ws_manager
-                artifact = await svc_synthesize(user_id=user_id, room_id=room_id)
-                await ws_manager.send(user_id, {
-                    "type": "palace_update",
-                    "changes": {
-                        "roomsAdded": [],
-                        "artifactsAdded": [{
-                            "id": artifact.id,
-                            "roomId": artifact.roomId,
-                            "type": artifact.type.value,
-                            "position": {
-                                "x": artifact.position.x,
-                                "y": artifact.position.y,
-                                "z": artifact.position.z,
-                            },
-                            "visual": artifact.visual.value,
-                            "summary": artifact.summary,
-                            "sourceMediaUrl": artifact.sourceMediaUrl,
-                            "color": artifact.color,
-                            "wall": artifact.wall,
-                        }],
-                        "connectionsAdded": [],
-                    },
-                })
-                logger.info("[RecallAgent] Room synthesized: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact.id)
-                return f"Mind map generated and added to the room. Artifact id={artifact.id}"
-            except ValueError as e:
-                return str(e)
-            except Exception:
-                logger.exception("synthesize_room failed for userId=%s roomId=%s", user_id, room_id)
-                return "Failed to generate mind map synthesis."
+
+            # Run synthesis in the background so the conversation is not blocked.
+            async def _run_synthesis(uid: str, rid: str) -> None:
+                try:
+                    from app.services.synthesis_service import synthesize_room as svc_synthesize
+                    from app.websocket.manager import manager as ws_manager
+                    artifact = await svc_synthesize(user_id=uid, room_id=rid)
+                    await ws_manager.send(uid, {
+                        "type": "palace_update",
+                        "changes": {
+                            "roomsAdded": [],
+                            "artifactsAdded": [{
+                                "id": artifact.id,
+                                "roomId": artifact.roomId,
+                                "type": artifact.type.value,
+                                "position": {
+                                    "x": artifact.position.x,
+                                    "y": artifact.position.y,
+                                    "z": artifact.position.z,
+                                },
+                                "visual": artifact.visual.value,
+                                "summary": artifact.summary,
+                                "sourceMediaUrl": artifact.sourceMediaUrl,
+                                "color": artifact.color,
+                                "wall": artifact.wall,
+                            }],
+                            "connectionsAdded": [],
+                        },
+                    })
+                    logger.info("[RecallAgent] Room synthesized: userId=%s roomId=%s artifactId=%s", uid, rid, artifact.id)
+                except ValueError as e:
+                    logger.warning("[RecallAgent] synthesize_room skipped for userId=%s: %s", uid, e)
+                except Exception:
+                    logger.exception("synthesize_room failed for userId=%s roomId=%s", uid, rid)
+
+            asyncio.create_task(_run_synthesis(user_id, room_id))
+            return "Mind map generation started in the background — it will appear on the wall when ready. Feel free to keep chatting!"
 
         elif fn_name == "web_search":
             query = fn_args.get("query", "")
@@ -709,13 +755,9 @@ class RecallAgent:
                                 dict(fn_call.args),
                                 on_tool_activity,
                             )
-                            response: dict = {"result": result}
-                            scheduling = RECALL_SCHEDULING.get(fn_call.name)
-                            if scheduling:
-                                response["scheduling"] = scheduling
                             function_responses.append({
                                 "name": fn_call.name,
-                                "response": response,
+                                "response": {"result": result},
                                 "id": fn_call.id,
                             })
                         await session.send_tool_response(function_responses=function_responses)

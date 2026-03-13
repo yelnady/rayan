@@ -1,6 +1,6 @@
 import { useRef, useState, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useTexture, Text, Billboard } from '@react-three/drei';
+import { useTexture, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Group } from 'three';
 import type { WallSide } from '../../types/three';
@@ -14,11 +14,12 @@ interface DoorProps {
   position: [number, number, number];
   targetRoomName?: string;
   onEnter?: () => void;
+  onContextMenu?: (screenX: number, screenY: number) => void;
   initialOpen?: boolean;
   highlighted?: boolean;
 }
 
-export function Door({ wall, position, targetRoomName, onEnter, initialOpen = false, highlighted = false }: DoorProps) {
+export function Door({ wall, position, targetRoomName, onEnter, onContextMenu, initialOpen = false, highlighted = false }: DoorProps) {
   const groupRef = useRef<Group>(null);
   const glowLightRef = useRef<THREE.PointLight>(null);
   const [isOpen, setIsOpen] = useState(initialOpen);
@@ -63,7 +64,7 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
 
     if (highlighted && glowLightRef.current) {
       const t = clock.getElapsedTime();
-      glowLightRef.current.intensity = 5 + Math.sin(t * 3.5) * 2.5;
+      glowLightRef.current.intensity = 1.2 + Math.sin(t * 3.5) * 0.6;
     }
   });
 
@@ -97,7 +98,13 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
       <group position={[-DOOR_WIDTH / 2, 0, 0]}>
         {/* Door panel — pivot at left edge */}
         <group ref={groupRef}>
-          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]} onClick={handleClick} onPointerOver={handlePointerOver} onPointerOut={handlePointerOut}>
+          <group
+            position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0]}
+            onClick={handleClick}
+            onContextMenu={(e) => { e.stopPropagation(); onContextMenu?.(e.nativeEvent.clientX, e.nativeEvent.clientY); }}
+            onPointerOver={handlePointerOver}
+            onPointerOut={handlePointerOut}
+          >
             <mesh castShadow>
               <boxGeometry args={[DOOR_WIDTH, DOOR_HEIGHT, 0.08]} />
               <primitive object={doorMaterial} attach="material" />
@@ -118,22 +125,52 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
         </mesh>
 
 
-        {/* Room label above door — Billboard ensures it always faces the camera */}
+        {/* Nameplate above door */}
         {targetRoomName && (
-          <Billboard position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.45, 0]} follow={true}>
+          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.44, 0]}>
+            {/* Thin border frame */}
+            <mesh position={[0, 0, 0.008]}>
+              <boxGeometry args={[DOOR_WIDTH + 0.28, 0.50, 0.018]} />
+              <meshStandardMaterial
+                color={hovered ? '#C8A020' : '#A07820'}
+                metalness={0.7}
+                roughness={0.3}
+                emissive={hovered ? '#6B4A00' : '#1A0E00'}
+                emissiveIntensity={hovered ? 0.8 : 0.2}
+              />
+            </mesh>
+            {/* Panel background */}
+            <mesh position={[0, 0, 0.022]}>
+              <boxGeometry args={[DOOR_WIDTH + 0.18, 0.40, 0.016]} />
+              <meshStandardMaterial
+                color="#0E1018"
+                metalness={0.1}
+                roughness={0.9}
+              />
+            </mesh>
+            {/* Room name text */}
             <Text
-              fontSize={0.2}
-              color={hovered ? '#D4AF37' : '#C1AA9A'}
+              position={[0, 0, 0.034]}
+              fontSize={0.13}
+              font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-700-normal.woff"
+              letterSpacing={0.08}
+              color={hovered ? '#FFFFFF' : '#E8D9B0'}
               anchorX="center"
               anchorY="middle"
-              outlineColor="#1a0a00"
-              outlineWidth={0.025}
-              maxWidth={3}
+              maxWidth={DOOR_WIDTH + 0.1}
               textAlign="center"
+              overflowWrap="break-word"
             >
-              {targetRoomName}
+              {targetRoomName.toUpperCase()}
             </Text>
-          </Billboard>
+            {/* Subtle glow */}
+            <pointLight
+              color="#B8943A"
+              intensity={hovered ? 0.4 : 0.05}
+              distance={2.0}
+              decay={2}
+            />
+          </group>
         )}
 
         {/* Highlight glow: golden pulsing light + emissive overlay around the frame */}
@@ -143,14 +180,14 @@ export function Door({ wall, position, targetRoomName, onEnter, initialOpen = fa
               ref={glowLightRef}
               position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0.6]}
               color="#D4AF37"
-              intensity={5}
-              distance={7}
+              intensity={1.2}
+              distance={5}
               decay={2}
             />
             {/* Golden shimmer overlay on the frame */}
             <mesh position={[DOOR_WIDTH / 2, DOOR_HEIGHT / 2, 0.06]}>
               <boxGeometry args={[DOOR_WIDTH + 0.3, DOOR_HEIGHT + 0.3, 0.02]} />
-              <meshBasicMaterial color="#D4AF37" transparent opacity={0.2} depthWrite={false} />
+              <meshBasicMaterial color="#D4AF37" transparent opacity={0.10} depthWrite={false} />
             </mesh>
           </>
         )}

@@ -111,7 +111,7 @@ async def narrate_artifact(
     ) or "(none)"
 
     prompt = _NARRATION_SYSTEM_PROMPT.format(
-        name=display_name or "there",
+        name=display_name.split()[0] if display_name else "there",
         artifact_text=artifact_text,
         related_text=related_text,
     )
