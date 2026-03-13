@@ -79,6 +79,18 @@ function wireListeners(ws: RayanWebSocket): void {
         }
       });
 
+      msg.changes.roomsRemoved?.forEach((id: string) => {
+        const wasCurrentRoom = palaceStore.currentRoomId === id;
+        palaceStore.removeRoom(id);
+        if (wasCurrentRoom) {
+          useTransitionStore.getState().startTransition('exit', () => {
+            usePalaceStore.getState().setCurrentRoomId(null);
+            useCameraStore.getState().exitOverview();
+            useCameraStore.getState().teleport({ x: 6, y: 1.7, z: 6 });
+            useCameraStore.getState().lookAt({ x: 6, y: 1.7, z: 0 });
+          });
+        }
+      });
       msg.changes.artifactsRemoved?.forEach((id: string) =>
         palaceStore.removeArtifact(id)
       );
@@ -106,9 +118,14 @@ function wireListeners(ws: RayanWebSocket): void {
         palaceStore.updateArtifact(patch.id, patch as never)
       );
 
-      // If new rooms were added and we're in the lobby, fly the camera to face the
-      // last new room's lobby door so the user sees it appear.
-      if (newRooms.length > 0 && palaceStore.currentRoomId === null) {
+      // Collect non-synthesis artifacts that we should navigate to
+      const navigableArtifacts = (msg.changes.artifactsAdded ?? []).filter(
+        (a) => a.type !== 'synthesis'
+      );
+
+      // If new rooms were added and we're in the lobby (and no artifact to jump to directly),
+      // fly the camera to face the last new room's lobby door so the user sees it appear.
+      if (newRooms.length > 0 && palaceStore.currentRoomId === null && navigableArtifacts.length === 0) {
         const target = newRooms[newRooms.length - 1];
         const allRooms = [...palaceStore.rooms, { id: target.id, position: target.position }];
         const roomIndex = Math.max(allRooms.findIndex(r => r.id === target.id), 0);
@@ -142,6 +159,45 @@ function wireListeners(ws: RayanWebSocket): void {
         // Briefly highlight the door so it's obvious which one is new
         palaceStore.setHighlightedLobbyDoorRoomId(target.id);
         setTimeout(() => usePalaceStore.getState().setHighlightedLobbyDoorRoomId(null), 3000);
+      }
+
+      // Navigate into the room and fly to the newly created artifact
+      if (navigableArtifacts.length > 0) {
+        const a = navigableArtifacts[navigableArtifacts.length - 1];
+        const currentState = usePalaceStore.getState();
+        const room = currentState.rooms.find((r) => r.id === a.roomId);
+        if (room) {
+          const worldX = room.position.x + a.position.x;
+          const worldZ = room.position.z + a.position.z;
+          const STAND_DIST = 2.0;
+          let standX = worldX;
+          let standZ = worldZ;
+          if (a.wall === 'north' || a.position.z < 0.6) standZ = worldZ + STAND_DIST;
+          else if (a.wall === 'south' || a.position.z > room.dimensions.d - 0.6) standZ = worldZ - STAND_DIST;
+          else if (a.wall === 'west' || a.position.x < 0.2) standX = worldX + STAND_DIST;
+          else if (a.wall === 'east' || a.position.x > room.dimensions.w - 0.2) standX = worldX - STAND_DIST;
+          else standZ = worldZ + STAND_DIST;
+
+          const flyToArtifact = () => {
+            useCameraStore.getState().flyTo(
+              { x: standX, y: 1.7, z: standZ },
+              { x: worldX, y: a.position.y, z: worldZ },
+            );
+          };
+
+          if (currentState.currentRoomId !== a.roomId) {
+            useTransitionStore.getState().startTransition('enter', () => {
+              usePalaceStore.getState().setCurrentRoomId(a.roomId);
+              useCameraStore.getState().exitOverview();
+              const entryX = room.position.x + room.dimensions.w / 2;
+              const entryZ = room.position.z + room.dimensions.d - 0.5;
+              useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
+              flyToArtifact();
+            });
+          } else {
+            flyToArtifact();
+          }
+        }
       }
     }),
     ws.on('seeding_started' as any, () => {

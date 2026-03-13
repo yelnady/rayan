@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePalaceStore } from '../../stores/palaceStore';
+import { palaceApi } from '../../services/palaceApi';
 
 // Accent color per room style — matches STYLE_THEMES in Room.tsx
 const STYLE_DOT: Record<string, string> = {
@@ -31,10 +32,51 @@ interface PalaceMinimapProps {
   onEnterLobby: () => void;
 }
 
+interface ContextMenu {
+  roomId: string;
+  x: number;
+  y: number;
+  confirmDelete: boolean;
+}
+
 export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps) {
   const { rooms, currentRoomId } = usePalaceStore();
   const [collapsed, setCollapsed] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [contextMenu]);
+
+  const openMenu = useCallback((roomId: string, clientX: number, clientY: number) => {
+    setContextMenu({ roomId, x: clientX, y: clientY, confirmDelete: false });
+  }, []);
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!contextMenu) return;
+    setDeleting(true);
+    try {
+      await palaceApi.deleteRoom(contextMenu.roomId);
+      usePalaceStore.getState().removeRoom(contextMenu.roomId);
+    } catch (err) {
+      console.error('[PalaceMinimap] delete room failed:', err);
+    } finally {
+      setDeleting(false);
+      setContextMenu(null);
+    }
+  }, [contextMenu]);
 
   const currentRoom = rooms.find(r => r.id === currentRoomId) ?? null;
   const label = currentRoomId === null ? 'Lobby' : (currentRoom?.name ?? '…');
@@ -58,6 +100,7 @@ export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps)
   const lobbyHovered = hoveredId === '__lobby__';
 
   return (
+    <>
     <div style={{
       position: 'fixed',
       bottom: 20,
@@ -157,8 +200,21 @@ export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps)
                 key={room.id}
                 style={{ cursor: active ? 'default' : 'pointer' }}
                 onClick={() => { if (!active) onEnterRoom(room.id); }}
+                onContextMenu={(e) => { e.preventDefault(); openMenu(room.id, e.clientX, e.clientY); }}
                 onMouseEnter={() => setHoveredId(room.id)}
                 onMouseLeave={() => setHoveredId(null)}
+                onTouchStart={(e) => {
+                  const touch = e.touches[0];
+                  longPressRef.current = setTimeout(() => {
+                    openMenu(room.id, touch.clientX, touch.clientY);
+                  }, 500);
+                }}
+                onTouchEnd={() => {
+                  if (longPressRef.current) clearTimeout(longPressRef.current);
+                }}
+                onTouchMove={() => {
+                  if (longPressRef.current) clearTimeout(longPressRef.current);
+                }}
               >
                 {/* Hit-area slightly larger than the visual rect */}
                 <rect x={rx - 2} y={rz - 2} width={rw + 4} height={rh + 4} fill="transparent" />
@@ -213,6 +269,132 @@ export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps)
           })}
         </svg>
       )}
+
     </div>
+
+    {/* Right-click / long-press context menu — rendered outside overflow:hidden so it isn't clipped */}
+    {contextMenu && (() => {
+        const menuRoom = rooms.find(r => r.id === contextMenu.roomId);
+        return (
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              top: contextMenu.y,
+              left: contextMenu.x,
+              zIndex: 200,
+              background: 'rgba(10, 10, 28, 0.96)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 8,
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+              minWidth: 160,
+              overflow: 'hidden',
+              fontFamily: 'system-ui, sans-serif',
+            }}
+          >
+            {/* Room name header */}
+            <div style={{
+              padding: '7px 12px 5px',
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.45)',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {menuRoom?.name ?? 'Room'}
+            </div>
+
+            {/* Enter Room */}
+            <button
+              onClick={() => { setContextMenu(null); onEnterRoom(contextMenu.roomId); }}
+              style={{
+                display: 'block',
+                width: '100%',
+                padding: '8px 12px',
+                background: 'none',
+                border: 'none',
+                textAlign: 'left',
+                fontSize: 12,
+                color: '#fff',
+                cursor: 'pointer',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              Enter Room
+            </button>
+
+            {/* Delete Room — two-step confirm */}
+            {!contextMenu.confirmDelete ? (
+              <button
+                onClick={() => setContextMenu(m => m ? { ...m, confirmDelete: true } : null)}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'none',
+                  border: 'none',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  textAlign: 'left',
+                  fontSize: 12,
+                  color: '#f87171',
+                  cursor: 'pointer',
+                  transition: 'background 0.1s',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Delete Room…
+              </button>
+            ) : (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '8px 12px' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 7, lineHeight: 1.4 }}>
+                  Delete this room and all its memories?
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={handleDeleteConfirm}
+                    disabled={deleting}
+                    style={{
+                      flex: 1,
+                      padding: '5px 0',
+                      background: deleting ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.75)',
+                      border: '1px solid rgba(239,68,68,0.5)',
+                      borderRadius: 5,
+                      color: '#fff',
+                      fontSize: 11,
+                      fontWeight: 600,
+                      cursor: deleting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {deleting ? '…' : 'Delete'}
+                  </button>
+                  <button
+                    onClick={() => setContextMenu(null)}
+                    style={{
+                      flex: 1,
+                      padding: '5px 0',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 5,
+                      color: 'rgba(255,255,255,0.7)',
+                      fontSize: 11,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </>
   );
 }

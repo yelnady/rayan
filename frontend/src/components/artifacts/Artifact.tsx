@@ -1,7 +1,10 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useMemo, useState, useRef, useEffect } from 'react';
+import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
+import type { Group } from 'three';
 import type { Artifact as ArtifactData, ArtifactVisual } from '../../types/palace';
 import { usePalaceStore } from '../../stores/palaceStore';
+import { registerArtifactCenter, artifactCenters } from '../palace/artifactCenters';
 import { FloatingBook } from './FloatingBook';
 import { SpeechBubble } from './SpeechBubble';
 import { CrystalOrb } from './CrystalOrb';
@@ -25,6 +28,7 @@ const TYPE_LABELS: Record<string, string> = {
   opinion: 'Opinion',
   headphones: 'Media',
   cash_stack: 'Goal',
+  exam: 'Exam',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -45,6 +49,7 @@ const TYPE_COLORS: Record<string, string> = {
   opinion: '#FB923C',
   headphones: '#38BDF8',
   cash_stack: '#FBBF24',
+  exam: '#F43F5E',
 };
 
 /** GLB file path for each model-based visual. */
@@ -62,6 +67,7 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
   opinion: '/models/Opinion.glb',
   headphones: '/models/Headphones.glb',
   cash_stack: '/models/Cash Stack.glb',
+  exam: '/models/Exams.glb',
 };
 
 /**
@@ -82,6 +88,7 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   opinion: 0.003,
   headphones: 0.050,
   cash_stack: 12.5,
+  exam: 0.3,
 };
 
 /** Y offset (local space) from artifact origin to the date plaque. Override per visual as needed. */
@@ -151,9 +158,27 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
   return [0, 0, 0];
 }
 
-export const Artifact = memo(function Artifact({ artifact, onClick, onHover, highlighted }: ArtifactProps) {
+export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
   const [hovered, setHovered] = useState(false);
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
+
+  // Register the world-space bounding-box center so ArtifactConnectionLines
+  // can anchor dots at the true visual center of each model.
+  const groupRef = useRef<Group>(null);
+  const centerComputedRef = useRef(false);
+  const centerFrameRef = useRef(0);
+  useEffect(() => {
+    centerComputedRef.current = false;
+    centerFrameRef.current = 0;
+    return () => { artifactCenters.delete(artifact.id); };
+  }, [artifact.id]);
+  useFrame(() => {
+    if (centerComputedRef.current || !groupRef.current) return;
+    if (++centerFrameRef.current >= 2) {
+      registerArtifactCenter(artifact.id, groupRef.current);
+      centerComputedRef.current = true;
+    }
+  });
 
   const pos = useMemo<[number, number, number]>(
     () => [artifact.position.x, artifact.position.y, artifact.position.z],
@@ -177,7 +202,6 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
 
   const handleHover = (h: boolean) => {
     setHovered(h);
-    usePalaceStore.getState().setHoveredArtifactId(h ? artifact.id : null);
     onHover?.(h ? artifact : null);
   };
 
@@ -197,7 +221,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
       case 'crystal_orb':
         return <CrystalOrb position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       case 'synthesis_map':
-        return <SynthesisMap position={O} onClick={handleClick} onHover={handleHover} />;
+        return <SynthesisMap position={O} imageUrl={artifact.sourceMediaUrl} onClick={handleClick} onHover={handleHover} />;
       default: {
         const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
         const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
@@ -211,7 +235,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover, hig
 
   return (
     <>
-      <group position={pos} rotation={rot}>
+      <group ref={groupRef} position={pos} rotation={rot}>
         {/* T159: Small local shift to ensure mesh isn't submerged in wall 
             Local +Z faces INTO the room. */}
         <group position={[0, 0, 0.08]}>

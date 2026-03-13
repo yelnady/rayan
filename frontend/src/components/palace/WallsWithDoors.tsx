@@ -19,9 +19,10 @@ interface WallsWithDoorsProps {
   depth: number;
   height: number;
   doors: DoorSpec[];
-  wallColor?: string;
-  /** Accent color applied to the north (back/facing) wall only */
-  accentWallColor?: string;
+  northColor: string;
+  southColor: string;
+  eastColor: string;
+  westColor: string;
 }
 
 interface WallSegment {
@@ -110,10 +111,11 @@ export function WallsWithDoors({
   depth,
   height,
   doors,
-  wallColor = '#C4B5FD',
-  accentWallColor,
+  northColor,
+  southColor,
+  eastColor,
+  westColor,
 }: WallsWithDoorsProps) {
-  const accent = accentWallColor ?? wallColor;
   const doorsPerWall = useMemo(() => {
     const map: Record<WallSide, DoorSpec[]> = { north: [], east: [], south: [], west: [] };
     doors.forEach((d) => map[d.wall].push(d));
@@ -124,39 +126,39 @@ export function WallsWithDoors({
     () => [
       {
         side: 'north' as WallSide,
-        color: accent,
+        color: northColor,
         segments: buildWallSegments(width, height, doorsPerWall.north),
         position: [0, 0, 0] as [number, number, number],
         rotation: [0, 0, 0] as [number, number, number],
       },
       {
         side: 'south' as WallSide,
-        color: wallColor,
+        color: southColor,
         segments: buildWallSegments(width, height, doorsPerWall.south),
         position: [width, 0, depth] as [number, number, number],
         rotation: [0, Math.PI, 0] as [number, number, number],
       },
       {
         side: 'east' as WallSide,
-        color: wallColor,
+        color: eastColor,
         segments: buildWallSegments(depth, height, doorsPerWall.east),
         position: [width, 0, 0] as [number, number, number],
         rotation: [0, -Math.PI / 2, 0] as [number, number, number],
       },
       {
         side: 'west' as WallSide,
-        color: wallColor,
+        color: westColor,
         segments: buildWallSegments(depth, height, doorsPerWall.west),
         position: [0, 0, depth] as [number, number, number],
         rotation: [0, Math.PI / 2, 0] as [number, number, number],
       },
     ],
-    [width, depth, height, doorsPerWall, wallColor, accent],
+    [width, depth, height, doorsPerWall, northColor, southColor, eastColor, westColor],
   );
 
   const ceilingMaterial = useMemo(
-    () => new THREE.MeshToonMaterial({ color: wallColor, gradientMap: TOON_GRADIENT }),
-    [wallColor],
+    () => new THREE.MeshToonMaterial({ color: northColor, gradientMap: TOON_GRADIENT }),
+    [northColor],
   );
 
   return (

@@ -1,4 +1,24 @@
 import { useCaptureStore } from '../../stores/captureStore';
+import type { CaptureCompleteArtifact, CaptureCompleteRoom } from '../../services/websocket';
+
+const ARTIFACT_TYPE_ICON: Record<string, string> = {
+  lecture: '🎓', document: '📄', lesson: '📚', insight: '💡', question: '❓',
+  moment: '☕', milestone: '🏆', emotion: '❤️', dream: '✨', habit: '🌳',
+  conversation: '💬', opinion: '💭', visual: '🖼️', media: '🎧',
+  goal: '🎯', enrichment: '🔮',
+};
+
+const SOURCE_TYPE_LABEL: Record<string, string> = {
+  webcam: 'Webcam', screen_share: 'Screen share', upload: 'File upload',
+  text_input: 'Text input', voice: 'Voice',
+};
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return s > 0 ? `${m}m ${s}s` : `${m}m`;
+}
 
 interface CaptureCompleteProps {
   onClose: () => void;
@@ -10,22 +30,47 @@ export function CaptureComplete({ onClose }: CaptureCompleteProps) {
 
   if (status !== 'complete' || !summary) return null;
 
+  const visualCount = summary.artifacts.filter((a) => a.type === 'visual').length;
+  const newRoomCount = summary.rooms.filter((r) => r.isNew).length;
+
   return (
     <div
       className="fixed inset-0 bg-overlay-light flex items-center justify-center z-modal backdrop-blur-sm animate-[fadeIn_0.2s_ease]"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-surface-alt rounded-2xl py-8 px-10 text-text-primary min-w-[360px] max-w-[480px] border border-border shadow-lg animate-[scaleIn_0.25s_ease]">
-        <h2 className="m-0 mb-5 text-[22px] font-heading">Capture Complete ✓</h2>
+      <div className="bg-surface-alt rounded-2xl py-7 px-9 text-text-primary min-w-[400px] max-w-[540px] w-full border border-border shadow-lg animate-[scaleIn_0.25s_ease]">
 
-        <div className="flex flex-col gap-3 mb-6">
-          <Stat label="Concepts captured" value={summary.conceptCount} />
-          <Stat label="Artifacts created" value={summary.artifactsCreated.length} />
-          <Stat label="Rooms affected" value={summary.roomsAffected.length} />
-          {summary.newRoomsCreated.length > 0 && (
-            <Stat label="New rooms created" value={summary.newRoomsCreated.length} />
+        {/* Header */}
+        <h2 className="m-0 mb-4 text-[22px] font-heading">Session Complete</h2>
+
+        {/* Session meta row */}
+        <div className="flex flex-wrap gap-3 mb-5">
+          <MetaBadge label={`${summary.conceptCount} concept${summary.conceptCount !== 1 ? 's' : ''}`} />
+          <MetaBadge label={`${summary.rooms.length} room${summary.rooms.length !== 1 ? 's' : ''}`} />
+          {newRoomCount > 0 && <MetaBadge label={`${newRoomCount} new room${newRoomCount !== 1 ? 's' : ''}`} highlight />}
+          {visualCount > 0 && <MetaBadge label={`${visualCount} image${visualCount !== 1 ? 's' : ''}`} />}
+          {summary.durationSeconds != null && (
+            <MetaBadge label={formatDuration(summary.durationSeconds)} />
+          )}
+          {summary.sourceType && (
+            <MetaBadge label={SOURCE_TYPE_LABEL[summary.sourceType] ?? summary.sourceType} />
           )}
         </div>
+
+        {/* Per-room artifact list */}
+        {summary.rooms.length > 0 ? (
+          <div className="flex flex-col gap-3 mb-6 max-h-[360px] overflow-y-auto pr-1">
+            {summary.rooms.map((room) => (
+              <RoomGroup
+                key={room.id}
+                room={room}
+                artifacts={summary.artifacts.filter((a) => a.roomId === room.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-text-secondary font-body text-sm mb-6">No artifacts were extracted this session.</p>
+        )}
 
         <button
           onClick={onClose}
@@ -38,11 +83,51 @@ export function CaptureComplete({ onClose }: CaptureCompleteProps) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function MetaBadge({ label, highlight = false }: { label: string; highlight?: boolean }) {
   return (
-    <div className="flex justify-between font-body">
-      <span className="text-text-secondary">{label}</span>
-      <span className="font-bold text-text-primary">{value}</span>
+    <span
+      className={`text-xs font-body font-medium px-3 py-1 rounded-full border ${
+        highlight
+          ? 'bg-primary/15 border-primary/40 text-primary'
+          : 'bg-surface border-border text-text-secondary'
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+function RoomGroup({
+  room,
+  artifacts,
+}: {
+  room: CaptureCompleteRoom;
+  artifacts: CaptureCompleteArtifact[];
+}) {
+  return (
+    <div className="border border-border rounded-xl overflow-hidden">
+      {/* Room header */}
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-surface border-b border-border">
+        <span className="text-sm font-heading text-text-primary">{room.name}</span>
+        {room.isNew && (
+          <span className="text-[10px] font-body font-semibold px-2 py-0.5 rounded-full bg-primary/20 text-primary uppercase tracking-wide">
+            New
+          </span>
+        )}
+        <span className="ml-auto text-xs text-text-secondary font-body">
+          {room.artifactCount} artifact{room.artifactCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {/* Artifact rows */}
+      <div className="flex flex-col divide-y divide-border">
+        {artifacts.map((a) => (
+          <div key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+            <span className="text-base leading-none shrink-0">{ARTIFACT_TYPE_ICON[a.type] ?? '📌'}</span>
+            <span className="text-sm font-body text-text-primary flex-1 min-w-0 truncate">{a.title}</span>
+            <span className="text-[11px] text-text-secondary font-body shrink-0 capitalize">{a.type}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

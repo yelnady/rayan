@@ -6,12 +6,13 @@
  * materials are preserved.
  */
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo, useState, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import { usePalaceStore } from '../../stores/palaceStore';
+import { registerArtifactCenter, artifactCenters } from '../palace/artifactCenters';
 
 interface BookInstancedRendererProps {
     artifacts: ArtifactData[];
@@ -46,7 +47,7 @@ function formatDate(iso?: string): { datePart: string; timePart: string } {
     };
 }
 
-function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
+function DocumentItem({ artifact, onClick }: DocumentItemProps) {
     const { scene } = useGLTF('/models/document.glb');
     const groupRef = useRef<THREE.Group>(null);
     const [hovered, setHovered] = useState(false);
@@ -83,11 +84,29 @@ function DocumentItem({ artifact, onClick, highlighted }: DocumentItemProps) {
         return clone;
     }, [scene]);
 
+    // Track bounding-box center so ArtifactConnectionLines can anchor at the true model center.
+    const centerComputedRef = useRef(false);
+    const centerFrameRef = useRef(0);
+    useEffect(() => {
+        centerComputedRef.current = false;
+        centerFrameRef.current = 0;
+        return () => { artifactCenters.delete(artifact.id); };
+    }, [artifact.id]);
+
     useFrame((_, delta) => {
         if (!groupRef.current) return;
         const targetScale = hovered ? 2.6 : 2.4;
         const s = groupRef.current.scale.x;
         groupRef.current.scale.setScalar(s + (targetScale - s) * Math.min(delta * 10, 1));
+
+        // Compute world-space bounding box center once after the first render
+        // (skip frame 0: world matrices are updated by renderer.render(), which runs after useFrame)
+        if (!centerComputedRef.current) {
+            if (++centerFrameRef.current >= 2) {
+                registerArtifactCenter(artifact.id, groupRef.current);
+                centerComputedRef.current = true;
+            }
+        }
     });
 
     return (

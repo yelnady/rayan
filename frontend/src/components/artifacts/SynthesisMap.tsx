@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { Mesh, Group } from 'three';
 
 interface SynthesisMapProps {
   position?: [number, number, number];
+  imageUrl?: string;
   onClick?: () => void;
   onHover?: (hovered: boolean) => void;
 }
@@ -15,17 +16,54 @@ const RING_COLOR = new THREE.Color('#c084fc');
 const INNER_COLOR = new THREE.Color('#0a0a2e');
 
 /**
- * SynthesisMap — a large floating mind map portal.
+ * SynthesisMap — a large mind map canvas mounted on the wall.
  *
- * Renders a glowing golden canvas (1.6 × 1.2 units) with:
+ * Renders a glowing golden frame (1.6 × 1.2 units) with:
+ *   - The actual GCS mind-map image when available
  *   - Animated prismatic frame rings
- *   - Pulsing inner surface with shifting emissive glow
+ *   - Pulsing inner surface (fallback while image loads or on error)
  *   - Orbiting luminous particles
  *   - Slow hover scale on interact
  */
-export function SynthesisMap({ position = [0, 0, 0], onClick, onHover }: SynthesisMapProps) {
+export function SynthesisMap({ position = [0, 0, 0], imageUrl, onClick, onHover }: SynthesisMapProps) {
   const groupRef = useRef<Group>(null);
   const innerRef = useRef<Mesh>(null);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const [planeSize, setPlaneSize] = useState<[number, number]>([1.52, 1.10]);
+
+  // Load the GCS image without throwing — errors are swallowed, fallback canvas shows instead.
+  useEffect(() => {
+    if (!imageUrl) return;
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+    loader.load(
+      imageUrl,
+      (tex) => {
+        if (cancelled) return;
+        // Fit the image inside the max inner bounds (1.52 × 1.10) preserving aspect ratio.
+        const imgW = tex.image.width as number;
+        const imgH = tex.image.height as number;
+        if (imgW && imgH) {
+          const maxW = 1.52, maxH = 1.10;
+          const imageAspect = imgW / imgH;
+          const frameAspect = maxW / maxH;
+          let w = maxW, h = maxH;
+          if (imageAspect > frameAspect) {
+            h = maxW / imageAspect; // wider than frame → constrain by width
+          } else {
+            w = maxH * imageAspect; // taller than frame → constrain by height
+          }
+          setPlaneSize([w, h]);
+        }
+        setTexture(tex);
+      },
+      undefined,
+      (err) => { console.warn('SynthesisMap: texture load failed', err); },
+    );
+    return () => { cancelled = true; };
+  }, [imageUrl]);
+
   const ring1Ref = useRef<Mesh>(null);
   const ring2Ref = useRef<Mesh>(null);
   const particlesRef = useRef<THREE.Points>(null);
@@ -43,8 +81,8 @@ export function SynthesisMap({ position = [0, 0, 0], onClick, onHover }: Synthes
       groupRef.current.scale.setScalar(s);
     }
 
-    // Inner surface: shift hue between gold → purple → teal
-    if (innerRef.current) {
+    // Inner surface animation — only active when no texture is loaded
+    if (!texture && innerRef.current) {
       const mat = innerRef.current.material as THREE.MeshPhysicalMaterial;
       const hue = (t * 0.04) % 1;
       mat.emissive.setHSL(hue, 0.8, 0.25 + Math.sin(t * 1.2) * 0.08);
@@ -111,18 +149,22 @@ export function SynthesisMap({ position = [0, 0, 0], onClick, onHover }: Synthes
         />
       </mesh>
 
-      {/* Inner canvas surface */}
-      <mesh position={[0, 0, 0.012]} ref={innerRef}>
-        <planeGeometry args={[1.52, 1.10]} />
-        <meshPhysicalMaterial
-          color={INNER_COLOR}
-          emissive={RING_COLOR}
-          emissiveIntensity={0.6}
-          roughness={0.7}
-          metalness={0.1}
-          transparent
-          opacity={0.95}
-        />
+      {/* Inner canvas surface — shows the real image once loaded, animated glow otherwise */}
+      <mesh position={[0, 0, 0.012]} ref={texture ? null : innerRef}>
+        <planeGeometry args={planeSize} />
+        {texture ? (
+          <meshBasicMaterial map={texture} toneMapped={false} />
+        ) : (
+          <meshPhysicalMaterial
+            color={INNER_COLOR}
+            emissive={RING_COLOR}
+            emissiveIntensity={0.6}
+            roughness={0.7}
+            metalness={0.1}
+            transparent
+            opacity={0.95}
+          />
+        )}
       </mesh>
 
       {/* Spinning ring 1 — golden ellipse */}
