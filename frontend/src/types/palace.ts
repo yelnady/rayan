@@ -43,7 +43,8 @@ export type ArtifactVisual =
   | 'synthesis_map'
   // GLB models
   | 'lesson' | 'brain' | 'question' | 'coffee' | 'milestone'
-  | 'heart' | 'dream' | 'tree' | 'opinion' | 'headphones' | 'cash_stack';
+  | 'heart' | 'dream' | 'tree' | 'opinion' | 'headphones' | 'cash_stack'
+  | 'exam';
 
 export type CaptureQuality = 'low' | 'medium' | 'high';
 

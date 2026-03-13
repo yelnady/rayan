@@ -18,6 +18,7 @@ interface LobbyProps {
   rooms: Room[];
   onEnterRoom: (roomId: string) => void;
   onEnterLobby?: () => void;
+  onRoomContextMenu?: (roomId: string, screenX: number, screenY: number) => void;
 }
 
 // Compute door position on a wall, supporting multiple doors per wall via doorIndex.
@@ -40,7 +41,7 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
   }
 }
 
-export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyProps) {
+export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomContextMenu }: LobbyProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
   const highlightedDoorRoomId = usePalaceStore(s => s.highlightedLobbyDoorRoomId);
   const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
@@ -75,15 +76,15 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
   return (
     <group>
       {/* ── Lights first so everything picks them up ─────────────────────── */}
-      <ambientLight intensity={2.0} color="#b0b8ff" />
+      <ambientLight intensity={0.8} color="#b0b8ff" />
 
       {/* Grand central overhead point light */}
       <pointLight
         position={[LOBBY_SIZE / 2, LOBBY_HEIGHT - 1.0, LOBBY_SIZE / 2]}
-        intensity={40}
+        intensity={12}
         color="#ffffff"
         distance={30}
-        decay={1.2}
+        decay={2.0}
       />
 
       {/* ── Floor ─────────────────────────────────────────────────────────── */}
@@ -172,6 +173,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby }: LobbyPro
               position={pos}
               targetRoomName={room?.name}
               onEnter={() => onEnterRoom(ld.roomId)}
+              onContextMenu={(sx, sy) => onRoomContextMenu?.(ld.roomId, sx, sy)}
               highlighted={ld.roomId === highlightedDoorRoomId}
             />
           );

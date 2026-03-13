@@ -1,7 +1,7 @@
 /**
  * ActionBar — bottom-center HUD with two clearly labelled actions:
- *   1. "Add to Memory"  → capture (webcam recording)
- *   2. "Chat with Memory" → voice conversation
+ *   1. "Capture Memories"  → capture (webcam recording)
+ *   2. "Relive Your Memories" → voice conversation
  *
  * Renders as a single glassmorphic pill with a hairline divider between sections.
  * Each section has an animated icon button + label + state sub-label.
@@ -241,7 +241,7 @@ function CaptureSection() {
 
                 {/* Labels */}
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Add to Memory</span>
+                    <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Capture Memories</span>
                     <span
                         className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                     >
@@ -349,7 +349,7 @@ function VoiceSection() {
 
             {/* Labels */}
             <div className="flex flex-col gap-0.5">
-                <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Chat with Memory</span>
+                <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Relive Your Memories</span>
                 <span
                     className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                 >

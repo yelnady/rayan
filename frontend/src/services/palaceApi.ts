@@ -1,4 +1,4 @@
-import { apiGet, apiPatch, apiPost } from './api';
+import { apiDelete, apiGet, apiPatch, apiPost } from './api';
 import type {
   CreatePalaceResponse,
   GetPalaceResponse,
@@ -19,4 +19,6 @@ export const palaceApi = {
   getRoom: (roomId: string) => apiGet<GetRoomResponse>(`/rooms/${roomId}`),
 
   accessRoom: (roomId: string) => apiPost<RoomAccessResponse>(`/rooms/${roomId}/access`),
+
+  deleteRoom: (roomId: string) => apiDelete<{ success: boolean }>(`/rooms/${roomId}`),
 };

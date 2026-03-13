@@ -3,7 +3,7 @@ import { Mic, Layers, Map, Search, Sparkles, Volume2, ArrowRight, Brain, Databas
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
-  whileInView: { opacity: 1, y: 0 } as object,
+  whileInView: { opacity: 1, y: 0 },
   viewport: { once: true },
   transition: { duration: 0.6 },
 };

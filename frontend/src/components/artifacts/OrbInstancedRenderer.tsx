@@ -79,7 +79,7 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
     return [0, 0, 0];
 }
 
-export function OrbInstancedRenderer({ artifacts, onClick, highlightedIds }: OrbInstancedRendererProps) {
+export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendererProps) {
     const count = artifacts.length;
     const particleTotal = count * PARTICLE_COUNT;
     const currentRoomId = usePalaceStore((s) => s.currentRoomId);

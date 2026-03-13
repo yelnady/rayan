@@ -51,6 +51,22 @@ export interface CaptureToolCallMessage {
   confidence: number;
 }
 
+export interface CaptureCompleteArtifact {
+  id: string;
+  title: string;
+  type: string;
+  roomId: string;
+  roomName: string;
+  isNewRoom: boolean;
+}
+
+export interface CaptureCompleteRoom {
+  id: string;
+  name: string;
+  isNew: boolean;
+  artifactCount: number;
+}
+
 export interface CaptureCompleteMessage {
   type: "capture_complete";
   sessionId: string;
@@ -59,6 +75,10 @@ export interface CaptureCompleteMessage {
     artifactsCreated: string[];
     roomsAffected: string[];
     newRoomsCreated: string[];
+    artifacts: CaptureCompleteArtifact[];
+    rooms: CaptureCompleteRoom[];
+    durationSeconds: number | null;
+    sourceType: string | null;
   };
   voiceSummary: string;
 }
@@ -93,8 +113,12 @@ export interface PalaceUpdateMessage {
   type: "palace_update";
   changes: {
     roomsAdded: Array<{ id: string; name: string; position: { x: number; y: number; z: number }; style: string }>;
-    artifactsAdded: Array<{ id: string; roomId: string; type: string; position: { x: number; y: number; z: number }; visual: string; summary: string }>;
+    artifactsAdded: Array<{ id: string; roomId: string; type: string; position: { x: number; y: number; z: number }; visual: string; summary: string; sourceMediaUrl?: string; color?: string; wall?: string }>;
     connectionsAdded: Array<{ fromRoomId: string; toRoomId: string; reason: string }>;
+    lobbyDoorsAdded?: Array<{ roomId: string; wallPosition: string; doorIndex: number }>;
+    roomsRemoved?: string[];
+    artifactsRemoved?: string[];
+    artifactsUpdated?: Array<{ id: string; [key: string]: unknown }>;
   };
 }
 
@@ -153,7 +177,7 @@ export interface LiveTurnCompleteMessage {
 
 export interface LiveToolCallMessage {
   type: "live_tool_call";
-  tool: "navigate_to_room" | "highlight_artifact" | "save_artifact" | "end_session" | "close_artifact";
+  tool: "navigate_to_room" | "navigate_to_map_view" | "navigate_horizontal" | "highlight_artifact" | "create_artifact" | "edit_artifact" | "delete_artifact" | "synthesize_room" | "web_search" | "create_room" | "end_session" | "close_artifact";
   label: string;
   payload: {
     navigation?: {
@@ -161,9 +185,11 @@ export interface LiveToolCallMessage {
       highlightArtifacts: string[];
       enterRoom: boolean;
       selectedArtifactId: string | null;
+      moveHorizontal?: 'left' | 'right';
     };
     artifactId?: string;
     closeArtifact?: boolean;
+    toggleMapView?: boolean;
   };
 }
 

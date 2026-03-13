@@ -10,7 +10,7 @@ const WALL_MARGIN = 0.5; // camera stays this far from each wall
 const MOVE_SPEED = 55;
 const MAX_VELOCITY = 12;
 const CAMERA_HEIGHT = 1.7;
-const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 6);
+const SPAWN = new THREE.Vector3(6, CAMERA_HEIGHT, 2);
 const DEFAULT_FOV = 75;
 const MAX_SPEED_FOV_BOOST = 10;
 const DAMPING = 7.0;
@@ -42,15 +42,19 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const cinematicPitch = useRef(0);
     // Zoom state
     const zoomFov = useRef(DEFAULT_FOV);
-    const MIN_FOV = 30; // Max zoom in
-    const MAX_FOV = 100; // Max zoom out
-
-    // Apply initial camera orientation
+    // Intro: camera starts behind the south wall, elevated, facing north (into the back of the lobby)
+    const introActive = useRef(true);
+    const INTRO_START = new THREE.Vector3(6, 8, 35); // behind the south/back wall, elevated
+    const INTRO_PITCH = -0.28; // slight downward angle — sees south + east + west walls
+    const INTRO_YAW   = 0;     // facing -Z (northward, into the back of the palace)
+    // Apply initial camera position/orientation for intro
     useEffect(() => {
-        (camera as THREE.PerspectiveCamera).fov = zoomFov.current;
+        camera.position.copy(INTRO_START);
+        pitch.current = INTRO_PITCH;
+        yaw.current   = INTRO_YAW;
+        camera.quaternion.setFromEuler(new THREE.Euler(INTRO_PITCH, INTRO_YAW, 0, 'YXZ'));
+        (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
         (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
-        // yaw and pitch are already initialized correctly, so we just set camera rotation once
-        camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
     }, [camera]);
 
     // Reset view
@@ -241,6 +245,21 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     useFrame((_, delta) => {
         // Skip movement in overview mode
         if (isOverviewMode) return;
+
+        // Intro fly-in: glide from behind south wall through the lobby to SPAWN
+        if (introActive.current) {
+            const SPEED = 1.0;
+            camera.position.lerp(SPAWN, delta * SPEED);
+            pitch.current = THREE.MathUtils.lerp(pitch.current, 0, delta * SPEED * 1.2);
+            // Rotate from facing north (yaw=0) to facing south (yaw=PI) along shortest path
+            const yawDiff = ((Math.PI - yaw.current + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
+            yaw.current += yawDiff * Math.min(delta * SPEED * 0.7, 1);
+            camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
+            if (camera.position.distanceTo(SPAWN) < 0.05) {
+                introActive.current = false;
+            }
+            return;
+        }
 
         // Cinematic fly-to: smooth glide overrides all normal movement
         if (isCinematic.current) {

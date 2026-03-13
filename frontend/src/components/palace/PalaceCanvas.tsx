@@ -1,10 +1,8 @@
-import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
-import { ParticleCanvas } from './ParticleCanvas';
 import { PalaceMinimap } from './PalaceMinimap';
-import { CameraSync } from './CameraSync.tsx';
-import { ArtifactConnectionLines } from './ArtifactConnectionLines';
+import { CameraSync } from './CameraSync';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
 import { Corridor } from './Corridor';
@@ -12,6 +10,7 @@ import { Artifact } from '../artifacts/Artifact';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useCameraStore } from '../../stores/cameraStore';
 import { useTransitionStore } from '../../stores/transitionStore';
+import { palaceApi } from '../../services/palaceApi';
 import type { Artifact as ArtifactData } from '../../types/palace';
 import type { DoorSpec, WallSide } from '../../types/three';
 import type { LobbyDoor, WallPosition } from '../../types/palace';
@@ -112,9 +111,50 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
   );
 }
 
+interface DoorContextMenu {
+  roomId: string;
+  x: number;
+  y: number;
+  confirmDelete: boolean;
+}
+
 export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasProps) {
   const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
+
+  // ── Door right-click context menu ───────────────────────────────────────────
+  const [doorMenu, setDoorMenu] = useState<DoorContextMenu | null>(null);
+  const [doorMenuDeleting, setDoorMenuDeleting] = useState(false);
+  const doorMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!doorMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (doorMenuRef.current && !doorMenuRef.current.contains(e.target as Node)) {
+        setDoorMenu(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [doorMenu]);
+
+  const handleDoorContextMenu = useCallback((roomId: string, screenX: number, screenY: number) => {
+    setDoorMenu({ roomId, x: screenX, y: screenY, confirmDelete: false });
+  }, []);
+
+  const handleDoorDeleteConfirm = useCallback(async () => {
+    if (!doorMenu) return;
+    setDoorMenuDeleting(true);
+    try {
+      await palaceApi.deleteRoom(doorMenu.roomId);
+      usePalaceStore.getState().removeRoom(doorMenu.roomId);
+    } catch (err) {
+      console.error('[PalaceCanvas] delete room failed:', err);
+    } finally {
+      setDoorMenuDeleting(false);
+      setDoorMenu(null);
+    }
+  }, [doorMenu]);
 
   // Compute centroid of all rooms (+ lobby at 6,0,6) for overview camera target
   const overviewCenter = useMemo(() => {
@@ -288,7 +328,6 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
 
   return (
     <>
-      <ParticleCanvas />
       <Canvas
         style={canvasStyle}
         // T154: Tightened far plane (500→200) — all rooms are within ~100 units.
@@ -322,6 +361,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
             rooms={rooms}
             onEnterRoom={handleEnterRoom}
             onEnterLobby={handleEnterLobby}
+            onRoomContextMenu={handleDoorContextMenu}
           />
 
           {/* Rooms with their artifacts */}
@@ -401,8 +441,110 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
         }
       </Canvas>
 
-      <ArtifactConnectionLines />
       <PalaceMinimap onEnterRoom={handleEnterRoom} onEnterLobby={handleEnterLobby} />
+
+      {/* Door right-click context menu */}
+      {doorMenu && (() => {
+        const menuRoom = rooms.find(r => r.id === doorMenu.roomId);
+        return (
+          <div
+            ref={doorMenuRef}
+            style={{
+              position: 'fixed',
+              top: doorMenu.y,
+              left: doorMenu.x,
+              zIndex: 200,
+              background: 'rgba(10, 10, 28, 0.96)',
+              border: '1px solid rgba(255,255,255,0.14)',
+              borderRadius: 8,
+              backdropFilter: 'blur(12px)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.6)',
+              minWidth: 160,
+              overflow: 'hidden',
+              fontFamily: 'system-ui, sans-serif',
+              userSelect: 'none',
+            }}
+          >
+            {/* Room name header */}
+            <div style={{
+              padding: '7px 12px 5px',
+              fontSize: 10,
+              color: 'rgba(255,255,255,0.45)',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              borderBottom: '1px solid rgba(255,255,255,0.08)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {menuRoom?.name ?? 'Room'}
+            </div>
+
+            {/* Enter Room */}
+            <button
+              onClick={() => { setDoorMenu(null); handleEnterRoom(doorMenu.roomId); }}
+              style={{
+                display: 'block', width: '100%', padding: '8px 12px',
+                background: 'none', border: 'none', textAlign: 'left',
+                fontSize: 12, color: '#fff', cursor: 'pointer',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+            >
+              Enter Room
+            </button>
+
+            {/* Delete Room — two-step */}
+            {!doorMenu.confirmDelete ? (
+              <button
+                onClick={() => setDoorMenu(m => m ? { ...m, confirmDelete: true } : null)}
+                style={{
+                  display: 'block', width: '100%', padding: '8px 12px',
+                  background: 'none', border: 'none',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  textAlign: 'left', fontSize: 12, color: '#f87171', cursor: 'pointer',
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(239,68,68,0.12)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+              >
+                Delete Room…
+              </button>
+            ) : (
+              <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '8px 12px' }}>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginBottom: 7, lineHeight: 1.4 }}>
+                  Delete this room and all its memories?
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    onClick={handleDoorDeleteConfirm}
+                    disabled={doorMenuDeleting}
+                    style={{
+                      flex: 1, padding: '5px 0',
+                      background: doorMenuDeleting ? 'rgba(239,68,68,0.3)' : 'rgba(239,68,68,0.75)',
+                      border: '1px solid rgba(239,68,68,0.5)',
+                      borderRadius: 5, color: '#fff', fontSize: 11, fontWeight: 600,
+                      cursor: doorMenuDeleting ? 'not-allowed' : 'pointer',
+                    }}
+                  >
+                    {doorMenuDeleting ? '…' : 'Delete'}
+                  </button>
+                  <button
+                    onClick={() => setDoorMenu(null)}
+                    style={{
+                      flex: 1, padding: '5px 0',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      borderRadius: 5, color: 'rgba(255,255,255,0.7)', fontSize: 11, cursor: 'pointer',
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </>
   );
 }

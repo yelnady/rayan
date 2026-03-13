@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { usePalaceStore } from '../../stores/palaceStore';
-import { cameraSync } from './cameraSync';
+import { cameraSync } from './CameraSync';
+import { artifactCenters } from './artifactCenters';
 
 // Mirrors TYPE_COLORS in Artifact.tsx — keyed by artifact.visual
 const VISUAL_COLORS: Record<string, string> = {
@@ -133,11 +134,33 @@ export function ArtifactConnectionLines() {
       const rw = room.dimensions.w, rd = room.dimensions.d;
       const roomCx = ox + rw / 2, roomCz = oz + rd / 2;
 
-      const worldOf = (a: typeof hovered): [number, number, number] => [
-        ox + a.position.x,
-        oy + (a.position.y > 0 ? a.position.y : 1.3),
-        oz + a.position.z,
-      ];
+      // Prefer the bounding-box center registered by the artifact's own renderer
+      // (accurate for every GLB model regardless of its internal origin/scale).
+      // Fall back to a manually-offset estimate only when not yet computed.
+      const WALL_DEPTH: Partial<Record<string, number>> = {
+        floating_book: 0.25,
+        crystal_orb:   0.15,
+      };
+      const DEFAULT_DEPTH = 0.1;
+
+      const worldOf = (a: typeof hovered): [number, number, number] => {
+        const center = artifactCenters.get(a.id);
+        if (center) return [center.x, center.y, center.z];
+
+        // Fallback: push the mount point away from the wall by an estimated depth
+        const depth = WALL_DEPTH[a.visual] ?? DEFAULT_DEPTH;
+        let dx = 0, dz = 0;
+        const wall = a.wall ?? (a.position.x < 0.2 ? 'west' : a.position.x > rw - 0.2 ? 'east' : a.position.z > rd - 0.2 ? 'south' : a.position.z < 0.2 ? 'north' : null);
+        if (wall === 'west')  dx = +depth;
+        else if (wall === 'east')  dx = -depth;
+        else if (wall === 'south') dz = -depth;
+        else if (wall === 'north') dz = +depth;
+        return [
+          ox + a.position.x + dx,
+          oy + (a.position.y > 0 ? a.position.y : 1.3),
+          oz + a.position.z + dz,
+        ];
+      };
 
       const fromWorld = worldOf(hovered);
       const fromScreen = projectToScreen(...fromWorld);
