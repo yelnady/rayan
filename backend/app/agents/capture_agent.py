@@ -20,7 +20,6 @@ from google.genai import types as genai_types
 from app.agents.memory_architect import CategorizationResult, categorize_and_store
 from app.agents.tools.tools import (
     CAPTURE_LIVE_TOOLS,
-    CAPTURE_SCHEDULING,
     execute_web_search,
 )
 from app.core.gemini import LIVE_MODEL, get_genai_client
@@ -36,8 +35,10 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "BEHAVIOR:\n"
     "- Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.\n"
     "- Respond naturally when {name} addresses you directly (by name or with a question).\n"
-    "- When you capture a concept, briefly acknowledge: 'Got it, {name} — [concept name].'\n"
+    "- When you capture a concept, briefly acknowledge: 'Got it, {name} — [concept name] added to [room name].'\n"
     "- You are co-listening: you hear both the content being shared AND {name} speaking to you.\n\n"
+    "EXISTING ROOMS IN {name}'s PALACE:\n"
+    "{room_directory}\n\n"
     "ARTIFACT TYPES:\n"
     "  KNOWLEDGE & LEARNING:\n"
     "  - lecture: spoken explanations, presentations, teachings\n"
@@ -58,19 +59,28 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "  - media: music, podcasts, films that resonated\n"
     "  GOALS:\n"
     "  - goal: aspirations, objectives, things to achieve\n"
-    "  - enrichment: supplementary research or background material\n\n"
+    "  - enrichment: supplementary research or background material\n"
+    "  EVENTS & DEADLINES:\n"
+    "  - exam: upcoming exams, tests, or assessments with a scheduled date\n\n"
     "CAPTURING CONCEPTS:\n"
     "- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, "
     "at least 15 seconds since the last extraction), call `capture_concept`.\n"
     "- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember "
     "something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` "
-    "immediately — no confidence or time restrictions apply. Then verbally confirm: 'Got it, {name} — saved.'\n"
+    "immediately — no confidence or time restrictions apply. Then verbally confirm: "
+    "'Got it, {name} — [concept name] added to [room name].'\n"
     "- Do NOT repeat concepts already captured.\n\n"
     "CREATING ROOMS:\n"
-    "- Call `create_room` when the user explicitly asks to create a new room or section in their palace, "
-    "or when you notice a clearly distinct topic area that has no suitable existing room.\n"
-    "- Pass a descriptive `name` and relevant `keywords` so the room is placed correctly.\n"
-    "- Confirm verbally: 'Created a new room for [topic], {name}.'\n\n"
+    "- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above.\n"
+    "- Do NOT create a room if a sufficiently similar one already exists — the system will route the "
+    "artifact there automatically.\n"
+    "- Call `create_room` when the user explicitly asks for a new room or when no existing room fits.\n"
+    "- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) "
+    "to save the content that triggered the new room into it.\n"
+    "- After both calls, confirm verbally: 'Created a new room for [topic] and saved [concept], {name}.'\n\n"
+    "NAVIGATION:\n"
+    "- Call `navigate_to_room` with the room_id when the user asks to go to a specific room, "
+    "or after creating a new room if the user wants to see it.\n\n"
     "ENDING THE SESSION:\n"
     "- Call `close_session` when the user asks to close, finish, or stop the capture session.\n"
     "- Call `end_session` when the user asks to stop, disconnect, or end the voice conversation.\n"
@@ -111,8 +121,8 @@ class CaptureAgent:
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
-        name = display_name or "there"
-        self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(name=name)
+        self._display_name = display_name.split()[0] if display_name else "there"
+        self._system_prompt: str = ""  # built in start() after room fetch
         self._on_extraction = on_extraction
         self._on_audio = on_audio
         self._on_text = on_text
@@ -126,10 +136,30 @@ class CaptureAgent:
         self._closed = False
 
     async def start(self) -> None:
+        room_directory = await self._build_room_directory()
+        self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
+            name=self._display_name,
+            room_directory=room_directory,
+        )
         self._task = asyncio.create_task(
             self._lifecycle(), name=f"capture-{self.session_id}"
         )
-        logger.info("CaptureAgent started: sessionId=%s", self.session_id)
+        logger.info("CaptureAgent started: sessionId=%s rooms=%s", self.session_id, room_directory[:80])
+
+    async def _build_room_directory(self) -> str:
+        try:
+            from app.services.room_service import get_all_rooms
+            rooms = await get_all_rooms(self.user_id)
+        except Exception:
+            logger.exception("Failed to fetch rooms for capture prompt: sessionId=%s", self.session_id)
+            return "(no rooms yet)"
+        if not rooms:
+            return "(no rooms yet — artifacts will be placed in newly created rooms)"
+        lines = []
+        for r in rooms:
+            kw = ", ".join(r.topicKeywords) if r.topicKeywords else "—"
+            lines.append(f"- [{r.id}] {r.name} (keywords: {kw})")
+        return "\n".join(lines)
 
     async def send_chunk(self, data: bytes) -> None:
         """Send media bytes (screen/webcam audio) directly to the session."""
@@ -200,6 +230,15 @@ class CaptureAgent:
         try:
             async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
                 self._session = session
+                await session.send(
+                    input=genai_types.LiveClientContent(
+                        turns=[genai_types.Content(
+                            role="user",
+                            parts=[genai_types.Part(text="[SESSION_START] Introduce yourself briefly to the user.")],
+                        )],
+                        turn_complete=True,
+                    )
+                )
                 await self._receive_loop(session)
         except asyncio.CancelledError:
             logger.debug("CaptureAgent lifecycle cancelled: sessionId=%s", self.session_id)
@@ -224,13 +263,9 @@ class CaptureAgent:
                                 fn_call.name,
                                 dict(fn_call.args) if fn_call.args else {},
                             )
-                            response: dict = {"result": result}
-                            scheduling = CAPTURE_SCHEDULING.get(fn_call.name)
-                            if scheduling:
-                                response["scheduling"] = scheduling
                             function_responses.append({
                                 "name": fn_call.name,
-                                "response": response,
+                                "response": {"result": result},
                                 "id": fn_call.id,
                             })
                         await session.send_tool_response(function_responses=function_responses)
@@ -292,7 +327,8 @@ class CaptureAgent:
                 confidence=confidence,
             )
             await self._handle_extraction(event)
-            return "concept captured successfully"
+            room_name = event.categorization.room.name if event.categorization else "your palace"
+            return f"concept captured and saved to room '{room_name}'"
 
         elif name == "create_artifact":
             self._last_extraction_at = time.monotonic()
@@ -304,34 +340,17 @@ class CaptureAgent:
                 confidence=1.0,
             )
             await self._handle_extraction(event)
-            return "artifact created successfully"
+            room_name = event.categorization.room.name if event.categorization else "your palace"
+            return f"artifact saved to room '{room_name}'"
 
         elif name == "create_room":
             room_name = args.get("name", "New Room")
             keywords = list(args.get("keywords", []))
             try:
-                from app.services.room_service import create_room as svc_create_room
+                from app.services.room_service import add_lobby_door, create_room as svc_create_room
                 from app.websocket.manager import manager as ws_manager
-                from app.core.firestore import get_firestore_client
                 new_room = await svc_create_room(self.user_id, room_name, keywords)
-
-                # Compute the lobby door entry for this new room and persist it.
-                _WALL_CYCLE = ["north", "east", "south", "west"]
-                layout_ref = (
-                    get_firestore_client()
-                    .collection("users").document(self.user_id)
-                    .collection("layout").document("main")
-                )
-                layout_doc = await layout_ref.get()
-                existing_doors = (layout_doc.to_dict() or {}).get("lobbyDoors", []) if layout_doc.exists else []
-                door_idx = len(existing_doors)
-                new_door = {
-                    "roomId": new_room.id,
-                    "wallPosition": _WALL_CYCLE[door_idx % 4],
-                    "doorIndex": door_idx // 4,
-                }
-                await layout_ref.set({"lobbyDoors": existing_doors + [new_door]}, merge=True)
-
+                new_door = await add_lobby_door(self.user_id, new_room.id)
                 await ws_manager.send(self.user_id, {
                     "type": "palace_update",
                     "changes": {
@@ -354,6 +373,21 @@ class CaptureAgent:
             except Exception:
                 logger.exception("create_room failed: sessionId=%s", self.session_id)
                 return "Failed to create room"
+
+        elif name == "navigate_to_room":
+            room_id = args.get("room_id", "")
+            try:
+                from app.websocket.manager import manager as ws_manager
+                await ws_manager.send(self.user_id, {
+                    "type": "live_tool_call",
+                    "tool": "navigate_to_room",
+                    "label": "Navigating to room",
+                    "payload": {"roomId": room_id},
+                })
+                return f"Navigated to room {room_id}"
+            except Exception:
+                logger.exception("navigate_to_room failed: sessionId=%s", self.session_id)
+                return "Navigation failed"
 
         elif name == "web_search":
             return await execute_web_search(args.get("query", ""))

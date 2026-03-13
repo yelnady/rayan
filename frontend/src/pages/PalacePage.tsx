@@ -272,6 +272,11 @@ export function PalacePage() {
         return ws.on('live_tool_call', (msg) => {
           if (msg.tool === 'close_artifact' || msg.payload.closeArtifact || msg.payload.navigation?.enterRoom) {
             setSelectedArtifact(null);
+            // Also dismiss the synthesis overlay if it's open
+            if (msg.tool === 'close_artifact' || msg.payload.closeArtifact) {
+              useVoiceStore.getState().setSynthesisState('idle');
+              useVoiceStore.getState().setSynthesisImageUrl(null);
+            }
           }
         });
       }, [ws])}
