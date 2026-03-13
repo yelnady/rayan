@@ -44,6 +44,10 @@ async def send_capture_complete(
     room_ids: list[str],
     new_room_ids: list[str],
     concept_count: int,
+    artifacts: Optional[list[dict]] = None,
+    rooms: Optional[list[dict]] = None,
+    duration_seconds: Optional[float] = None,
+    source_type: Optional[str] = None,
     voice_summary_audio: Optional[bytes] = None,
 ) -> None:
     """Send capture_complete when a session finishes per websocket.md."""
@@ -58,6 +62,10 @@ async def send_capture_complete(
             "artifactsCreated": artifact_ids,
             "roomsAffected": room_ids,
             "newRoomsCreated": new_room_ids,
+            "artifacts": artifacts or [],
+            "rooms": rooms or [],
+            "durationSeconds": duration_seconds,
+            "sourceType": source_type,
         },
         "voiceSummary": voice_b64 or "",
     })
@@ -86,12 +94,14 @@ async def broadcast_palace_update(
     rooms_added: Optional[list[Room]] = None,
     artifacts_added: Optional[list[Artifact]] = None,
     connections_added: Optional[list[dict]] = None,
+    lobby_doors_added: Optional[list[dict]] = None,
 ) -> None:
     """Broadcast palace_update when rooms/artifacts/connections change per websocket.md."""
     changes: dict = {
         "roomsAdded": [],
         "artifactsAdded": [],
         "connectionsAdded": connections_added or [],
+        "lobbyDoorsAdded": lobby_doors_added or [],
     }
 
     for room in (rooms_added or []):

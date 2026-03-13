@@ -7,9 +7,11 @@ stores the result as a `synthesis` artifact in the room.
 Cloud Storage path: syntheses/{roomId}/{uuid}.png
 """
 
+import asyncio
 import logging
 import uuid
 
+from google.genai import errors as genai_errors
 from google.genai import types as genai_types
 
 from app.config import settings
@@ -26,9 +28,9 @@ from app.services.room_service import get_room
 
 logger = logging.getLogger(__name__)
 
-# Synthesis artifacts float at the center of the room, elevated.
-_SYNTHESIS_POSITION = Position3D(x=4.0, y=2.5, z=4.0)
-_SYNTHESIS_WALL = "center"
+# Synthesis artifacts are mounted on the south wall, centred at mid-height.
+_SYNTHESIS_POSITION = Position3D(x=4.0, y=2.5, z=7.95)
+_SYNTHESIS_WALL = "south"
 
 
 async def synthesize_room(
@@ -199,17 +201,30 @@ def _build_full_content(room_name: str, artifacts: list[Artifact]) -> str:
 
 async def _generate_image(prompt: str) -> bytes:
     client = get_genai_client()
-    response = await client.aio.models.generate_content(
-        model=IMAGE_MODEL,
-        contents=[prompt],
-        config=genai_types.GenerateContentConfig(
-            response_modalities=["Text", "Image"],
-        ),
-    )
-    for part in response.parts:
-        if part.inline_data is not None:
-            return part.inline_data.data
-    raise ValueError("Gemini image model returned no image for room synthesis.")
+    delays = [5, 15, 30]  # seconds between retries on 429
+    for attempt, delay in enumerate(delays + [None]):
+        try:
+            response = await client.aio.models.generate_content(
+                model=IMAGE_MODEL,
+                contents=[prompt],
+                config=genai_types.GenerateContentConfig(
+                    response_modalities=["Text", "Image"],
+                ),
+            )
+            for part in response.parts:
+                if part.inline_data is not None:
+                    return part.inline_data.data
+            raise ValueError("Gemini image model returned no image for room synthesis.")
+        except genai_errors.ClientError as e:
+            if e.code == 429 and delay is not None:
+                logger.warning(
+                    "Image generation rate-limited (attempt %d), retrying in %ds",
+                    attempt + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
 
 
 async def _upload_image(image_bytes: bytes, blob_path: str) -> str:

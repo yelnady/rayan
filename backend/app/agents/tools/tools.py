@@ -204,12 +204,17 @@ def delete_artifact(artifact_id: str) -> str:
     return ""
 
 
-# ── Live API tool declarations (NON_BLOCKING + scheduling) ────────────────────
+# ── Live API tool declarations ─────────────────────────────────────────────────
 #
-# Used instead of bare Python callables in LiveConnectConfig so we can set
-# behavior="NON_BLOCKING" per tool and include scheduling in each FunctionResponse.
+# Vertex AI does not support `behavior` or `scheduling` in function declarations /
+# tool responses — those fields are stripped automatically by _strip_vertex_unsupported().
 #
 # Tools without behavior default to BLOCKING (e.g. end_session, close_session).
+
+
+def _strip_vertex_unsupported(tools: list[dict]) -> list[dict]:
+    """Remove fields unsupported by Vertex AI Live API (behavior, scheduling)."""
+    return [{k: v for k, v in t.items() if k not in ("behavior", "scheduling")} for t in tools]
 
 _ARTIFACT_TYPE_DESC = (
     "The type of memory. One of: lecture, document, lesson, insight, question, "
@@ -273,6 +278,21 @@ CAPTURE_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
     {
+        "name": "navigate_to_room",
+        "description": (
+            "Navigate the user to a specific room in their memory palace. "
+            "Invoke when the user asks to go to a room, or after creating a new room to take them there."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "The exact room ID to navigate to, or 'lobby'."},
+            },
+            "required": ["room_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
         "name": "web_search",
         "description": "Search the web for facts or context about a topic mentioned during the session.",
         "parameters": {
@@ -300,14 +320,7 @@ CAPTURE_LIVE_TOOLS = [
         # BLOCKING by default — session teardown must complete before anything else
     },
 ]
-
-# Scheduling for each NON_BLOCKING capture tool response
-CAPTURE_SCHEDULING: dict[str, str] = {
-    "capture_concept": "SILENT",    # background save — don't disrupt speech
-    "create_artifact": "INTERRUPT", # user asked explicitly — confirm right away
-    "create_room": "INTERRUPT",     # significant action — confirm right away
-    "web_search": "WHEN_IDLE",      # heavy op — share results when Rayan finishes speaking
-}
+CAPTURE_LIVE_TOOLS = _strip_vertex_unsupported(CAPTURE_LIVE_TOOLS)
 
 RECALL_LIVE_TOOLS = [
     {
@@ -411,6 +424,16 @@ RECALL_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
     {
+        "name": "delete_room",
+        "description": (
+            "Permanently delete the current room and all its memories from the palace. "
+            "Invoke ONLY when the user explicitly asks to delete or remove the entire room. "
+            "Always confirm with the user before calling this tool."
+        ),
+        "parameters": {"type": "object", "properties": {}},
+        "behavior": "NON_BLOCKING",
+    },
+    {
         "name": "synthesize_room",
         "description": (
             "Generate a mind map image that synthesizes all memories in the current room. "
@@ -444,20 +467,7 @@ RECALL_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
 ]
-
-# Scheduling for each NON_BLOCKING recall tool response
-RECALL_SCHEDULING: dict[str, str] = {
-    "navigate_to_room": "INTERRUPT",
-    "navigate_to_map_view": "INTERRUPT",
-    "navigate_horizontal": "INTERRUPT",
-    "highlight_artifact": "INTERRUPT",
-    "create_artifact": "INTERRUPT",
-    "edit_artifact": "INTERRUPT",
-    "delete_artifact": "INTERRUPT",
-    "synthesize_room": "WHEN_IDLE",
-    "web_search": "WHEN_IDLE",
-    "close_artifact": "INTERRUPT",
-}
+RECALL_LIVE_TOOLS = _strip_vertex_unsupported(RECALL_LIVE_TOOLS)
 
 
 # ── Execution helpers ──────────────────────────────────────────────────────────

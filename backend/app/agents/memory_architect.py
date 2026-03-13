@@ -49,13 +49,14 @@ def _infer_room_name(title: str, keywords: list[str]) -> str:
 
 async def categorize_and_store(
     user_id: str,
-    session_id: str,
+    session_id: Optional[str],
     concept_title: str,
     concept_summary: str,
     concept_type: str,
     concept_keywords: list[str],
     concept_confidence: float,
     captured_at: Optional[datetime] = None,
+    full_content: Optional[str] = None,
 ) -> CategorizationResult:
     """Embed concept → match room → create artifact → return result."""
     # Map raw string type to enum (default to lecture)
@@ -67,7 +68,7 @@ async def categorize_and_store(
     embed_text = concept_title + ". " + concept_summary
     embedding = await get_embedding(embed_text)
 
-    best_room, similarity = await find_best_room_match(user_id, embedding)
+    best_room, similarity = await find_best_room_match(user_id, embedding, keywords=concept_keywords)
 
     logger.info(
         "categorize: userId=%s title=%r room=%s similarity=%.3f",
@@ -75,7 +76,7 @@ async def categorize_and_store(
     )
 
     if best_room and similarity >= HIGH_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
         await increment_artifact_count(user_id, best_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -85,7 +86,7 @@ async def categorize_and_store(
         )
 
     elif best_room and similarity >= LOW_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
         return CategorizationResult(
             artifact=artifact,
             room=best_room,
@@ -109,7 +110,7 @@ async def categorize_and_store(
     else:
         room_name = _infer_room_name(concept_title, concept_keywords)
         new_room = await create_room(user_id, room_name, concept_keywords)
-        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at)
+        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
         await increment_artifact_count(user_id, new_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -131,13 +132,14 @@ async def categorize_and_store(
 
 async def _store(
     user_id: str,
-    session_id: str,
+    session_id: Optional[str],
     room_id: str,
     artifact_type: ArtifactType,
     title: str,
     summary: str,
     keywords: list[str] | None = None,
     captured_at: Optional[datetime] = None,
+    full_content: Optional[str] = None,
 ) -> Artifact:
     return await create_artifact(
         user_id=user_id,
@@ -148,4 +150,5 @@ async def _store(
         summary=summary,
         capture_session_id=session_id,
         captured_at=captured_at,
+        full_content=full_content,
     )

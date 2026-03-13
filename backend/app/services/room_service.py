@@ -139,23 +139,93 @@ async def find_similar_room(
 async def find_best_room_match(
     user_id: str,
     artifact_embedding: list[float],
+    keywords: list[str] | None = None,
 ) -> tuple[Room | None, float]:
-    """Return (best_room, similarity). Returns (None, 0.0) when no rooms exist."""
+    """Return (best_room, similarity). Returns (None, 0.0) when no rooms exist.
+
+    Scoring priority:
+      1. Cosine similarity against room topicEmbedding (primary).
+      2. Jaccard keyword overlap (fallback when a room has no embedding), capped
+         at 0.6 so it never triggers the HIGH_SIMILARITY auto-assign threshold.
+    """
     rooms = await get_all_rooms(user_id)
     if not rooms:
         return None, 0.0
 
+    artifact_kw = {k.lower() for k in (keywords or [])}
+
     best_room: Room | None = None
     best_score = 0.0
     for room in rooms:
-        if not room.topicEmbedding:
+        if room.topicEmbedding:
+            score = cosine_similarity(artifact_embedding, room.topicEmbedding)
+        elif artifact_kw and room.topicKeywords:
+            room_kw = {k.lower() for k in room.topicKeywords}
+            union = len(artifact_kw | room_kw)
+            score = (len(artifact_kw & room_kw) / union * 0.6) if union else 0.0
+        else:
             continue
-        score = cosine_similarity(artifact_embedding, room.topicEmbedding)
         if score > best_score:
             best_score = score
             best_room = room
 
     return best_room, best_score
+
+
+async def delete_room(user_id: str, room_id: str) -> None:
+    """Delete a room, all its artifacts, and its lobby door entry."""
+    from app.services.artifact_service import get_room_artifacts
+    from app.core.firestore import get_firestore_client
+
+    # Delete all artifacts in the room
+    artifacts = await get_room_artifacts(user_id, room_id)
+    artifacts_ref = (
+        get_firestore_client()
+        .collection("users").document(user_id)
+        .collection("rooms").document(room_id)
+        .collection("artifacts")
+    )
+    for art in artifacts:
+        await artifacts_ref.document(art.id).delete()
+
+    # Delete the room document
+    await _rooms_ref(user_id).document(room_id).delete()
+
+    # Remove the corresponding lobby door entry
+    layout_ref = (
+        get_firestore_client()
+        .collection("users").document(user_id)
+        .collection("layout").document("main")
+    )
+    layout_doc = await layout_ref.get()
+    if layout_doc.exists:
+        existing_doors = (layout_doc.to_dict() or {}).get("lobbyDoors", [])
+        updated_doors = [d for d in existing_doors if d.get("roomId") != room_id]
+        await layout_ref.set({"lobbyDoors": updated_doors}, merge=True)
+
+    logger.info("Room deleted: userId=%s roomId=%s", user_id, room_id)
+
+
+async def add_lobby_door(user_id: str, room_id: str) -> dict:
+    """Persist a lobby door for a newly created room and return the door dict."""
+    from app.core.firestore import get_firestore_client
+    _WALL_CYCLE = ["north", "east", "south", "west"]
+    layout_ref = (
+        get_firestore_client()
+        .collection("users").document(user_id)
+        .collection("layout").document("main")
+    )
+    layout_doc = await layout_ref.get()
+    existing_doors = (layout_doc.to_dict() or {}).get("lobbyDoors", []) if layout_doc.exists else []
+    door_idx = len(existing_doors)
+    new_door = {
+        "roomId": room_id,
+        "wallPosition": _WALL_CYCLE[door_idx % 4],
+        "doorIndex": door_idx // 4,
+    }
+    await layout_ref.set({"lobbyDoors": existing_doors + [new_door]}, merge=True)
+    logger.info("Lobby door added: userId=%s roomId=%s door=%s", user_id, room_id, new_door)
+    return new_door
 
 
 def _next_grid_position(existing: list[Room]) -> Position3D:
