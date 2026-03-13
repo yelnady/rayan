@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.middleware.auth import verify_token
 from app.services.artifact_service import get_room_artifacts
-from app.services.room_service import get_room, update_last_accessed
+from app.services.room_service import get_room, update_last_accessed, delete_room
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ async def get_room_detail(room_id: str, user: dict = Depends(verify_token)):
             "name": room.name,
             "position": room.position.model_dump(),
             "dimensions": room.dimensions.model_dump(),
-            "style": room.style.value,
+            "style": room.style,
             "connections": room.connections,
             "createdAt": room.createdAt,
             "lastAccessedAt": room.lastAccessedAt,
@@ -75,6 +75,39 @@ async def record_room_access(room_id: str, user: dict = Depends(verify_token)):
     logger.info("Room accessed: userId=%s roomId=%s", user_id, room_id)
 
     return {"success": True, "lastAccessedAt": now}
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room_endpoint(room_id: str, user: dict = Depends(verify_token)):
+    """Delete a room and all its artifacts."""
+    user_id = user["user_id"]
+
+    room = await get_room(user_id, room_id)
+    if room is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "RESOURCE_NOT_FOUND", "message": "Room not found", "details": {"roomId": room_id}}},
+        )
+
+    await delete_room(user_id, room_id)
+    logger.info("Room deleted via API: userId=%s roomId=%s", user_id, room_id)
+
+    # Push palace_update so the 3D scene removes the room immediately
+    try:
+        from app.websocket.manager import manager as ws_manager
+        await ws_manager.send(user_id, {
+            "type": "palace_update",
+            "changes": {
+                "roomsRemoved": [room_id],
+                "roomsAdded": [],
+                "artifactsAdded": [],
+                "connectionsAdded": [],
+            },
+        })
+    except Exception:
+        logger.exception("WS push failed after delete_room: userId=%s roomId=%s", user_id, room_id)
+
+    return {"success": True}
 
 
 @router.post("/rooms/{room_id}/synthesize")

@@ -88,10 +88,23 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
         if event.categorization:
             cat = event.categorization
             rooms_added = [cat.room] if cat.action == "suggested_new" else []
+            # Create a lobby door for any room auto-created by categorize_and_store
+            lobby_doors_added = []
+            if cat.action == "suggested_new":
+                try:
+                    from app.services.room_service import add_lobby_door
+                    door = await add_lobby_door(user_id, cat.room.id)
+                    lobby_doors_added = [door]
+                except Exception:
+                    import logging
+                    logging.getLogger(__name__).exception(
+                        "add_lobby_door failed for userId=%s roomId=%s", user_id, cat.room.id
+                    )
             await broadcast_palace_update(
                 user_id,
                 rooms_added=rooms_added,
                 artifacts_added=[cat.artifact],
+                lobby_doors_added=lobby_doors_added,
             )
             # Broadcast room_suggestion when user confirmation is required
             if cat.requires_confirmation and cat.suggestion:
@@ -178,16 +191,37 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
     # Finalize session in Firestore
     session = await capture_service.end_session(user_id, session_id, SessionStatus.completed)
 
-    # Gather artifact/room IDs from all extractions
+    # Gather artifact/room data from all extractions
     artifact_ids: list[str] = []
     room_ids: set[str] = set()
     new_room_ids: list[str] = []
+    rich_artifacts: list[dict] = []
+    rooms_seen: dict[str, dict] = {}  # room_id → room dict
+
     for ev in extractions:
         if ev.categorization:
-            artifact_ids.append(ev.categorization.artifact.id)
-            room_ids.add(ev.categorization.room.id)
-            if ev.categorization.action == "suggested_new":
-                new_room_ids.append(ev.categorization.room.id)
+            cat = ev.categorization
+            artifact_ids.append(cat.artifact.id)
+            room_ids.add(cat.room.id)
+            is_new_room = cat.action == "suggested_new"
+            if is_new_room:
+                new_room_ids.append(cat.room.id)
+            rich_artifacts.append({
+                "id": cat.artifact.id,
+                "title": ev.concept_title,
+                "type": ev.concept_type,
+                "roomId": cat.room.id,
+                "roomName": cat.room.name,
+                "isNewRoom": is_new_room,
+            })
+            if cat.room.id not in rooms_seen:
+                rooms_seen[cat.room.id] = {
+                    "id": cat.room.id,
+                    "name": cat.room.name,
+                    "isNew": is_new_room,
+                    "artifactCount": 0,
+                }
+            rooms_seen[cat.room.id]["artifactCount"] += 1
 
     # Prefer in-memory count (always accurate) over Firestore, which can lag
     # or be 0 if add_artifact_to_session failed or was cancelled mid-write.
@@ -198,6 +232,10 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
         room_ids=list(room_ids),
         new_room_ids=new_room_ids,
         concept_count=concept_count,
+        artifacts=rich_artifacts,
+        rooms=list(rooms_seen.values()),
+        duration_seconds=session.durationSeconds if session else None,
+        source_type=session.sourceType.value if session else None,
     )
     logger.info("capture_end: userId=%s sessionId=%s concepts=%d", user_id, session_id, concept_count)
 

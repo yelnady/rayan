@@ -50,8 +50,9 @@ async def create_artifact(
     embedding = await get_embedding(embed_text)
 
     if position is None or wall is None:
-        existing_count = await _count_artifacts(user_id, room_id)
-        default_pos, default_wall = _next_artifact_position(existing_count)
+        occupied = await _get_occupied_slots(user_id, room_id)
+        exit_wall = await _get_room_exit_wall(user_id, room_id)
+        default_pos, default_wall = _next_artifact_position(occupied, exit_wall)
         position = position or default_pos
         wall = wall or default_wall
 
@@ -175,29 +176,109 @@ async def delete_artifact_by_id(user_id: str, artifact_id: str) -> None:
     await recompute_room_summary(user_id, room_id)
 
 
-async def _count_artifacts(user_id: str, room_id: str) -> int:
-    docs = await _artifacts_ref(user_id, room_id).select([]).get()
-    return len(docs)
+_EXIT_WALL_MAP = {"north": "south", "east": "west", "south": "north", "west": "east"}
 
 
-def _next_artifact_position(index: int) -> tuple[Position3D, str]:
-    """Place artifacts flush against room walls at eye level.
+async def _get_room_exit_wall(user_id: str, room_id: str) -> str | None:
+    """Return the wall that holds the lobby exit door for this room, or None."""
+    layout_ref = (
+        get_firestore_client()
+        .collection("users")
+        .document(user_id)
+        .collection("layout")
+        .document("main")
+    )
+    layout_doc = await layout_ref.get()
+    if not layout_doc.exists:
+        return None
+    lobby_doors = (layout_doc.to_dict() or {}).get("lobbyDoors", [])
+    for d in lobby_doors:
+        if d.get("roomId") == room_id:
+            lobby_wall = d.get("wallPosition", "")
+            return _EXIT_WALL_MAP.get(lobby_wall)
+    return None
 
-    Room local space is 8×8 (Dimensions3D default).
-    North wall (z≈0) is occupied by the decorative shelf, so artifacts
-    cycle through east, west, and south walls instead.
+
+async def _get_occupied_slots(user_id: str, room_id: str) -> set[tuple[float, float, float]]:
+    """Return a set of (x, y, z) positions already occupied in the room."""
+    docs = await _artifacts_ref(user_id, room_id).select(["position"]).get()
+    occupied: set[tuple[float, float, float]] = set()
+    for doc in docs:
+        if not doc.exists:
+            continue
+        pos = (doc.to_dict() or {}).get("position", {})
+        if pos:
+            occupied.add((
+                round(float(pos.get("x", 0)), 2),
+                round(float(pos.get("y", 0)), 2),
+                round(float(pos.get("z", 0)), 2),
+            ))
+    return occupied
+
+
+# Pre-built wall slots for an 8×8 room.
+# North wall (z≈0) is reserved for the decorative shelf.
+# Slots alternate west/east/south so the room fills evenly.
+# Lower row (y=1.8) fills first, then upper row (y=2.7), then a third row (y=3.6).
+_WALL_SLOTS: list[tuple[Position3D, str]] = [
+    # ── lower row ──────────────────────────────────────────────────────────
+    (Position3D(x=0.05, y=1.8, z=2.0),  "west"),
+    (Position3D(x=7.95, y=1.8, z=2.0),  "east"),
+    (Position3D(x=0.05, y=1.8, z=4.0),  "west"),
+    (Position3D(x=7.95, y=1.8, z=4.0),  "east"),
+    (Position3D(x=0.05, y=1.8, z=6.0),  "west"),
+    (Position3D(x=7.95, y=1.8, z=6.0),  "east"),
+    (Position3D(x=2.0,  y=1.8, z=7.95), "south"),
+    (Position3D(x=4.0,  y=1.8, z=7.95), "south"),
+    (Position3D(x=6.0,  y=1.8, z=7.95), "south"),
+    # ── upper row ──────────────────────────────────────────────────────────
+    (Position3D(x=0.05, y=2.7, z=2.0),  "west"),
+    (Position3D(x=7.95, y=2.7, z=2.0),  "east"),
+    (Position3D(x=0.05, y=2.7, z=4.0),  "west"),
+    (Position3D(x=7.95, y=2.7, z=4.0),  "east"),
+    (Position3D(x=0.05, y=2.7, z=6.0),  "west"),
+    (Position3D(x=7.95, y=2.7, z=6.0),  "east"),
+    (Position3D(x=2.0,  y=2.7, z=7.95), "south"),
+    (Position3D(x=4.0,  y=2.7, z=7.95), "south"),
+    (Position3D(x=6.0,  y=2.7, z=7.95), "south"),
+    # ── third row (high) ───────────────────────────────────────────────────
+    (Position3D(x=0.05, y=3.6, z=2.0),  "west"),
+    (Position3D(x=7.95, y=3.6, z=2.0),  "east"),
+    (Position3D(x=0.05, y=3.6, z=4.0),  "west"),
+    (Position3D(x=7.95, y=3.6, z=4.0),  "east"),
+    (Position3D(x=0.05, y=3.6, z=6.0),  "west"),
+    (Position3D(x=7.95, y=3.6, z=6.0),  "east"),
+    (Position3D(x=2.0,  y=3.6, z=7.95), "south"),
+    (Position3D(x=4.0,  y=3.6, z=7.95), "south"),
+    (Position3D(x=6.0,  y=3.6, z=7.95), "south"),
+]
+
+
+def _next_artifact_position(
+    occupied: set[tuple[float, float, float]],
+    exit_wall: str | None = None,
+) -> tuple[Position3D, str]:
+    """Return the first wall slot not already occupied, skipping door openings.
+
+    Falls back to a floating center position offset by slot index when all
+    wall slots are taken (extremely rare).
+
+    The exit door is always centred at 4.0 along the wall (for an 8-unit room
+    with one door at index 0), covering 3.25–4.75 ± a 0.25 safety margin.
     """
-    _SLOTS = [
-        (Position3D(x=0.05, y=1.8, z=2.5), "west"),   # 0 – west wall, lower-front
-        (Position3D(x=7.95, y=1.8, z=2.5), "east"),   # 1 – east wall, lower-front
-        (Position3D(x=0.05, y=1.8, z=5.5), "west"),   # 2 – west wall, lower-back
-        (Position3D(x=7.95, y=1.8, z=5.5), "east"),   # 3 – east wall, lower-back
-        (Position3D(x=2.0,  y=1.8, z=7.95), "south"), # 4 – south wall, left
-        (Position3D(x=6.0,  y=1.8, z=7.95), "south"), # 5 – south wall, right
-        (Position3D(x=0.05, y=2.7, z=2.5), "west"),   # 6 – west wall, upper-front
-        (Position3D(x=7.95, y=2.7, z=2.5), "east"),   # 7 – east wall, upper-front
-        (Position3D(x=0.05, y=2.7, z=5.5), "west"),   # 8 – west wall, upper-back
-        (Position3D(x=7.95, y=2.7, z=5.5), "east"),   # 9 – east wall, upper-back
-        (Position3D(x=4.0,  y=1.8, z=7.95), "south"), # 10 – south wall, center
-    ]
-    return _SLOTS[index % len(_SLOTS)]
+    _DOOR_CENTER = 4.0
+    _DOOR_HALF = 0.75 + 0.25  # DOOR_WIDTH / 2 + safety margin
+
+    for pos, wall in _WALL_SLOTS:
+        # Skip any slot whose position along the wall falls inside the door gap.
+        if exit_wall and wall == exit_wall:
+            coord = pos.x if wall == "south" else pos.z
+            if abs(coord - _DOOR_CENTER) < _DOOR_HALF:
+                continue
+        key = (round(pos.x, 2), round(pos.y, 2), round(pos.z, 2))
+        if key not in occupied:
+            return pos, wall
+
+    # Overflow: float artifacts in the center at increasing heights
+    overflow_index = len(occupied) - len(_WALL_SLOTS)
+    return Position3D(x=4.0, y=1.5 + overflow_index * 0.5, z=4.0), "south"

@@ -71,17 +71,18 @@ fi
 # ── Deploy ────────────────────────────────────────────────────────────────────
 info "Deploying ${SERVICE} to Cloud Run (${REGION})…"
 gcloud run deploy "${SERVICE}" \
-  --image           "${IMAGE}" \
-  --region          "${REGION}" \
-  --platform        managed \
+  --image                "${IMAGE}" \
+  --region               "${REGION}" \
+  --platform             managed \
   --allow-unauthenticated \
   --session-affinity \
-  --memory          2Gi \
-  --cpu             2 \
-  --timeout         300 \
-  --concurrency     80 \
-  --set-env-vars    "^@^DEBUG=false@${ENV_VARS}" \
-  --project         "${PROJECT}"
+  --memory               2Gi \
+  --cpu                  2 \
+  --timeout              300 \
+  --concurrency          80 \
+  --set-env-vars         "^@^DEBUG=false@${ENV_VARS}" \
+  --service-account      "rayan-backend@rayan-memory.iam.gserviceaccount.com" \
+  --project              "${PROJECT}"
 
 # ── Print the service URL ─────────────────────────────────────────────────────
 SERVICE_URL=$(gcloud run services describe "${SERVICE}" \
