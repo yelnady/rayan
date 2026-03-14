@@ -1,7 +1,7 @@
 import { memo, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
-import { Text, Billboard } from '@react-three/drei';
+import { Text, Billboard, Html } from '@react-three/drei';
 import { useCameraStore } from '../../stores/cameraStore';
 import { WallsWithDoors } from './WallsWithDoors';
 import { BookInstancedRenderer } from '../artifacts/BookInstancedRenderer';
@@ -301,7 +301,7 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
               color="#FFFFFF"
               anchorX="center"
               anchorY="middle"
-              maxWidth={w}
+              maxWidth={w + 14}
               textAlign="center"
               overflowWrap="break-word"
               font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
@@ -312,16 +312,78 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
             </Text>
           </Billboard>
 
-          <Billboard position={[w / 2, h + 1.2, d / 2]} follow={true}>
-            <Text
-              fontSize={0.6}
-              color="rgba(255,255,255,0.7)"
-              anchorX="center"
-              anchorY="middle"
-            >
-              {`${room.artifactCount} MEMORIES${room.firstMemoryAt ? ` | ${new Date(room.firstMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt ? ` — ${new Date(room.lastMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : ''}`}
-            </Text>
-          </Billboard>
+          <Html position={[w / 2, h + 1.0, d / 2]} center distanceFactor={18} zIndexRange={[10, 0]}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 5,
+              fontFamily: 'system-ui, sans-serif',
+              pointerEvents: 'none',
+            }}>
+              {/* Memory count badge */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                background: 'rgba(10, 10, 28, 0.78)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                borderRadius: 20,
+                backdropFilter: 'blur(8px)',
+                padding: '3px 10px 3px 6px',
+                whiteSpace: 'nowrap',
+              }}>
+                <span style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: 'rgba(180,150,255,0.95)',
+                  background: 'rgba(180,150,255,0.18)',
+                  border: '1px solid rgba(180,150,255,0.30)',
+                  borderRadius: 10,
+                  padding: '0 6px',
+                  lineHeight: '18px',
+                  minWidth: 18,
+                  textAlign: 'center',
+                  display: 'inline-block',
+                }}>
+                  {room.artifactCount}
+                </span>
+                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                  {room.artifactCount === 1 ? 'Memory' : 'Memories'}
+                </span>
+              </div>
+
+              {/* Date range badge */}
+              {room.firstMemoryAt && (
+                <div style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  background: 'rgba(10, 10, 28, 0.70)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                  borderRadius: 20,
+                  backdropFilter: 'blur(8px)',
+                  padding: '2px 10px',
+                  whiteSpace: 'nowrap',
+                }}>
+                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                    From
+                  </span>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.72)' }}>
+                    {new Date(room.firstMemoryAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                  </span>
+                  {room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt && (
+                    <>
+                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)' }}>—</span>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.72)' }}>
+                        {new Date(room.lastMemoryAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </Html>
 
           {/* Invisible click target covering the island volume */}
           <mesh

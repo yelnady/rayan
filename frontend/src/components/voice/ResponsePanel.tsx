@@ -65,6 +65,11 @@ export function ResponsePanel() {
     const clearMessages = panelMode === 'voice' ? voiceClearMessages : captureClearMessages;
     const modeLabel = panelMode === 'voice' ? 'Conversation' : 'Capture Session';
 
+    const isStreaming =
+        (panelMode === 'voice' && voiceStatus === 'responding') ||
+        (panelMode === 'capture' && captureStatus === 'capturing');
+    const lastMsgId = messages.length > 0 ? messages[messages.length - 1].id : null;
+
     // Auto-scroll to bottom as conversation grows
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -129,7 +134,7 @@ export function ResponsePanel() {
             </div>
 
             {/* Message log */}
-            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3">
+            <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' }}>
                 {/* Connecting/Recording placeholder */}
                 {(status === 'connecting' || status === 'capturing') && messages.length === 0 && (
                     <div className="flex items-center justify-center py-8">
@@ -138,12 +143,17 @@ export function ResponsePanel() {
                 )}
 
                 {messages.map((msg) => {
+                    const isLastStreaming = isStreaming && msg.id === lastMsgId;
+
                     if (msg.role === 'tool') {
-                        const icon = TOOL_ICONS[msg.toolName ?? ''] ?? '⚙️';
                         return (
-                            <div key={msg.id} className="flex items-center justify-center my-1.5">
+                            <div
+                                key={msg.id}
+                                className="flex items-center justify-center my-1.5"
+                                style={{ animation: 'fadeInUp 0.2s ease-out both' }}
+                            >
                                 <div className="flex items-center gap-2 bg-[rgba(0,0,0,0.03)] border border-[rgba(0,0,0,0.05)] rounded-full px-4 py-1.5 max-w-[95%]">
-                                    <span className="text-[13px] leading-none">{icon}</span>
+                                    <span className="text-[13px] leading-none">{TOOL_ICONS[msg.toolName ?? ''] ?? '⚙️'}</span>
                                     <span className="text-[11px] font-semibold text-slate-500 tracking-wide">{msg.text}</span>
                                 </div>
                             </div>
@@ -152,12 +162,19 @@ export function ResponsePanel() {
 
                     if (msg.role === 'user') {
                         return (
-                            <div key={msg.id} className="flex justify-end">
+                            <div
+                                key={msg.id}
+                                className="flex justify-end"
+                                style={{ animation: 'fadeInUp 0.2s ease-out both' }}
+                            >
                                 <div className="max-w-[90%] bg-slate-100 border border-slate-200 rounded-l-2xl rounded-br-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
                                     <span className="block text-[10px] font-extrabold uppercase tracking-widest mb-1 font-body text-slate-400">
                                         You
                                     </span>
-                                    <p className="m-0 text-[14px] leading-relaxed font-body text-slate-800 font-medium">{msg.text}</p>
+                                    <p className="m-0 text-[14px] leading-relaxed font-body text-slate-800 font-medium">
+                                        {msg.text}
+                                        {isLastStreaming && <StreamingCursor />}
+                                    </p>
                                 </div>
                             </div>
                         );
@@ -165,12 +182,19 @@ export function ResponsePanel() {
 
                     // rayan
                     return (
-                        <div key={msg.id} className="flex justify-start">
+                        <div
+                            key={msg.id}
+                            className="flex justify-start"
+                            style={{ animation: 'fadeInUp 0.2s ease-out both' }}
+                        >
                             <div className="max-w-[90%] bg-indigo-50 border border-indigo-100 rounded-r-2xl rounded-bl-2xl rounded-tl-sm px-4 py-2.5 shadow-sm">
                                 <span className="block text-[10px] font-extrabold uppercase tracking-widest mb-1 font-body text-indigo-500">
                                     Rayan
-                                </span >
-                                <p className="m-0 text-[14px] leading-relaxed font-body text-slate-900 font-medium">{msg.text}</p>
+                                </span>
+                                <p className="m-0 text-[14px] leading-relaxed font-body text-slate-900 font-medium">
+                                    {msg.text}
+                                    {isLastStreaming && <StreamingCursor />}
+                                </p>
                             </div>
                         </div>
                     );
@@ -212,6 +236,25 @@ function StatusDot({ status }: { status: string }) {
                     : status === 'error' ? 'bg-rose-500'
                         : 'bg-slate-300';
     return <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorClass}`} />;
+}
+
+function StreamingCursor() {
+    return (
+        <span
+            aria-hidden="true"
+            style={{
+                display: 'inline-block',
+                width: '2px',
+                height: '0.85em',
+                background: 'currentColor',
+                borderRadius: '1px',
+                marginLeft: '2px',
+                verticalAlign: '-0.1em',
+                opacity: 0.5,
+                animation: 'cursor-blink 0.9s ease-in-out infinite',
+            }}
+        />
+    );
 }
 
 function ThinkingDots({ status }: { status: string }) {

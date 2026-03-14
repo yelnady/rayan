@@ -42,8 +42,8 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
 function formatDate(iso?: string): { datePart: string; timePart: string } {
     const d = new Date(iso ?? Date.now());
     return {
-        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
-        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase(),
+        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
     };
 }
 
@@ -127,33 +127,37 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
                 </group>
             </group>
 
-            {/* Date/time plaque — only when inside this artifact's room */}
-            {currentRoomId === artifact.roomId && <Html
-                position={[artifact.position.x, artifact.position.y + 0.15, artifact.position.z]}
-                center
-                distanceFactor={10}
-                zIndexRange={[10, 0]}
-                style={{ pointerEvents: 'none' }}
-            >
-                <div style={{
-                    background: 'rgba(5, 5, 18, 0.72)',
-                    backdropFilter: 'blur(6px)',
-                    border: '1px solid #60A8FF50',
-                    borderRadius: '6px',
-                    padding: '4px 10px',
-                    fontFamily: 'system-ui, -apple-system, sans-serif',
-                    textAlign: 'center',
-                    whiteSpace: 'nowrap',
-                    boxShadow: '0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 #60A8FF20',
-                }}>
-                    <div style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.07em', color: '#60A8FF', lineHeight: 1.4 }}>
-                        {dateLabel.datePart}
+            {/* Date/time plaque — only when inside this artifact's room and not hovered */}
+            {currentRoomId === artifact.roomId && !hovered && (
+                <Html
+                    position={[artifact.position.x, artifact.position.y + 0.15, artifact.position.z]}
+                    center
+                    distanceFactor={10}
+                    zIndexRange={[10, 0]}
+                    style={{ pointerEvents: 'none' }}
+                >
+                    <div style={{
+                        background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
+                        backdropFilter: 'blur(16px) saturate(1.6)',
+                        WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        borderTop: '1px solid rgba(255,255,255,0.32)',
+                        borderRadius: '10px',
+                        padding: '4px 10px',
+                        fontFamily: 'system-ui, -apple-system, sans-serif',
+                        textAlign: 'center',
+                        whiteSpace: 'nowrap',
+                        boxShadow: '0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)',
+                    }}>
+                        <div style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(0,0,0,0.70)', lineHeight: 1.4 }}>
+                            {dateLabel.datePart}
+                        </div>
+                        <div style={{ fontSize: '8px', letterSpacing: '0.05em', color: 'rgba(0,0,0,0.45)', lineHeight: 1.3 }}>
+                            {dateLabel.timePart}
+                        </div>
                     </div>
-                    <div style={{ fontSize: '9px', letterSpacing: '0.05em', color: '#60A8FF', opacity: 0.55, lineHeight: 1.3 }}>
-                        {dateLabel.timePart}
-                    </div>
-                </div>
-            </Html>}
+                </Html>
+            )}
 
             {hovered && (
                 <Html
@@ -169,25 +173,27 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
                 >
                     <div
                         style={{
-                            background: 'rgba(10,10,20,0.88)',
-                            backdropFilter: 'blur(8px)',
-                            border: '1px solid #60A8FF44',
-                            borderRadius: '10px',
+                            background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
+                            backdropFilter: 'blur(16px) saturate(1.6)',
+                            WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+                            border: '1px solid rgba(255,255,255,0.18)',
+                            borderTop: '1px solid rgba(255,255,255,0.32)',
+                            borderRadius: '14px',
                             padding: '8px 12px',
                             minWidth: '160px',
                             maxWidth: '220px',
                             textAlign: 'center',
                             fontFamily: 'system-ui, sans-serif',
-                            boxShadow: '0 0 16px #60A8FF30',
+                            boxShadow: '0 8px 32px rgba(0,0,0,0.35), 0 0 16px #60A8FF20, inset 0 1px 0 rgba(255,255,255,0.15)',
                         }}
                     >
-                        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#60A8FF', background: '#60A8FF18', borderRadius: '4px', padding: '2px 7px', marginBottom: '6px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.75)', background: '#60A8FF18', borderRadius: '4px', padding: '2px 7px', marginBottom: '6px' }}>
                             Document
                         </div>
-                        <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.90)', lineHeight: 1.45, marginBottom: '6px' }}>
-                            {artifact.summary}
+                        <div style={{ fontSize: '12px', color: 'rgba(0,0,0,0.80)', lineHeight: 1.45, marginBottom: '6px' }}>
+                            {artifact.title || artifact.summary}
                         </div>
-                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.04em' }}>
+                        <div style={{ fontSize: '10px', color: 'rgba(0,0,0,0.40)', letterSpacing: '0.04em' }}>
                             Click to explore
                         </div>
                     </div>

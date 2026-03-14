@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
@@ -12,8 +12,8 @@ interface CrystalOrbProps {
   artifactId?: string;
   /** Override pulse manually (useful when artifactId is unknown) */
   pulsing?: boolean;
+  hovered?: boolean;
   onClick?: () => void;
-  onHover?: (hovered: boolean) => void;
 }
 
 const ORB_RADIUS = 0.3;
@@ -32,8 +32,8 @@ export const CrystalOrb = memo(function CrystalOrb({
   color = '#9B59B6',
   artifactId,
   pulsing = false,
+  hovered = false,
   onClick,
-  onHover,
 }: CrystalOrbProps) {
   const newIds = useEnrichmentStore((s) => s.newEnrichmentArtifactIds);
   /** Orb pulses if caller passes pulsing=true OR a new enrichment arrived for this artifact */
@@ -67,17 +67,10 @@ export const CrystalOrb = memo(function CrystalOrb({
     }
   });
 
-  function handlePointerOver() {
+  useEffect(() => {
     if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.2 });
-    onHover?.(true);
-  }
-
-  function handlePointerOut() {
-    if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1, y: 1, z: 1, duration: 0.2 });
-    onHover?.(false);
-  }
+    gsap.to(groupRef.current.scale, { x: hovered ? 1.2 : 1, y: hovered ? 1.2 : 1, z: hovered ? 1.2 : 1, duration: 0.2 });
+  }, [hovered]);
 
   return (
     // T155: LOD — full detail < 10 units, simplified 10–25 units, hidden > 25 units
@@ -88,8 +81,6 @@ export const CrystalOrb = memo(function CrystalOrb({
         <mesh
           ref={orbRef}
           onClick={onClick}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
         >
           <icosahedronGeometry args={[ORB_RADIUS, 2]} />
           <meshStandardMaterial

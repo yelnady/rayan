@@ -1,7 +1,6 @@
 import { Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { FirstPersonControls } from '../navigation/FirstPersonControls';
-import { PalaceMinimap } from './PalaceMinimap';
 import { CameraSync } from './CameraSync';
 import { Lobby } from './Lobby';
 import { Room } from './Room';
@@ -77,10 +76,11 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
   const { camera } = useThree();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
+  const flyTargetVec = useRef(new THREE.Vector3());
 
   useLayoutEffect(() => {
-    camera.position.set(centerX, 35, centerZ + 45);
-    (camera as THREE.PerspectiveCamera).fov = 50;
+    camera.position.set(centerX, 55, centerZ + 65);
+    (camera as THREE.PerspectiveCamera).fov = 45;
     (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
 
     const controls = controlsRef.current;
@@ -98,6 +98,33 @@ function OverviewControls({ centerX, centerZ }: { centerX: number; centerZ: numb
     controls.listenToKeyEvents(window);
     return () => controls.stopListenToKeyEvents?.();
   }, []);
+
+  // Animate overview camera toward a room when overviewFlyTo is triggered
+  useFrame((_, delta) => {
+    const state = useCameraStore.getState();
+    const ft = state.overviewFlyTarget;
+    if (!ft || !controlsRef.current) return;
+
+    const controls = controlsRef.current;
+    flyTargetVec.current.set(ft.x, 0, ft.z);
+
+    // Pan the orbit target toward the room center
+    controls.target.lerp(flyTargetVec.current, delta * 5);
+
+    // Slide camera horizontally above the room and zoom in (lower height)
+    camera.position.x = THREE.MathUtils.lerp(camera.position.x, ft.x, delta * 4);
+    camera.position.z = THREE.MathUtils.lerp(camera.position.z, ft.z + 18, delta * 4);
+    camera.position.y = THREE.MathUtils.lerp(camera.position.y, 18, delta * 3);
+
+    controls.update();
+
+    // Once close enough, fire the callback
+    if (controls.target.distanceTo(flyTargetVec.current) < 0.5) {
+      const cb = state.onOverviewFlyComplete;
+      state.clearOverviewFly();
+      cb?.();
+    }
+  });
 
   return (
     <OrbitControls
@@ -186,62 +213,69 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
 
   // T157: Stable callback so Lobby/Door children don't re-render on every PalaceCanvas render
   const handleEnterRoom = useCallback((roomId: string) => {
-    useTransitionStore.getState().startTransition('enter', () => {
-      const state = usePalaceStore.getState();
-      state.setCurrentRoomId(roomId);
-      const targetRoom = state.rooms.find(r => r.id === roomId);
-      const door = lobbyDoors.find(d => d.roomId === roomId);
+    const doEnterRoom = () => {
+      useTransitionStore.getState().startTransition('enter', () => {
+        const state = usePalaceStore.getState();
+        state.setCurrentRoomId(roomId);
+        const targetRoom = state.rooms.find(r => r.id === roomId);
+        const door = lobbyDoors.find(d => d.roomId === roomId);
 
-      if (targetRoom) {
-        useCameraStore.getState().exitOverview();
+        if (targetRoom) {
+          useCameraStore.getState().exitOverview();
 
-        const w = targetRoom.dimensions.w;
-        const d = targetRoom.dimensions.d;
-        const startX = targetRoom.position.x;
-        const startZ = targetRoom.position.z;
+          const w = targetRoom.dimensions.w;
+          const d = targetRoom.dimensions.d;
+          const startX = targetRoom.position.x;
+          const startZ = targetRoom.position.z;
 
-        // Default: at the back (South), face North
-        let entryX = startX + w / 2;
-        let entryZ = startZ + d - 0.5;
-        let lookX = entryX;
-        let lookZ = startZ;
+          // Default: at the back (South), face North
+          let entryX = startX + w / 2;
+          let entryZ = startZ + d - 0.5;
+          let lookX = entryX;
+          let lookZ = startZ;
 
-        // Adjust entry point and look-at based on which lobby wall the door is on.
-        // If you walk through a North lobby door, you enter the South wall of the room.
-        if (door) {
-          switch (door.wallPosition) {
-            case 'north': // Walk North -> Enter South looking North
-              entryX = startX + w / 2;
-              entryZ = startZ + d - 0.5;
-              lookX = entryX;
-              lookZ = startZ;
-              break;
-            case 'south': // Walk South -> Enter North looking South
-              entryX = startX + w / 2;
-              entryZ = startZ + 0.5;
-              lookX = entryX;
-              lookZ = startZ + d;
-              break;
-            case 'east': // Walk East -> Enter West looking East
-              entryX = startX + 0.5;
-              entryZ = startZ + d / 2;
-              lookX = startX + w;
-              lookZ = entryZ;
-              break;
-            case 'west': // Walk West -> Enter East looking West
-              entryX = startX + w - 0.5;
-              entryZ = startZ + d / 2;
-              lookX = startX;
-              lookZ = entryZ;
-              break;
+          // Adjust entry point and look-at based on which lobby wall the door is on.
+          if (door) {
+            switch (door.wallPosition) {
+              case 'north':
+                entryX = startX + w / 2; entryZ = startZ + d - 0.5;
+                lookX = entryX; lookZ = startZ;
+                break;
+              case 'south':
+                entryX = startX + w / 2; entryZ = startZ + 0.5;
+                lookX = entryX; lookZ = startZ + d;
+                break;
+              case 'east':
+                entryX = startX + 0.5; entryZ = startZ + d / 2;
+                lookX = startX + w; lookZ = entryZ;
+                break;
+              case 'west':
+                entryX = startX + w - 0.5; entryZ = startZ + d / 2;
+                lookX = startX; lookZ = entryZ;
+                break;
+            }
           }
-        }
 
-        useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
-        useCameraStore.getState().lookAt({ x: lookX, y: 1.7, z: lookZ });
-        useCameraStore.getState().setFov(100);
+          useCameraStore.getState().teleport({ x: entryX, y: 1.7, z: entryZ });
+          useCameraStore.getState().lookAt({ x: lookX, y: 1.7, z: lookZ });
+          useCameraStore.getState().setFov(100);
+        }
+      });
+    };
+
+    // When in bird's-eye overview, first pan/zoom the overview camera toward the
+    // room, then enter it — instead of cutting straight through the palace.
+    if (useCameraStore.getState().isOverviewMode) {
+      const targetRoom = usePalaceStore.getState().rooms.find(r => r.id === roomId);
+      if (targetRoom) {
+        const cx = targetRoom.position.x + targetRoom.dimensions.w / 2;
+        const cz = targetRoom.position.z + targetRoom.dimensions.d / 2;
+        useCameraStore.getState().overviewFlyTo(cx, cz, doEnterRoom);
+        return;
       }
-    });
+    }
+
+    doEnterRoom();
   }, [lobbyDoors]);
 
   // T162: Stable callback to return to the center of the lobby
@@ -342,7 +376,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
           powerPreference: 'high-performance',
         }}
       >
-        <fog attach="fog" args={['#060614', isOverviewMode ? 60 : 20, isOverviewMode ? 200 : 80]} />
+        <fog attach="fog" args={['#060614', isOverviewMode ? 80 : 20, isOverviewMode ? 300 : 80]} />
 
         <CameraSync leftOffset={leftOffset} />
         <ambientLight intensity={0.5} color="#fff8f0" />
@@ -441,7 +475,44 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
         }
       </Canvas>
 
-      <PalaceMinimap onEnterRoom={handleEnterRoom} onEnterLobby={handleEnterLobby} />
+      {/* Room count badge — shown only in overview/map mode */}
+      {isOverviewMode && (
+        <div style={{
+          position: 'fixed',
+          top: 20,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 50,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          background: 'rgba(5, 5, 18, 0.80)',
+          border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 20,
+          backdropFilter: 'blur(12px)',
+          padding: '5px 14px 5px 10px',
+          pointerEvents: 'none',
+          fontFamily: 'system-ui, sans-serif',
+        }}>
+          <span style={{
+            fontSize: 11,
+            fontWeight: 700,
+            color: 'rgba(180,150,255,0.95)',
+            background: 'rgba(180,150,255,0.18)',
+            border: '1px solid rgba(180,150,255,0.30)',
+            borderRadius: 12,
+            padding: '1px 8px',
+            lineHeight: '18px',
+            minWidth: 20,
+            textAlign: 'center',
+          }}>
+            {rooms.length}
+          </span>
+          <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+            {rooms.length === 1 ? 'Room' : 'Rooms'}
+          </span>
+        </div>
+      )}
 
       {/* Door right-click context menu */}
       {doorMenu && (() => {
