@@ -1,4 +1,4 @@
-import { memo, useRef } from 'react';
+import { memo, useRef, useEffect } from 'react';
 import { Detailed } from '@react-three/drei';
 import { gsap } from 'gsap';
 import type { Group } from 'three';
@@ -6,8 +6,8 @@ import type { Group } from 'three';
 interface FloatingBookProps {
   position: [number, number, number];
   color?: string;
+  hovered?: boolean;
   onClick?: () => void;
-  onHover?: (hovered: boolean) => void;
 }
 
 const BOOK_W = 0.65;
@@ -17,22 +17,15 @@ const BOOK_D = 0.18;
 export const FloatingBook = memo(function FloatingBook({
   position,
   color = '#4A90D9',
+  hovered = false,
   onClick,
-  onHover,
 }: FloatingBookProps) {
   const groupRef = useRef<Group>(null);
 
-  function handlePointerOver() {
+  useEffect(() => {
     if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1.2, y: 1.2, z: 1.2, duration: 0.2 });
-    onHover?.(true);
-  }
-
-  function handlePointerOut() {
-    if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1, y: 1, z: 1, duration: 0.2 });
-    onHover?.(false);
-  }
+    gsap.to(groupRef.current.scale, { x: hovered ? 1.2 : 1, y: hovered ? 1.2 : 1, z: hovered ? 1.2 : 1, duration: 0.2 });
+  }, [hovered]);
 
   return (
     // T155: LOD — full detail < 8 units, simplified 8–20 units, hidden > 20 units
@@ -42,8 +35,6 @@ export const FloatingBook = memo(function FloatingBook({
         <mesh
           castShadow
           onClick={onClick}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
         >
           <boxGeometry args={[BOOK_W, BOOK_H, BOOK_D]} />
           <meshStandardMaterial color={color} roughness={0.6} metalness={0.1} />

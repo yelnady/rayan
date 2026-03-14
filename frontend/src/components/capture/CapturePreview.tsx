@@ -18,7 +18,7 @@ export function CapturePreview() {
     }
 
     return (
-        <div className="fixed bottom-[120px] right-6 w-[240px] aspect-video rounded-2xl overflow-hidden shadow-lg border-2 border-primary-border bg-surface z-hud animate-[scaleIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)]">
+        <div className="fixed bottom-[100px] sm:bottom-[120px] right-3 sm:right-6 w-[150px] sm:w-[240px] aspect-video rounded-xl sm:rounded-2xl overflow-hidden shadow-lg border-2 border-primary-border bg-surface z-hud animate-[scaleIn_0.3s_cubic-bezier(0.175,0.885,0.32,1.275)]">
             <video
                 ref={videoRef}
                 autoPlay

@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { gsap } from 'gsap';
 import * as THREE from 'three';
@@ -6,14 +6,14 @@ import * as THREE from 'three';
 interface SpeechBubbleProps {
   position: [number, number, number];
   color?: string;
+  hovered?: boolean;
   onClick?: () => void;
-  onHover?: (hovered: boolean) => void;
 }
 
 export function SpeechBubble({
   position,
+  hovered = false,
   onClick,
-  onHover,
 }: SpeechBubbleProps) {
   const groupRef = useRef<THREE.Group>(null);
 
@@ -30,25 +30,16 @@ export function SpeechBubble({
     return clone;
   }, [scene]);
 
-  function handlePointerOver() {
+  useEffect(() => {
     if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1.15, y: 1.15, z: 1.15, duration: 0.2 });
-    onHover?.(true);
-  }
-
-  function handlePointerOut() {
-    if (!groupRef.current) return;
-    gsap.to(groupRef.current.scale, { x: 1, y: 1, z: 1, duration: 0.2 });
-    onHover?.(false);
-  }
+    gsap.to(groupRef.current.scale, { x: hovered ? 1.15 : 1, y: hovered ? 1.15 : 1, z: hovered ? 1.15 : 1, duration: 0.2 });
+  }, [hovered]);
 
   return (
     <group position={position}>
       <group
         ref={groupRef}
         onClick={onClick}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
       >
         <group scale={0.22}>
           <primitive object={clonedScene} />

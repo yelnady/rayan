@@ -76,6 +76,7 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const teleportTarget = useCameraStore((s) => s.teleportTarget);
     useEffect(() => {
         if (teleportToken === 0 || !teleportTarget) return;
+        introActive.current = false; // cancel intro fly-in so teleport isn't overridden
         camera.position.set(teleportTarget.x, CAMERA_HEIGHT, teleportTarget.z);
         velocity.current.set(0, 0, 0);
     }, [teleportToken, teleportTarget, camera]);

@@ -30,6 +30,12 @@ interface CameraState {
     /** Target FOV for the camera */
     fov: number;
     setFov: (fov: number) => void;
+    /** Bird's-eye pan toward a world XZ position, then fire callback */
+    overviewFlyTarget: { x: number; z: number } | null;
+    overviewFlyToken: number;
+    onOverviewFlyComplete: (() => void) | null;
+    overviewFlyTo: (x: number, z: number, onComplete?: () => void) => void;
+    clearOverviewFly: () => void;
 }
 
 export const useCameraStore = create<CameraState>((set) => ({
@@ -63,4 +69,13 @@ export const useCameraStore = create<CameraState>((set) => ({
     setMobileMovement: (movement) => set({ mobileMovement: movement }),
     fov: 75,
     setFov: (fov) => set({ fov }),
+    overviewFlyTarget: null,
+    overviewFlyToken: 0,
+    onOverviewFlyComplete: null,
+    overviewFlyTo: (x, z, onComplete) => set((s) => ({
+        overviewFlyTarget: { x, z },
+        overviewFlyToken: s.overviewFlyToken + 1,
+        onOverviewFlyComplete: onComplete ?? null,
+    })),
+    clearOverviewFly: () => set({ overviewFlyTarget: null, onOverviewFlyComplete: null }),
 }));

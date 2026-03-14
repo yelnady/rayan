@@ -16,7 +16,6 @@ import { useVoiceStore } from '../stores/voiceStore';
 import { AudioPlayback } from '../services/audioPlayback';
 import { useEnrichmentStore } from '../stores/enrichmentStore';
 import { useTransitionStore } from '../stores/transitionStore';
-import { useCaptureStore } from '../stores/captureStore';
 import { stopVoiceSession } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;

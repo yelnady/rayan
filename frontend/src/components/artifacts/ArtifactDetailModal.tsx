@@ -27,6 +27,7 @@ export interface ArtifactDetailData {
     roomId: string;
     type: string;
     visual: string;
+    title?: string;
     summary: string;
     fullContent?: string;
     sourceMediaUrl?: string;
@@ -210,10 +211,10 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
             role="dialog"
             aria-modal="true"
             aria-labelledby="artifact-modal-title"
-            className="fixed inset-0 bg-overlay backdrop-blur-sm z-[1100] flex items-center justify-center p-6 animate-[fadeIn_0.2s_ease]"
+            className="fixed inset-0 bg-overlay backdrop-blur-sm z-[1100] flex items-end sm:items-center justify-center p-0 sm:p-6 animate-[fadeIn_0.2s_ease]"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="bg-surface border border-border rounded-[24px] w-full max-w-[580px] max-h-[85vh] flex flex-col overflow-hidden shadow-lg animate-[scaleIn_0.25s_ease]">
+            <div className="bg-surface border border-border rounded-t-[24px] sm:rounded-[24px] w-full sm:max-w-[580px] max-h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden shadow-lg animate-[scaleIn_0.25s_ease]" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
                 {/* Header */}
                 <div
                     className="p-5 pb-4 border-b border-border-light shrink-0"
@@ -235,7 +236,7 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                         </button>
                     </div>
                     <h2 id="artifact-modal-title" className="text-text-primary text-[18px] font-semibold font-heading m-0 leading-[1.35]">
-                        {loading ? 'Loading…' : (artifact?.summary ?? 'Artifact')}
+                        {loading ? 'Loading…' : (artifact?.title || artifact?.summary || 'Artifact')}
                     </h2>
                 </div>
 
@@ -250,6 +251,14 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
 
                     {error && (
                         <p className="text-error text-[13px] font-body m-0 py-3">{error}</p>
+                    )}
+
+                    {/* Summary */}
+                    {!loading && artifact?.summary && (
+                        <section>
+                            <h3 className="text-text-muted text-[10px] font-bold uppercase tracking-[0.1em] mb-2 mt-0 font-body">Summary</h3>
+                            <p className="text-text-secondary text-[14px] leading-[1.7] m-0 font-body">{artifact.summary}</p>
+                        </section>
                     )}
 
                     {/* Synthesis mind map image */}

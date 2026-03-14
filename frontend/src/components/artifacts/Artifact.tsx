@@ -5,7 +5,6 @@ import type { Group } from 'three';
 import type { Artifact as ArtifactData, ArtifactVisual } from '../../types/palace';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { registerArtifactCenter, artifactCenters } from '../palace/artifactCenters';
-import { FloatingBook } from './FloatingBook';
 import { SpeechBubble } from './SpeechBubble';
 import { CrystalOrb } from './CrystalOrb';
 import { SynthesisMap } from './SynthesisMap';
@@ -54,6 +53,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 /** GLB file path for each model-based visual. */
 const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
+  floating_book: '/models/Book.glb',
   hologram_frame: '/models/lecture.glb',
   framed_image: '/models/Photo.glb',
   lesson: '/models/lesson.glb',
@@ -88,6 +88,7 @@ const GLB_DARKEN: Partial<Record<ArtifactVisual, number>> = {
  * Derived from bounding-box analysis of each file.
  */
 const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
+  floating_book: 0.5,
   hologram_frame: 0.5,
   framed_image: 0.5,
   lesson: 0.014,
@@ -95,7 +96,7 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   question: 0.052,
   coffee: 0.019,
   milestone: 13.5,
-  heart: 0.275,
+  heart: 0.0015,
   dream: 0.001,
   tree: 0.001,
   opinion: 0.003,
@@ -189,7 +190,6 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
 export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: ArtifactProps) {
   const [hovered, setHovered] = useState(false);
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
-
   // Register the world-space bounding-box center so ArtifactConnectionLines
   // can anchor dots at the true visual center of each model.
   const groupRef = useRef<Group>(null);
@@ -221,8 +221,8 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
 
   const dateLabel = useMemo(() => {
     const d = new Date(artifact.capturedAt ?? artifact.createdAt);
-    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
-    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase();
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
     return { datePart, timePart };
   }, [artifact.capturedAt, artifact.createdAt]);
 
@@ -238,25 +238,23 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
   const visual = (() => {
     const O: [number, number, number] = [0, 0, 0];
     switch (artifact.visual) {
-      case 'floating_book':
-        return <FloatingBook position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
       case 'hologram_frame':
-        return <GlbArtifact path="/models/lecture.glb" scale={1.5} rotation={[0, -Math.PI / 2, 0]} onClick={handleClick} onHover={handleHover} />;
+        return <GlbArtifact path="/models/lecture.glb" scale={1.5} rotation={[0, -Math.PI / 2, 0]} onClick={handleClick} />;
       case 'framed_image':
-        return <GlbArtifact path="/models/Photo.glb" scale={0.5} rotation={[0, Math.PI, 0]} onClick={handleClick} onHover={handleHover} />;
+        return <GlbArtifact path="/models/Photo.glb" scale={0.5} rotation={[0, Math.PI, 0]} onClick={handleClick} />;
       case 'speech_bubble':
-        return <SpeechBubble position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
+        return <SpeechBubble position={O} color={color ?? accentColor} hovered={hovered} onClick={handleClick} />;
       case 'crystal_orb':
-        return <CrystalOrb position={O} color={color ?? accentColor} onClick={handleClick} onHover={handleHover} />;
+        return <CrystalOrb position={O} color={color ?? accentColor} hovered={hovered} onClick={handleClick} />;
       case 'synthesis_map':
-        return <SynthesisMap position={O} imageUrl={artifact.sourceMediaUrl} onClick={handleClick} onHover={handleHover} />;
+        return <SynthesisMap position={O} imageUrl={artifact.sourceMediaUrl} onClick={handleClick} />;
       default: {
         const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
         const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
         const glbRotation = GLB_ROTATIONS[artifact.visual as ArtifactVisual];
         const glbDarken = GLB_DARKEN[artifact.visual as ArtifactVisual];
         if (glbPath) {
-          return <GlbArtifact path={glbPath} scale={glbScale} rotation={glbRotation} darken={glbDarken} onClick={handleClick} onHover={handleHover} />;
+          return <GlbArtifact path={glbPath} scale={glbScale} rotation={glbRotation} darken={glbDarken} onClick={handleClick} />;
         }
         return null;
       }
@@ -271,45 +269,38 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
         <group position={[0, 0, 0.08]}>
           {visual}
 
-          {/* ── Date/time plaque — only when inside this artifact's room ── */}
-          {currentRoomId === artifact.roomId && <Html
-            position={[0, DATE_Y_OFFSETS[artifact.visual] ?? DEFAULT_DATE_Y_OFFSET, 0.12]}
-            center
-            distanceFactor={10}
-            zIndexRange={[10, 0]}
-            style={{ pointerEvents: 'none' }}
-          >
-            <div style={{
-              background: 'rgba(5, 5, 18, 0.72)',
-              backdropFilter: 'blur(6px)',
-              border: `1px solid ${accentColor}50`,
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontFamily: 'system-ui, -apple-system, sans-serif',
-              textAlign: 'center',
-              whiteSpace: 'nowrap',
-              boxShadow: `0 2px 12px rgba(0,0,0,0.5), inset 0 1px 0 ${accentColor}20`,
-            }}>
+          {/* ── Date/time plaque — only when inside this artifact's room and not hovered ── */}
+          {currentRoomId === artifact.roomId && !hovered && (
+            <Html
+              position={[0, DATE_Y_OFFSETS[artifact.visual] ?? DEFAULT_DATE_Y_OFFSET, 0.12]}
+              center
+              distanceFactor={10}
+              zIndexRange={[10, 0]}
+              style={{ pointerEvents: 'none' }}
+            >
               <div style={{
-                fontSize: '10px',
-                fontWeight: 600,
-                letterSpacing: '0.07em',
-                color: accentColor,
-                lineHeight: 1.4,
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)',
+                backdropFilter: 'blur(16px) saturate(1.6)',
+                WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+                border: '1px solid rgba(255,255,255,0.18)',
+                borderTop: '1px solid rgba(255,255,255,0.32)',
+                borderRadius: '10px',
+                padding: '4px 10px',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
+                textAlign: 'center',
+                whiteSpace: 'nowrap',
+                boxShadow: `0 4px 16px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.15)`,
               }}>
-                {dateLabel.datePart}
+                <div style={{ fontSize: '9px', fontWeight: 600, letterSpacing: '0.08em', color: 'rgba(0,0,0,0.70)', lineHeight: 1.4 }}>
+                  {dateLabel.datePart}
+                </div>
+                <div style={{ fontSize: '8px', letterSpacing: '0.05em', color: 'rgba(0,0,0,0.45)', lineHeight: 1.3 }}>
+                  {dateLabel.timePart}
+                </div>
               </div>
-              <div style={{
-                fontSize: '9px',
-                letterSpacing: '0.05em',
-                color: accentColor,
-                opacity: 0.55,
-                lineHeight: 1.3,
-              }}>
-                {dateLabel.timePart}
-              </div>
-            </div>
-          </Html>}
+            </Html>
+          )}
+
         </group>
       </group>
 
@@ -335,16 +326,18 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
         >
           <div
             style={{
-              background: 'rgba(10, 10, 20, 0.88)',
-              backdropFilter: 'blur(8px)',
-              border: `1px solid ${accentColor}44`,
-              borderRadius: '10px',
+              background: `linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.04) 100%)`,
+              backdropFilter: 'blur(16px) saturate(1.6)',
+              WebkitBackdropFilter: 'blur(16px) saturate(1.6)',
+              border: `1px solid rgba(255,255,255,0.18)`,
+              borderTop: `1px solid rgba(255,255,255,0.32)`,
+              borderRadius: '14px',
               padding: '8px 12px',
               minWidth: '160px',
               maxWidth: '220px',
               textAlign: 'center',
               fontFamily: 'system-ui, sans-serif',
-              boxShadow: `0 0 16px ${accentColor}30`,
+              boxShadow: `0 8px 32px rgba(0,0,0,0.35), 0 0 16px ${accentColor}20, inset 0 1px 0 rgba(255,255,255,0.15)`,
             }}
           >
             {/* Type badge */}
@@ -355,7 +348,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
                 fontWeight: 700,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
-                color: accentColor,
+                color: 'rgba(0,0,0,0.75)',
                 background: `${accentColor}18`,
                 borderRadius: '4px',
                 padding: '2px 7px',
@@ -365,40 +358,23 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
               {label}
             </div>
 
-            {/* Summary */}
+            {/* Title */}
             <div
               style={{
                 fontSize: '12px',
-                color: 'rgba(255,255,255,0.90)',
+                color: 'rgba(0,0,0,0.80)',
                 lineHeight: 1.45,
                 marginBottom: '6px',
               }}
             >
-              {artifact.summary}
-            </div>
-
-            {/* Date */}
-            <div
-              style={{
-                fontSize: '10px',
-                color: 'rgba(255,255,255,0.5)',
-                marginBottom: '8px',
-              }}
-            >
-              {new Date(artifact.capturedAt || artifact.createdAt).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
+              {artifact.title || artifact.summary}
             </div>
 
             {/* Click hint */}
             <div
               style={{
                 fontSize: '10px',
-                color: 'rgba(255,255,255,0.35)',
+                color: 'rgba(0,0,0,0.40)',
                 letterSpacing: '0.04em',
               }}
             >
@@ -412,5 +388,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
 }, (prev: ArtifactProps, next: ArtifactProps) =>
   prev.artifact.id === next.artifact.id &&
   prev.artifact.visual === next.artifact.visual &&
+  prev.artifact.title === next.artifact.title &&
+  prev.artifact.summary === next.artifact.summary &&
   prev.highlighted === next.highlighted,
 );
