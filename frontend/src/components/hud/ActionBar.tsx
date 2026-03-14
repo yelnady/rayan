@@ -15,6 +15,7 @@ import { useVoiceStore } from '../../stores/voiceStore';
 import { useCameraStore } from '../../stores/cameraStore';
 import { useTransitionStore } from '../../stores/transitionStore';
 import { usePalaceStore } from '../../stores/palaceStore';
+import { audioEngine } from '../../services/audioEngine';
 
 // ─── Reset View button ────────────────────────────────────────────────────────
 
@@ -500,6 +501,37 @@ function ArrowIcon({ direction }: { direction: 'up' | 'down' | 'left' | 'right' 
     );
 }
 
+// ─── Music toggle ─────────────────────────────────────────────────────────────
+
+function MusicSection() {
+    const [muted, setMuted] = useState(() => audioEngine.isMuted);
+
+    const handleClick = () => {
+        if (audioEngine.isMuted) {
+            audioEngine.unmute();
+        } else {
+            audioEngine.mute();
+        }
+        setMuted(audioEngine.isMuted);
+    };
+
+    return (
+        <button
+            onClick={handleClick}
+            aria-label={muted ? 'Unmute music' : 'Mute music'}
+            title={muted ? 'Unmute music' : 'Mute music'}
+            className="hidden sm:flex flex-col items-center gap-1 py-1.5 px-1.5 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+        >
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95">
+                <MusicIcon muted={muted} size={16} />
+            </div>
+            <span className="hidden sm:block font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
+                {muted ? 'Music off' : 'Music'}
+            </span>
+        </button>
+    );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function ActionBar() {
@@ -547,6 +579,7 @@ export function ActionBar() {
                 />
 
                 <OverviewSection />
+                <MusicSection />
 
                 {/* Divider */}
                 <div
@@ -643,6 +676,18 @@ function ErrorIcon({ size = 20 }: { size?: number }) {
     return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="#ffffff">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" />
+        </svg>
+    );
+}
+
+function MusicIcon({ muted, size = 18 }: { muted: boolean; size?: number }) {
+    const fill = 'rgba(0,0,0,0.6)';
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill={fill}>
+            <path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z" />
+            {muted && (
+                <line x1="3" y1="3" x2="21" y2="21" stroke="rgba(239,68,68,0.85)" strokeWidth="2.5" strokeLinecap="round" />
+            )}
         </svg>
     );
 }

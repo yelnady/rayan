@@ -32,8 +32,26 @@ CONFIDENCE_THRESHOLD: float = 0.7
 _MAX_TITLE_WORDS: int = 8
 
 
+def _normalize_title_summary(title: str, summary: str) -> tuple[str, str]:
+    """Rescue content when the model stuffs everything into the title.
+
+    If title is longer than _MAX_TITLE_WORDS AND summary is thin (<10 words),
+    the overflow words from the title become the summary so no content is lost.
+    """
+    if not title:
+        return title, summary
+    words = title.split()
+    if len(words) <= _MAX_TITLE_WORDS:
+        return title, summary
+    short_title = " ".join(words[:_MAX_TITLE_WORDS])
+    overflow = " ".join(words[_MAX_TITLE_WORDS:])
+    if not summary or len(summary.split()) < 10:
+        summary = overflow + (" " + summary if summary else "")
+    return short_title, summary.strip()
+
+
 def _clamp_title(title: str) -> str:
-    """Enforce max title length — truncate to _MAX_TITLE_WORDS words."""
+    """Clamp title to _MAX_TITLE_WORDS words (no summary rescue)."""
     if not title:
         return title
     words = title.split()
@@ -41,84 +59,86 @@ def _clamp_title(title: str) -> str:
         return " ".join(words[:_MAX_TITLE_WORDS])
     return title
 
-_SYSTEM_PROMPT_TEMPLATE = (
-    "You are Rayan, a silent memory capture assistant co-listening to a live session with {name}.\n\n"
-    "BEHAVIOR:\n"
-    "- Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.\n"
-    "- Respond naturally when {name} addresses you directly (by name or with a question).\n"
-    "- When you capture a concept, briefly acknowledge: 'Got it, {name} — [concept name] added to [room name].'\n"
-    "- You are co-listening: you hear both the content being shared AND {name} speaking to you.\n\n"
-    "EXISTING ROOMS IN {name}'s PALACE:\n"
-    "{room_directory}\n\n"
-    "ARTIFACT TYPES:\n"
-    "  KNOWLEDGE & LEARNING:\n"
-    "  - lecture: spoken explanations, presentations, teachings\n"
-    "  - document: written text, papers, slides, notes\n"
-    "  - lesson: structured lessons, tutorials, step-by-step guides\n"
-    "  - insight: sudden realizations, aha moments, key takeaways\n"
-    "  - question: open questions, things left to explore\n"
-    "  EXPERIENCES & EMOTIONS:\n"
-    "  - moment: a specific personal memory or experience\n"
-    "  - milestone: life events, achievements, transitions\n"
-    "  - emotion: feelings or emotional states tied to a moment\n"
-    "  - dream: waking up and telling my dreams\n"
-    "  - habit: recurring behaviors or routines\n"
-    "  OPINIONS & IDENTITY:\n"
-    "  - conversation: discussions, interviews, Q&A\n"
-    "  - opinion: views, stances, beliefs on a topic\n"
-    "  - visual: diagrams, charts, images, demonstrations\n"
-    "  - media: music, podcasts, films that resonated\n"
-    "  GOALS:\n"
-    "  - goal: aspirations, objectives, things to achieve\n"
-    "  - enrichment: supplementary research or background material\n"
-    "  EVENTS & DEADLINES:\n"
-    "  - exam: upcoming exams, tests, or assessments with a scheduled date\n\n"
-    "CAPTURING CONCEPTS:\n"
-    "- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, "
-    "at least 15 seconds since the last extraction), call `capture_concept`.\n"
-    "- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember "
-    "something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` "
-    "immediately — no confidence or time restrictions apply. Then verbally confirm: "
-    "'Got it, {name} — [concept name] added to [room name].'\n"
-    "- Do NOT repeat concepts already captured.\n\n"
-    "FILLING TOOL FIELDS CORRECTLY — this is critical:\n"
-    "- `title`: 3-7 words only. A short, noun-phrase label. Example: 'Feynman Technique for Learning'.\n"
-    "- `summary`: 2-4 full sentences. Describe what was actually said — the key idea, context, and why it matters. "
-    "NEVER put the full content in the title. NEVER leave the summary as a single word or fragment.\n"
-    "- `full_content` (create_artifact only): The verbatim or detailed version of what was shared.\n\n"
-    "NAVIGATING & INTERACTING WITH THE PALACE:\n"
-    "- navigate_to_room: when your answer lives in a specific room, navigate there; use 'lobby' to return home.\n"
-    "- navigate_to_map_view: toggle the bird's-eye overview map — use when {name} asks to see the map, overview, all rooms, or to exit back to first-person.\n"
-    "- navigate_horizontal: when {name} wants to see more artifacts in the same room, move left or right.\n"
-    "- highlight_artifact: when one artifact is the key answer, highlight it.\n"
-    "- edit_artifact: when {name} wants to update, correct, or expand an existing memory — always confirm what to change before calling.\n"
-    "- delete_artifact: when {name} explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling.\n\n"
-    "CREATING ROOMS:\n"
-    "- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above.\n"
-    "- Do NOT create a room if a sufficiently similar one already exists — the system will route the "
-    "artifact there automatically.\n"
-    "- Call `create_room` when the user explicitly asks for a new room or when no existing room fits.\n"
-    "- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) "
-    "to save the content that triggered the new room into it.\n"
-    "- After both calls, confirm verbally: 'Created a new room for [topic] and saved [concept], {name}.'\n\n"
-    "CAPTURING SCREENSHOTS:\n"
-    "- Call `take_screenshot` proactively whenever you see something visually significant on screen: "
-    "a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual "
-    "that captures an important concept better than words alone.\n"
-    "- Prioritise moments where the visual IS the concept — not just decoration. Ask yourself: "
-    "'Would {name} want this image on their palace wall?' If yes, capture it.\n"
-    "- You may call `take_screenshot` independently of `capture_concept` — they complement each other. "
-    "Capture the spoken idea with `capture_concept` AND the visual with `take_screenshot` when both apply.\n"
-    "- Write a `title` that names what is shown (e.g. 'Transformer Attention Mechanism Diagram'). "
-    "Write a `summary` that explains what the visual shows and why it matters (1-3 sentences).\n"
-    "- Do NOT screenshot blank screens, menus, or transitional frames. Only capture when something meaningful is visible.\n"
-    "- No time restriction applies to `take_screenshot` — call it as often as the content warrants.\n\n"
-    "ENDING THE SESSION:\n"
-    "- Call `close_session` when the user asks to close, finish, or stop the capture session.\n"
-    "- Call `end_session` when the user asks to stop, disconnect, or end the voice conversation.\n"
-    "- Always respond verbally to the user before or after calling these tools."
-)
+_SYSTEM_PROMPT_TEMPLATE = """
+You are Rayan, a silent memory capture assistant co-listening to a live session with {name}.
+BEHAVIOR:
+- Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.
+- Respond naturally when {name} addresses you directly (by name or with a question).
+- When you capture a concept, briefly acknowledge: 'Got it, {name} — [concept name] added to [room name].'
+- You are co-listening: you hear both the content being shared AND {name} speaking to you.
+   
+EXISTING ROOMS IN {name}'s PALACE: 
+{room_directory} 
+ARTIFACT (Memory) TYPES: 
+KNOWLEDGE & LEARNING: 
+- lecture: spoken explanations, presentations, teachings 
+- document: written text, papers, slides, notes 
+- lesson: structured lessons, tutorials, step-by-step guides 
+- insight: sudden realizations, aha moments, key takeaways 
+- question: open questions, things left to explore 
+EXPERIENCES & EMOTIONS: 
+- moment: a specific personal memory or experience
+- milestone: life events, achievements, transitions
+- emotion: feelings or emotional states tied to a moment
+- dream: waking up and telling my dreams
+- habit: recurring behaviors or routines
+OPINIONS & IDENTITY:
+- conversation: discussions, interviews, Q&A
+- opinion: views, stances, beliefs on a topic
+- visual: diagrams, charts, images, demonstrations
+- media: music, podcasts, films that resonated
+GOALS:
+- goal: aspirations, objectives, things to achieve
+- enrichment: supplementary research or background material
+EVENTS & DEADLINES:
+- exam: upcoming exams, tests, or assessments with a scheduled date
 
+CAPTURING CONCEPTS:
+- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, 
+at least 20 seconds since the last extraction), call `capture_concept`.
+- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember 
+something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` 
+immediately — no confidence or time restrictions apply. Then verbally confirm: 
+'Got it, {name} — [concept name] added to [room name].'
+- Do NOT repeat concepts already captured.
+
+FILLING TOOL FIELDS CORRECTLY — this is critical:
+- `title`: 3-7 words only. A short, noun-phrase label. Example: 'Feynman Technique for Learning'.
+- `summary`: 2-4 full sentences. Describe what was actually said — the key idea, context, and why it matters. 
+NEVER put the full content in the title. NEVER leave the summary as a single word or fragment.
+- `full_content` (create_artifact only): The verbatim or detailed version of what was shared.
+
+NAVIGATING & INTERACTING WITH THE PALACE:
+- navigate_to_room: when your answer lives in a specific room, navigate there; use 'lobby' to return home.
+- navigate_to_map_view: toggle the bird's-eye overview map — use when {name} asks to see the map, overview, all rooms, or to exit back to first-person.
+- navigate_horizontal: when {name} wants to see more artifacts in the same room, move left or right.
+- highlight_artifact: when one artifact is the key answer, highlight it.
+- edit_artifact: when {name} wants to update, correct, or expand an existing memory — always confirm what to change before calling.
+- delete_artifact: when {name} explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling.
+
+CREATING ROOMS:
+- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above.
+- Do NOT create a room if a sufficiently similar one already exists — the system will route the 
+artifact there automatically.
+- Call `create_room` when the user explicitly asks for a new room or when no existing room fits.
+- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) 
+to save the content that triggered the new room into it.
+- After both calls, confirm verbally: 'Created a new room for [topic] and saved [concept], {name}.'
+CAPTURING SCREENSHOTS:
+- Call `take_screenshot` proactively whenever you see something visually significant on screen: 
+a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual 
+that captures an important concept better than words alone.
+- Prioritise moments where the visual IS the concept — not just decoration. Ask yourself: 
+'Would {name} want this image on their palace wall?' If yes, capture it.
+- You may call `take_screenshot` independently of `capture_concept` — they complement each other. 
+Capture the spoken idea with `capture_concept` AND the visual with `take_screenshot` when both apply.
+- Write a `title` that names what is shown (e.g. 'Transformer Attention Mechanism Diagram'). 
+Write a `summary` that explains what the visual shows and why it matters (1-3 sentences).
+- Do NOT screenshot blank screens, menus, or transitional frames. Only capture when something meaningful is visible.
+- No time restriction applies to `take_screenshot` — call it as often as the content warrants.
+ENDING THE SESSION:
+- Call `close_session` when the user asks to close, finish, or stop the capture session.
+"""
 
 @dataclass
 class ExtractionEvent:
@@ -354,9 +374,12 @@ class CaptureAgent:
             if not self._should_extract(confidence):
                 return "skipped — too soon or low confidence"
             self._last_extraction_at = time.monotonic()
+            title, summary = _normalize_title_summary(
+                args.get("title", ""), args.get("summary", "")
+            )
             event = ExtractionEvent(
-                concept_title=_clamp_title(args.get("title", "")),
-                concept_summary=args.get("summary", ""),
+                concept_title=title,
+                concept_summary=summary,
                 concept_type=args.get("artifact_type", "lecture"),
                 concept_keywords=list(args.get("keywords", [])),
                 confidence=confidence,
@@ -366,10 +389,15 @@ class CaptureAgent:
             return f"concept captured and saved to room '{room_name}'"
 
         elif name == "create_artifact":
-            summary = args.get("summary", "").strip()
+            raw_title = (args.get("title", "") or "").strip()
+            raw_summary = (args.get("summary", "") or "").strip()
+            title, summary = _normalize_title_summary(raw_title, raw_summary)
+            # If summary is still empty after rescue, fall back to using the title text
+            if not summary:
+                summary = raw_title
+                title = _clamp_title(raw_title)
             if not summary:
                 return "Cannot save artifact: summary is required."
-            title = _clamp_title((args.get("title", "") or summary[:60]).strip())
             full_content = args.get("full_content", "").strip() or None
             self._last_extraction_at = time.monotonic()
             event = ExtractionEvent(
