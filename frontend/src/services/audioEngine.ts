@@ -29,10 +29,30 @@ class AudioEngine {
     private activeSlot: 'A' | 'B' = 'A';
     private currentUrl: string | null = null;
     private cache = new Map<string, AudioBuffer>();
+    private unlocked = false;
+    private pendingUrl: string | null = null;
 
     // ── Init ──────────────────────────────────────────────────────────────────
 
-    private getCtx(): AudioContext {
+    constructor() {
+        // Unlock on first user gesture so AudioContext is never created before interaction.
+        const unlock = () => {
+            if (this.unlocked) return;
+            this.unlocked = true;
+            document.removeEventListener('click', unlock);
+            document.removeEventListener('keydown', unlock);
+            if (this.pendingUrl) {
+                const url = this.pendingUrl;
+                this.pendingUrl = null;
+                void this.playTrack(url);
+            }
+        };
+        document.addEventListener('click', unlock);
+        document.addEventListener('keydown', unlock);
+    }
+
+    private getCtx(): AudioContext | null {
+        if (!this.unlocked) return null;
         if (!this.ctx) {
             this.ctx = new AudioContext();
             // Build A/B gain nodes connected to destination.
@@ -55,11 +75,13 @@ class AudioEngine {
 
     private async loadBuffer(url: string): Promise<AudioBuffer | null> {
         if (this.cache.has(url)) return this.cache.get(url)!;
+        const ctx = this.getCtx();
+        if (!ctx) return null;
         try {
             const res = await fetch(url);
             if (!res.ok) return null;
             const raw = await res.arrayBuffer();
-            const buf = await this.getCtx().decodeAudioData(raw);
+            const buf = await ctx.decodeAudioData(raw);
             this.cache.set(url, buf);
             return buf;
         } catch {
@@ -73,7 +95,10 @@ class AudioEngine {
         if (url === this.currentUrl) return;
         this.currentUrl = url;
 
+        if (!this.unlocked) { this.pendingUrl = url; return; }
+
         const ctx = this.getCtx();
+        if (!ctx) return;
         const buf = await this.loadBuffer(url);
         // If the url changed while we were loading, bail out.
         if (url !== this.currentUrl) return;
@@ -124,7 +149,9 @@ class AudioEngine {
 
     fadeOut(): void {
         this.currentUrl = null;
+        this.pendingUrl = null;
         const ctx = this.getCtx();
+        if (!ctx) return;
         const now = ctx.currentTime;
         const fadeS = CROSSFADE_MS / 1000;
 
@@ -218,6 +245,7 @@ class AudioEngine {
      */
     async playChime(pan = 0): Promise<void> {
         const ctx = this.getCtx();
+        if (!ctx) return;
         const buf = await this.loadBuffer('/audio/chime.mp3');
         if (!buf) return;
 

@@ -12,6 +12,7 @@
 import { useEffect } from 'react';
 import { useCameraStore } from '../stores/cameraStore';
 import { usePalaceStore } from '../stores/palaceStore';
+import { useVoiceStore } from '../stores/voiceStore';
 import { audioEngine } from '../services/audioEngine';
 import type { RoomStyle } from '../types/palace';
 
@@ -32,10 +33,11 @@ export function useAmbientMusic(): void {
     const isOverview    = useCameraStore((s) => s.isOverviewMode);
     const currentRoomId = usePalaceStore((s) => s.currentRoomId);
     const rooms         = usePalaceStore((s) => s.rooms);
+    const voiceStatus   = useVoiceStore((s) => s.status);
 
     useEffect(() => {
         if (isOverview) {
-            void audioEngine.playTrack('/audio/ambient.mp3');
+            void audioEngine.playTrack('/audio/Palace.mp3');
             return;
         }
 
@@ -51,6 +53,15 @@ export function useAmbientMusic(): void {
             return;
         }
 
-        audioEngine.fadeOut();
+        void audioEngine.playTrack('/audio/Palace.mp3');
     }, [isOverview, currentRoomId, rooms]);
+
+    // Duck while the agent is speaking, restore when done.
+    useEffect(() => {
+        if (voiceStatus === 'responding') {
+            audioEngine.duck();
+        } else {
+            audioEngine.unduck();
+        }
+    }, [voiceStatus]);
 }

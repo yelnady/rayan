@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Mic, Search, Sparkles, Volume2, Layers, Map, ArrowRight, Brain } from 'lucide-react';
+import { audioEngine } from '../services/audioEngine';
 
 const fadeUp = {
   initial: { opacity: 0, y: 30 },
@@ -111,15 +113,20 @@ const FLOATING_ROOMS = [
 ];
 
 export function LandingPage() {
+  useEffect(() => {
+    void audioEngine.playTrack('/audio/Palace.mp3');
+    return () => { audioEngine.fadeOut(); };
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#060614] text-white overflow-x-hidden" style={{ fontFamily: "'Inter', system-ui, sans-serif" }}>
 
       {/* ── NAV ───────────────────────────────────────────────────────────── */}
-      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-8 py-4 bg-[rgba(6,6,20,0.8)] backdrop-blur-xl border-b border-white/5">
+      <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-4 sm:px-8 py-4 bg-[rgba(6,6,20,0.8)] backdrop-blur-xl border-b border-white/5">
         <span className="text-white font-bold text-xl tracking-wide" style={{ fontFamily: 'Cinzel, serif' }}>Rayan</span>
-        <div className="flex items-center gap-6">
-          <a href="/how-it-works" className="text-white/50 hover:text-white text-sm transition-colors">How It Works</a>
-          <a href="/palace" className="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white text-sm font-medium transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]">
+        <div className="flex items-center gap-3 sm:gap-6">
+          <a href="/how-it-works" className="hidden sm:block text-white/50 hover:text-white text-sm transition-colors">How It Works</a>
+          <a href="/palace" className="px-4 sm:px-5 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-xl text-white text-sm font-medium transition-colors shadow-[0_0_20px_rgba(99,102,241,0.3)]">
             Enter Palace
           </a>
         </div>
@@ -143,7 +150,7 @@ export function LandingPage() {
           >
             {/* Badge */}
             <motion.div
-              className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full px-4 py-2 mb-10"
+              className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/30 rounded-full px-4 py-2 mb-6 sm:mb-10"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
@@ -154,7 +161,7 @@ export function LandingPage() {
 
             {/* Title */}
             <h1
-              className="text-[90px] md:text-[130px] font-bold tracking-tight mb-6 leading-none"
+              className="text-[56px] sm:text-[90px] md:text-[130px] font-bold tracking-tight mb-6 leading-none"
               style={{
                 fontFamily: 'Cinzel, serif',
                 background: 'linear-gradient(135deg, #fff 30%, #a5b4fc 70%, #818cf8 100%)',
@@ -167,7 +174,7 @@ export function LandingPage() {
               Rayan
             </h1>
 
-            <p className="text-xl md:text-2xl text-indigo-200/70 max-w-3xl mx-auto mb-4 leading-relaxed">
+            <p className="text-base sm:text-xl md:text-2xl text-indigo-200/70 max-w-3xl mx-auto mb-4 leading-relaxed">
               Walk through your own mind. Every idea you have ever captured lives in a 3D palace — beautifully organized, always retrievable.
             </p>
             <p className="text-sm text-white/30 mb-12 tracking-widest uppercase">
