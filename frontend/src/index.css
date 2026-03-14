@@ -7,6 +7,29 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Safe area support (iOS notch / home indicator) ─────────────────────────── */
+:root {
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: env(safe-area-inset-top, 0px);
+}
+
+/* ActionBar bottom positioning with safe area */
+.bottom-safe {
+  bottom: max(0.75rem, env(safe-area-inset-bottom, 0.75rem));
+}
+@media (min-width: 640px) {
+  .bottom-safe {
+    bottom: max(1.75rem, env(safe-area-inset-bottom, 1.75rem));
+  }
+}
+
+/* ── Touch optimizations (removes 300ms tap delay) ─────────────────────────── */
+button,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
 /* ── Reset ─────────────────────────────────────────────────────────────────── */
 *,
 *::before,
@@ -252,6 +275,12 @@ textarea:focus-visible {
   90% {
     transform: translate(1%, -3%);
   }
+}
+
+/* Blinking cursor for streaming text in ResponsePanel */
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }
 
 /* Linear gradient shimmer on login button border */
