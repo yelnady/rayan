@@ -29,6 +29,17 @@ logger = logging.getLogger(__name__)
 
 MIN_EXTRACTION_INTERVAL: float = 15.0
 CONFIDENCE_THRESHOLD: float = 0.7
+_MAX_TITLE_WORDS: int = 8
+
+
+def _clamp_title(title: str) -> str:
+    """Enforce max title length — truncate to _MAX_TITLE_WORDS words."""
+    if not title:
+        return title
+    words = title.split()
+    if len(words) > _MAX_TITLE_WORDS:
+        return " ".join(words[:_MAX_TITLE_WORDS])
+    return title
 
 _SYSTEM_PROMPT_TEMPLATE = (
     "You are Rayan, a silent memory capture assistant co-listening to a live session with {name}.\n\n"
@@ -70,6 +81,18 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "immediately — no confidence or time restrictions apply. Then verbally confirm: "
     "'Got it, {name} — [concept name] added to [room name].'\n"
     "- Do NOT repeat concepts already captured.\n\n"
+    "FILLING TOOL FIELDS CORRECTLY — this is critical:\n"
+    "- `title`: 3-7 words only. A short, noun-phrase label. Example: 'Feynman Technique for Learning'.\n"
+    "- `summary`: 2-4 full sentences. Describe what was actually said — the key idea, context, and why it matters. "
+    "NEVER put the full content in the title. NEVER leave the summary as a single word or fragment.\n"
+    "- `full_content` (create_artifact only): The verbatim or detailed version of what was shared.\n\n"
+    "NAVIGATING & INTERACTING WITH THE PALACE:\n"
+    "- navigate_to_room: when your answer lives in a specific room, navigate there; use 'lobby' to return home.\n"
+    "- navigate_to_map_view: toggle the bird's-eye overview map — use when {name} asks to see the map, overview, all rooms, or to exit back to first-person.\n"
+    "- navigate_horizontal: when {name} wants to see more artifacts in the same room, move left or right.\n"
+    "- highlight_artifact: when one artifact is the key answer, highlight it.\n"
+    "- edit_artifact: when {name} wants to update, correct, or expand an existing memory — always confirm what to change before calling.\n"
+    "- delete_artifact: when {name} explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling.\n\n"
     "CREATING ROOMS:\n"
     "- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above.\n"
     "- Do NOT create a room if a sufficiently similar one already exists — the system will route the "
@@ -78,9 +101,18 @@ _SYSTEM_PROMPT_TEMPLATE = (
     "- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) "
     "to save the content that triggered the new room into it.\n"
     "- After both calls, confirm verbally: 'Created a new room for [topic] and saved [concept], {name}.'\n\n"
-    "NAVIGATION:\n"
-    "- Call `navigate_to_room` with the room_id when the user asks to go to a specific room, "
-    "or after creating a new room if the user wants to see it.\n\n"
+    "CAPTURING SCREENSHOTS:\n"
+    "- Call `take_screenshot` proactively whenever you see something visually significant on screen: "
+    "a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual "
+    "that captures an important concept better than words alone.\n"
+    "- Prioritise moments where the visual IS the concept — not just decoration. Ask yourself: "
+    "'Would {name} want this image on their palace wall?' If yes, capture it.\n"
+    "- You may call `take_screenshot` independently of `capture_concept` — they complement each other. "
+    "Capture the spoken idea with `capture_concept` AND the visual with `take_screenshot` when both apply.\n"
+    "- Write a `title` that names what is shown (e.g. 'Transformer Attention Mechanism Diagram'). "
+    "Write a `summary` that explains what the visual shows and why it matters (1-3 sentences).\n"
+    "- Do NOT screenshot blank screens, menus, or transitional frames. Only capture when something meaningful is visible.\n"
+    "- No time restriction applies to `take_screenshot` — call it as often as the content warrants.\n\n"
     "ENDING THE SESSION:\n"
     "- Call `close_session` when the user asks to close, finish, or stop the capture session.\n"
     "- Call `end_session` when the user asks to stop, disconnect, or end the voice conversation.\n"
@@ -97,6 +129,7 @@ class ExtractionEvent:
     confidence: float
     captured_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     categorization: Optional[CategorizationResult] = None
+    full_content: Optional[str] = None
 
 
 ExtractionCallback = Callable[[ExtractionEvent], Awaitable[None]]
@@ -134,6 +167,8 @@ class CaptureAgent:
         self._task: Optional[asyncio.Task] = None
         self._close_event = asyncio.Event()
         self._closed = False
+        self._last_created_room_id: Optional[str] = None  # set after create_room, consumed by next extraction
+        self._pending_screenshot: Optional[asyncio.Future] = None  # awaited during take_screenshot
 
     async def start(self) -> None:
         room_directory = await self._build_room_directory()
@@ -320,7 +355,7 @@ class CaptureAgent:
                 return "skipped — too soon or low confidence"
             self._last_extraction_at = time.monotonic()
             event = ExtractionEvent(
-                concept_title=args.get("title", ""),
+                concept_title=_clamp_title(args.get("title", "")),
                 concept_summary=args.get("summary", ""),
                 concept_type=args.get("artifact_type", "lecture"),
                 concept_keywords=list(args.get("keywords", [])),
@@ -331,17 +366,28 @@ class CaptureAgent:
             return f"concept captured and saved to room '{room_name}'"
 
         elif name == "create_artifact":
+            summary = args.get("summary", "").strip()
+            if not summary:
+                return "Cannot save artifact: summary is required."
+            title = _clamp_title((args.get("title", "") or summary[:60]).strip())
+            full_content = args.get("full_content", "").strip() or None
             self._last_extraction_at = time.monotonic()
             event = ExtractionEvent(
-                concept_title=args.get("title", "") or args.get("summary", "")[:60],
-                concept_summary=args.get("summary", ""),
+                concept_title=title,
+                concept_summary=summary,
                 concept_type=args.get("artifact_type", "moment"),
                 concept_keywords=list(args.get("keywords", [])),
                 confidence=1.0,
+                full_content=full_content,
             )
-            await self._handle_extraction(event)
+            try:
+                await self._handle_extraction(event)
+            except Exception:
+                logger.exception("create_artifact failed: sessionId=%s", self.session_id)
+                return "Failed to save artifact"
             room_name = event.categorization.room.name if event.categorization else "your palace"
             return f"artifact saved to room '{room_name}'"
+
 
         elif name == "create_room":
             room_name = args.get("name", "New Room")
@@ -369,25 +415,84 @@ class CaptureAgent:
                         "lobbyDoorsAdded": [new_door],
                     },
                 })
+                self._last_created_room_id = new_room.id
                 return f"Room '{room_name}' created with ID {new_room.id}"
             except Exception:
                 logger.exception("create_room failed: sessionId=%s", self.session_id)
                 return "Failed to create room"
 
         elif name == "navigate_to_room":
+            from app.websocket.manager import manager as ws_manager
             room_id = args.get("room_id", "")
+            if room_id == "lobby":
+                await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_room", "label": "Returning to the palace lobby", "payload": {"navigation": {"targetRoomId": "lobby", "highlightArtifacts": [], "enterRoom": True, "selectedArtifactId": None}}})
+                return "Returned to the palace lobby"
             try:
-                from app.websocket.manager import manager as ws_manager
-                await ws_manager.send(self.user_id, {
-                    "type": "live_tool_call",
-                    "tool": "navigate_to_room",
-                    "label": "Navigating to room",
-                    "payload": {"roomId": room_id},
-                })
-                return f"Navigated to room {room_id}"
+                from app.services.room_service import get_room
+                room = await get_room(self.user_id, room_id)
+                room_name = room.name if room else room_id
             except Exception:
-                logger.exception("navigate_to_room failed: sessionId=%s", self.session_id)
-                return "Navigation failed"
+                room_name = room_id
+            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_room", "label": f"Navigating to {room_name}", "payload": {"navigation": {"targetRoomId": room_id, "highlightArtifacts": [], "enterRoom": True, "selectedArtifactId": None}}})
+            return f"Navigated to room {room_name}"
+
+        elif name == "navigate_to_map_view":
+            from app.websocket.manager import manager as ws_manager
+            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_map_view", "label": "Toggling map overview", "payload": {"toggleMapView": True}})
+            return "Map view toggled."
+
+        elif name == "navigate_horizontal":
+            from app.websocket.manager import manager as ws_manager
+            direction = args.get("direction", "right").lower()
+            if direction not in ["left", "right"]:
+                direction = "right"
+            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_horizontal", "label": f"Moving {direction}", "payload": {"navigation": {"moveHorizontal": direction}}})
+            return f"Moved {direction}."
+
+        elif name == "highlight_artifact":
+            from app.websocket.manager import manager as ws_manager
+            artifact_id = args.get("artifact_id", "")
+            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "highlight_artifact", "label": "Highlighting artifact", "payload": {"artifactId": artifact_id}})
+            return f"Highlighted artifact {artifact_id}"
+
+        elif name == "edit_artifact":
+            from app.services.artifact_service import update_artifact
+            from app.websocket.manager import manager as ws_manager
+            artifact_id = args.get("artifact_id", "").strip()
+            new_summary = args.get("summary", "").strip() or None
+            new_full_content = args.get("full_content", "").strip() or None
+            if not artifact_id:
+                return "Cannot edit artifact: artifact_id is required."
+            if not new_summary and not new_full_content:
+                return "Cannot edit artifact: at least one of summary or full_content must be provided."
+            try:
+                updated = await update_artifact(user_id=self.user_id, artifact_id=artifact_id, summary=new_summary, full_content=new_full_content)
+                if updated is None:
+                    return f"Artifact {artifact_id} not found."
+                await ws_manager.send(self.user_id, {"type": "palace_update", "changes": {"roomsAdded": [], "artifactsAdded": [], "artifactsUpdated": [{"id": updated.id, "summary": updated.summary}], "connectionsAdded": []}})
+                return f"Artifact {artifact_id} updated."
+            except Exception:
+                logger.exception("edit_artifact failed: sessionId=%s", self.session_id)
+                return "Failed to edit artifact."
+
+        elif name == "delete_artifact":
+            from app.services.artifact_service import delete_artifact_by_id
+            from app.websocket.manager import manager as ws_manager
+            artifact_id = args.get("artifact_id", "")
+            try:
+                await delete_artifact_by_id(self.user_id, artifact_id)
+                await ws_manager.send(self.user_id, {"type": "palace_update", "changes": {"roomsAdded": [], "artifactsAdded": [], "artifactsRemoved": [artifact_id], "connectionsAdded": []}})
+                return f"Artifact {artifact_id} deleted."
+            except Exception:
+                logger.exception("delete_artifact failed: sessionId=%s", self.session_id)
+                return "Failed to delete artifact."
+
+        elif name == "take_screenshot":
+            return await self._handle_screenshot(
+                title=_clamp_title(args.get("title", "Screenshot")),
+                summary=args.get("summary", ""),
+                keywords=list(args.get("keywords", [])),
+            )
 
         elif name == "web_search":
             return await execute_web_search(args.get("query", ""))
@@ -409,7 +514,146 @@ class CaptureAgent:
             logger.warning("CaptureAgent: unknown tool %r sessionId=%s", name, self.session_id)
             return "unknown tool"
 
+    def resolve_screenshot(self, image_b64: str) -> None:
+        """Called by the WS handler when the frontend returns a captured frame."""
+        if self._pending_screenshot and not self._pending_screenshot.done():
+            self._pending_screenshot.set_result(image_b64)
+
+    async def _handle_screenshot(self, title: str, summary: str, keywords: list[str]) -> str:
+        """Request a frame from the frontend, upload to GCS, create visual artifact."""
+        import base64 as _base64
+        import uuid as _uuid
+        from datetime import UTC, datetime
+
+        from app.agents.memory_architect import categorize_and_store
+        from app.config import settings
+        from app.core.firestore import get_firestore_client
+        from app.core.storage import get_storage_client
+        from app.services.room_service import add_lobby_door
+        from app.websocket.manager import manager as ws_manager
+
+        # Ask the frontend to grab a frame
+        fut: asyncio.Future = asyncio.get_event_loop().create_future()
+        self._pending_screenshot = fut
+        await ws_manager.send(self.user_id, {
+            "type": "capture_screenshot_request",
+            "sessionId": self.session_id,
+        })
+
+        try:
+            image_b64 = await asyncio.wait_for(fut, timeout=15.0)
+        except asyncio.TimeoutError:
+            logger.warning("Screenshot timed out: sessionId=%s", self.session_id)
+            return "Screenshot timed out — no frame received from client"
+        finally:
+            self._pending_screenshot = None
+
+        if not image_b64:
+            return "Screenshot failed — empty frame received"
+
+        # Upload to GCS
+        try:
+            image_bytes = _base64.b64decode(image_b64)
+            blob_path = f"screenshots/{self.session_id}/{_uuid.uuid4().hex}.jpg"
+            bucket = get_storage_client().bucket(settings.media_bucket)
+            blob = bucket.blob(blob_path)
+            blob.upload_from_string(image_bytes, content_type="image/jpeg")
+            blob.make_public()
+            image_url = blob.public_url
+        except Exception:
+            logger.exception("Screenshot GCS upload failed: sessionId=%s", self.session_id)
+            return "Screenshot captured but upload to storage failed"
+
+        # Categorize and store as a visual artifact
+        try:
+            force_room_id = self._last_created_room_id
+            self._last_created_room_id = None
+            result = await categorize_and_store(
+                user_id=self.user_id,
+                session_id=self.session_id,
+                concept_title=title,
+                concept_summary=summary,
+                concept_type="visual",
+                concept_keywords=keywords,
+                concept_confidence=1.0,
+                captured_at=datetime.now(UTC),
+                force_room_id=force_room_id,
+            )
+
+            # Patch sourceMediaUrl directly in Firestore
+            db = get_firestore_client()
+            await (
+                db.collection("users")
+                .document(self.user_id)
+                .collection("rooms")
+                .document(result.room.id)
+                .collection("artifacts")
+                .document(result.artifact.id)
+                .update({"sourceMediaUrl": image_url})
+            )
+            result.artifact.sourceMediaUrl = image_url
+
+            # Track extraction
+            event = ExtractionEvent(
+                concept_title=title,
+                concept_summary=summary,
+                concept_type="visual",
+                concept_keywords=keywords,
+                confidence=1.0,
+            )
+            event.categorization = result
+            self._extractions.append(event)
+            await add_artifact_to_session(self.user_id, self.session_id, result.artifact.id)
+
+            # Add lobby door for new rooms
+            lobby_doors_added = []
+            rooms_added = []
+            if result.action == "suggested_new":
+                rooms_added = [{
+                    "id": result.room.id,
+                    "name": result.room.name,
+                    "position": {"x": result.room.position.x, "y": result.room.position.y, "z": result.room.position.z},
+                    "style": result.room.style,
+                }]
+                try:
+                    door = await add_lobby_door(self.user_id, result.room.id)
+                    lobby_doors_added = [door]
+                except Exception:
+                    logger.exception("add_lobby_door failed for screenshot room: sessionId=%s", self.session_id)
+
+            # Broadcast palace_update — include sourceMediaUrl so the framed image renders
+            await ws_manager.send(self.user_id, {
+                "type": "palace_update",
+                "changes": {
+                    "roomsAdded": rooms_added,
+                    "artifactsAdded": [{
+                        "id": result.artifact.id,
+                        "roomId": result.artifact.roomId,
+                        "type": result.artifact.type.value,
+                        "position": {"x": result.artifact.position.x, "y": result.artifact.position.y, "z": result.artifact.position.z},
+                        "visual": result.artifact.visual.value,
+                        "summary": result.artifact.summary,
+                        "sourceMediaUrl": image_url,
+                        "wall": result.artifact.wall,
+                    }],
+                    "connectionsAdded": [],
+                    "lobbyDoorsAdded": lobby_doors_added,
+                },
+            })
+
+            logger.info(
+                "Screenshot saved: userId=%s sessionId=%s artifactId=%s url=%s",
+                self.user_id, self.session_id, result.artifact.id, image_url,
+            )
+            return f"Screenshot saved as visual artifact in room '{result.room.name}'"
+        except Exception:
+            logger.exception("Screenshot artifact creation failed: sessionId=%s", self.session_id)
+            return "Screenshot uploaded but artifact creation failed"
+
     async def _handle_extraction(self, event: ExtractionEvent) -> None:
+        # Consume the pending room ID so the artifact lands in the just-created room
+        force_room_id = self._last_created_room_id
+        self._last_created_room_id = None
         try:
             result = await categorize_and_store(
                 user_id=self.user_id,
@@ -420,6 +664,8 @@ class CaptureAgent:
                 concept_keywords=event.concept_keywords,
                 concept_confidence=event.confidence,
                 captured_at=event.captured_at,
+                force_room_id=force_room_id,
+                full_content=event.full_content,
             )
             event.categorization = result
             await add_artifact_to_session(self.user_id, self.session_id, result.artifact.id)

@@ -22,8 +22,9 @@ async def send_capture_ack(
     event: ExtractionEvent,
 ) -> None:
     """Send capture_ack when a concept is extracted per websocket.md."""
+    voice_audio = getattr(event, 'voice_audio', None)
     voice_b64: Optional[str] = (
-        base64.b64encode(event.voice_audio).decode() if event.voice_audio else None
+        base64.b64encode(voice_audio).decode() if voice_audio else None
     )
     await manager.send(user_id, {
         "type": "capture_ack",

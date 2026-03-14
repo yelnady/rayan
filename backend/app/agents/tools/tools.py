@@ -278,17 +278,88 @@ CAPTURE_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
     {
-        "name": "navigate_to_room",
+        "name": "take_screenshot",
         "description": (
-            "Navigate the user to a specific room in their memory palace. "
-            "Invoke when the user asks to go to a room, or after creating a new room to take them there."
+            "Capture the current screen or webcam frame and save it as a visual artifact on the wall. "
+            "Use when an important diagram, slide, chart, image, or visual moment is worth preserving as a memory. "
+            "Do NOT call this automatically — only when the visual content is clearly significant."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "room_id": {"type": "string", "description": "The exact room ID to navigate to, or 'lobby'."},
+                "title": {"type": "string", "description": "Short descriptive title for the image (3-7 words)."},
+                "summary": {"type": "string", "description": "What is shown and why it matters (1-3 sentences)."},
+                "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-4 topic keywords."},
+            },
+            "required": ["title", "summary"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "navigate_to_room",
+        "description": "Navigate the user to a specific room in their memory palace, or back to the lobby. Invoke when the user asks to go somewhere or when your answer lives in a specific room.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "room_id": {"type": "string", "description": "The exact room ID from the ROOM DIRECTORY, or 'lobby' to return home."},
             },
             "required": ["room_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "navigate_to_map_view",
+        "description": "Toggle the bird's-eye map overview of the entire memory palace. Use when the user asks to see the map, overview, all rooms, or to exit back to first-person.",
+        "parameters": {"type": "object", "properties": {}},
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "navigate_horizontal",
+        "description": "Move left or right within the current room to see more artifacts.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "direction": {"type": "string", "description": "Must be 'left' or 'right'."},
+            },
+            "required": ["direction"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "highlight_artifact",
+        "description": "Highlight a specific artifact in the memory palace to draw the user's attention to it.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID to highlight."},
+            },
+            "required": ["artifact_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "edit_artifact",
+        "description": "Edit an existing artifact's summary or full content. Invoke only when the user explicitly asks to update, correct, or expand a memory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID to edit."},
+                "summary": {"type": "string", "description": "New summary (leave empty to keep unchanged)."},
+                "full_content": {"type": "string", "description": "New full content (leave empty to keep unchanged)."},
+            },
+            "required": ["artifact_id"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
+        "name": "delete_artifact",
+        "description": "Permanently delete an artifact. Invoke ONLY when the user explicitly asks to delete or forget a specific memory.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "artifact_id": {"type": "string", "description": "The exact artifact ID to delete."},
+            },
+            "required": ["artifact_id"],
         },
         "behavior": "NON_BLOCKING",
     },
