@@ -7,15 +7,19 @@ import { stopCapture } from '../../hooks/useCapture';
 
 const TOOL_ICONS: Record<string, string> = {
     navigate_to_room: '🧭',
+    navigate_to_map_view: '🗺️',
+    navigate_horizontal: '↔️',
     highlight_artifact: '✨',
     save_artifact: '💾',
     create_artifact: '💾',
+    create_room: '🏛️',
     edit_artifact: '✏️',
     delete_artifact: '🗑️',
     end_session: '👋',
     web_search: '🔍',
     memory_search: '🔮',
     capture_concept: '🧠',
+    take_screenshot: '📸',
     session_start: '🎙️',
     session_end: '🏁',
 };
@@ -27,8 +31,8 @@ function usePanelMode(): PanelMode {
     const captureShow = useCaptureStore((s) => s.showPanel);
     const captureStatus = useCaptureStore((s) => s.status);
 
-    // Prioritize capture when active
-    if (captureShow && captureStatus === 'capturing') {
+    // Prioritize capture when active or just completed
+    if (captureShow && (captureStatus === 'capturing' || captureStatus === 'processing' || captureStatus === 'complete')) {
         return 'capture';
     }
     if (voiceShow) {
