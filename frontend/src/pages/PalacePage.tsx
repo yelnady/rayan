@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
-import { useVoice } from '../hooks/useVoice';
 import { useCaptureWS } from '../hooks/useCaptureWS';
+import { useAmbientMusic } from '../hooks/useAmbientMusic';
+import { playArtifactChime } from '../services/audioEngine';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
 import { CaptureOverlay } from '../components/capture/CaptureOverlay';
 import { ConceptToast } from '../components/capture/ConceptToast';
 import { CaptureComplete } from '../components/capture/CaptureComplete';
 import { CapturePreview } from '../components/capture/CapturePreview';
-import { RoomSuggestionModal } from '../components/capture/RoomSuggestionModal';
 import { ArtifactDetailModal } from '../components/artifacts/ArtifactDetailModal';
 import { ActionBar } from '../components/hud/ActionBar';
 import { ToolActivityToast } from '../components/hud/ToolActivityToast';
@@ -34,12 +34,13 @@ export function PalacePage() {
 
   // Initialize capture WebSocket listeners
   useCaptureWS();
+  useAmbientMusic();
 
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
   const isSeeding = usePalaceStore((s) => s.isSeeding);
   const voicePanelOpen = useVoiceStore((s) => s.showPanel);
-  const capturePanelOpen = useCaptureStore((s) => s.showPanel && s.status === 'capturing');
+  const capturePanelOpen = useCaptureStore((s) => s.showPanel && (s.status === 'capturing' || s.status === 'processing' || s.status === 'complete'));
   const panelOpen = voicePanelOpen || capturePanelOpen;
   const PANEL_WIDTH = 320;
   const [isMobile, setIsMobile] = useState(false);
@@ -54,23 +55,6 @@ export function PalacePage() {
   }, []);
 
   const [selectedArtifact, setSelectedArtifact] = useState<{ id: string; roomId: string } | null>(null);
-
-  // Auto-connect the mic the first time the user enters any room,
-  // but only if capture is not already running.
-  const { status: voiceStatus, connect: connectVoice } = useVoice();
-  const captureStatus = useCaptureStore((s) => s.status);
-  const voiceConnectedRef = useRef(false);
-  useEffect(() => {
-    if (
-      currentRoomId &&
-      !voiceConnectedRef.current &&
-      voiceStatus === 'disconnected' &&
-      captureStatus !== 'capturing'
-    ) {
-      voiceConnectedRef.current = true;
-      void connectVoice();
-    }
-  }, [currentRoomId, voiceStatus, connectVoice, captureStatus]);
 
   // Send context update to live session whenever the user enters a different room
   const prevRoomIdRef = useRef<string | null | undefined>(undefined);
@@ -150,6 +134,7 @@ export function PalacePage() {
 
   /** Open the detail modal for a clicked artifact. */
   function handleArtifactClick(artifact: Artifact) {
+    playArtifactChime(artifact.position?.x);
     const roomId = artifact.roomId ?? currentRoomId ?? '';
     setSelectedArtifact({ id: artifact.id, roomId });
   }
@@ -237,8 +222,10 @@ export function PalacePage() {
           <ConceptToast />
         </>
       )}
-      <CaptureComplete onClose={() => useCaptureStore.getState().reset()} />
-      <RoomSuggestionModal />
+      <CaptureComplete
+        onClose={() => useCaptureStore.getState().reset()}
+        onArtifactClick={(artifactId, roomId) => { playArtifactChime(); setSelectedArtifact({ id: artifactId, roomId }); }}
+      />
 
       {/* Panel reopen tab — visible on desktop when panel is closed */}
       {!panelOpen && !isMobile && (

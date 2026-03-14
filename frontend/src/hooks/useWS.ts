@@ -16,6 +16,7 @@ import { useVoiceStore } from '../stores/voiceStore';
 import { AudioPlayback } from '../services/audioPlayback';
 import { useEnrichmentStore } from '../stores/enrichmentStore';
 import { useTransitionStore } from '../stores/transitionStore';
+import { useCaptureStore } from '../stores/captureStore';
 import { stopVoiceSession } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;
@@ -46,6 +47,29 @@ function wireListeners(ws: RayanWebSocket): void {
       useCaptureStore.getState().setSummary(msg.summary);
       useCaptureStore.getState().setStatus('complete');
     }),
+    ws.on('capture_screenshot_request' as any, async (msg: any) => {
+      const stream = useCaptureStore.getState().activeStream;
+      const sessionId: string = msg.sessionId;
+      if (!stream) {
+        ws.sendScreenshotResponse(sessionId, '');
+        return;
+      }
+      try {
+        const videoTrack = stream.getVideoTracks()[0];
+        if (!videoTrack) { ws.sendScreenshotResponse(sessionId, ''); return; }
+        const imageCapture = new (window as any).ImageCapture(videoTrack);
+        const bitmap: ImageBitmap = await imageCapture.grabFrame();
+        const canvas = document.createElement('canvas');
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        canvas.getContext('2d')!.drawImage(bitmap, 0, 0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        ws.sendScreenshotResponse(sessionId, dataUrl.split(',')[1]);
+      } catch (err) {
+        console.error('[Screenshot] Frame capture failed:', err);
+        ws.sendScreenshotResponse(sessionId, '');
+      }
+    }),
     ws.on('room_suggestion', (msg) => {
       useCaptureStore.getState().setRoomSuggestion(msg);
     }),
@@ -64,6 +88,10 @@ function wireListeners(ws: RayanWebSocket): void {
           artifactCount: 0,
         });
         newRooms.push({ id: r.id, position: r.position });
+        // Show room creation in the capture panel if a capture session is active
+        if (useCaptureStore.getState().status === 'capturing') {
+          useCaptureStore.getState().addToolEvent(`Room created: ${r.name}`, 'create_room');
+        }
       });
 
       msg.changes.lobbyDoorsAdded?.forEach((door: { roomId: string; wallPosition: string; doorIndex: number }) => {
@@ -255,6 +283,10 @@ function wireListeners(ws: RayanWebSocket): void {
     ws.on('live_tool_call', (msg) => {
       // Add inline event to conversation log
       useVoiceStore.getState().addToolEvent(msg.label, msg.tool);
+      // Also write to capture panel if a capture session is active
+      if (useCaptureStore.getState().status === 'capturing') {
+        useCaptureStore.getState().addToolEvent(msg.label, msg.tool);
+      }
       // Show activity toast (skip auto-dismiss for synthesis — SynthesisOverlay handles it)
       useVoiceStore.getState().setToolActivity({ tool: msg.tool, label: msg.label });
       if (msg.tool === 'synthesize_room') {
@@ -389,6 +421,14 @@ function wireListeners(ws: RayanWebSocket): void {
         usePalaceStore.getState().setHighlightedArtifacts([artifactId]);
         setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
         usePalaceStore.getState().setAgentSelectedArtifactId(artifactId);
+
+        // If the highlighted artifact is a synthesis map, open the overlay directly
+        const allArtifacts = Object.values(usePalaceStore.getState().artifacts).flat();
+        const target = allArtifacts.find((a) => a.id === artifactId);
+        if (target?.visual === 'synthesis_map' && target.sourceMediaUrl) {
+          useVoiceStore.getState().setSynthesisImageUrl(target.sourceMediaUrl);
+          useVoiceStore.getState().setSynthesisState('done');
+        }
       }
 
       // Server-initiated session end

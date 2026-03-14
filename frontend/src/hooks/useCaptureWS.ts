@@ -36,11 +36,10 @@ export function useCaptureWS() {
       })
     );
 
-    // Session ended
+    // Session ended — keep panel open so the user can review what was captured
     unsubscribers.push(
       ws.on('capture_session_ended', (msg: CaptureSessionEndedMessage) => {
         setStatus('complete');
-        setShowPanel(false);
         console.log('[useCaptureWS] Capture session ended:', msg.sessionId);
       })
     );

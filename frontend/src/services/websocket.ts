@@ -193,6 +193,11 @@ export interface LiveToolCallMessage {
   };
 }
 
+export interface CaptureScreenshotRequestMessage {
+  type: "capture_screenshot_request";
+  sessionId: string;
+}
+
 export type ServerMessage =
   | CaptureAckMessage
   | CaptureCompleteMessage
@@ -203,6 +208,7 @@ export type ServerMessage =
   | CaptureTextMessage
   | CaptureUserTextMessage
   | CaptureToolCallMessage
+  | CaptureScreenshotRequestMessage
   | ArtifactRecallMessage
   | EnrichmentUpdateMessage
   | PalaceUpdateMessage
@@ -272,6 +278,10 @@ export class RayanWebSocket {
 
   sendCaptureVoiceChunk(sessionId: string, data: string): void {
     this._send({ type: "capture_voice_chunk", sessionId, data });
+  }
+
+  sendScreenshotResponse(sessionId: string, data: string): void {
+    this._send({ type: "capture_screenshot_response", sessionId, data });
   }
 
 
