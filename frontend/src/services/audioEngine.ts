@@ -12,8 +12,10 @@
  */
 
 const AMBIENT_VOLUME = 0.16;
+const DUCKED_VOLUME  = 0.04;
 const CHIME_VOLUME   = 0.55;
 const CROSSFADE_MS   = 500;
+const DUCK_MS        = 300;
 
 type Slot = {
     source: AudioBufferSourceNode | null;
@@ -102,10 +104,12 @@ class AudioEngine {
         outgoing.gain.gain.setValueAtTime(outgoing.gain.gain.value, now);
         outgoing.gain.gain.linearRampToValueAtTime(0, now + fadeS);
 
-        // Fade incoming → AMBIENT_VOLUME.
+        // Fade incoming → AMBIENT_VOLUME (or stay silent if muted).
         incoming.gain.gain.cancelScheduledValues(now);
         incoming.gain.gain.setValueAtTime(0, now);
-        incoming.gain.gain.linearRampToValueAtTime(AMBIENT_VOLUME, now + fadeS);
+        if (!this._isMuted) {
+            incoming.gain.gain.linearRampToValueAtTime(AMBIENT_VOLUME, now + fadeS);
+        }
 
         this.activeSlot = this.activeSlot === 'A' ? 'B' : 'A';
 
@@ -138,6 +142,71 @@ class AudioEngine {
                 slot.source = null;
             }
         }, CROSSFADE_MS + 100);
+    }
+
+    // ── Mute ──────────────────────────────────────────────────────────────────
+
+    private _isMuted = false;
+
+    get isMuted(): boolean { return this._isMuted; }
+
+    mute(): void {
+        if (this._isMuted) return;
+        this._isMuted = true;
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const fadeS = CROSSFADE_MS / 1000;
+        for (const slot of [this.slotA, this.slotB]) {
+            if (!slot) continue;
+            slot.gain.gain.cancelScheduledValues(now);
+            slot.gain.gain.setValueAtTime(slot.gain.gain.value, now);
+            slot.gain.gain.linearRampToValueAtTime(0, now + fadeS);
+        }
+    }
+
+    unmute(): void {
+        if (!this._isMuted) return;
+        this._isMuted = false;
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const fadeS = CROSSFADE_MS / 1000;
+        const target = this.isDucked ? DUCKED_VOLUME : AMBIENT_VOLUME;
+        for (const slot of [this.slotA, this.slotB]) {
+            if (!slot) continue;
+            slot.gain.gain.cancelScheduledValues(now);
+            slot.gain.gain.setValueAtTime(slot.gain.gain.value, now);
+            slot.gain.gain.linearRampToValueAtTime(target, now + fadeS);
+        }
+    }
+
+    // ── Ducking ───────────────────────────────────────────────────────────────
+
+    private isDucked = false;
+
+    duck(): void {
+        if (this.isDucked || !this.ctx) return;
+        this.isDucked = true;
+        const now = this.ctx.currentTime;
+        const fadeS = DUCK_MS / 1000;
+        for (const slot of [this.slotA, this.slotB]) {
+            if (!slot) continue;
+            slot.gain.gain.cancelScheduledValues(now);
+            slot.gain.gain.setValueAtTime(slot.gain.gain.value, now);
+            slot.gain.gain.linearRampToValueAtTime(DUCKED_VOLUME, now + fadeS);
+        }
+    }
+
+    unduck(): void {
+        if (!this.isDucked || !this.ctx) return;
+        this.isDucked = false;
+        const now = this.ctx.currentTime;
+        const fadeS = DUCK_MS / 1000;
+        for (const slot of [this.slotA, this.slotB]) {
+            if (!slot) continue;
+            slot.gain.gain.cancelScheduledValues(now);
+            slot.gain.gain.setValueAtTime(slot.gain.gain.value, now);
+            slot.gain.gain.linearRampToValueAtTime(AMBIENT_VOLUME, now + fadeS);
+        }
     }
 
     // ── Chime ─────────────────────────────────────────────────────────────────
