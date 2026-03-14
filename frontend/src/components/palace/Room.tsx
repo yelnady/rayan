@@ -294,32 +294,34 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
       {/* Bird's-eye Labeled Island visuals */}
       {isOverviewMode && (
         <>
-          <Text
-            position={[w / 2, h + 2.5, d / 2]}
-            fontSize={1.4}
-            letterSpacing={0.15}
-            color="#FFFFFF"
-            anchorX="center"
-            anchorY="middle"
-            maxWidth={w}
-            textAlign="center"
-            overflowWrap="break-word"
-            font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
-            outlineWidth={0.06}
-            outlineColor="#000000"
-          >
-            {room.name.toUpperCase()}
-          </Text>
+          <Billboard position={[w / 2, h + 2.5, d / 2]} follow={true}>
+            <Text
+              fontSize={1.4}
+              letterSpacing={0.15}
+              color="#FFFFFF"
+              anchorX="center"
+              anchorY="middle"
+              maxWidth={w}
+              textAlign="center"
+              overflowWrap="break-word"
+              font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
+              outlineWidth={0.06}
+              outlineColor="#000000"
+            >
+              {room.name.toUpperCase()}
+            </Text>
+          </Billboard>
 
-          <Text
-            position={[w / 2, h + 1.2, d / 2]}
-            fontSize={0.6}
-            color="rgba(255,255,255,0.7)"
-            anchorX="center"
-            anchorY="middle"
-          >
-            {`${room.artifactCount} MEMORIES${room.firstMemoryAt ? ` | ${new Date(room.firstMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt ? ` — ${new Date(room.lastMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : ''}`}
-          </Text>
+          <Billboard position={[w / 2, h + 1.2, d / 2]} follow={true}>
+            <Text
+              fontSize={0.6}
+              color="rgba(255,255,255,0.7)"
+              anchorX="center"
+              anchorY="middle"
+            >
+              {`${room.artifactCount} MEMORIES${room.firstMemoryAt ? ` | ${new Date(room.firstMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}${room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt ? ` — ${new Date(room.lastMemoryAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}` : ''}` : ''}`}
+            </Text>
+          </Billboard>
 
           {/* Invisible click target covering the island volume */}
           <mesh
