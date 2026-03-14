@@ -36,7 +36,6 @@ from app.websocket.responses import (
     broadcast_palace_update,
     send_capture_ack,
     send_capture_complete,
-    send_room_suggestion,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,7 +82,10 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
 
     # Build extraction callback — fires on every concept Gemini extracts
     async def on_extraction(event):
-        await send_capture_ack(user_id, session_id, event)
+        try:
+            await send_capture_ack(user_id, session_id, event)
+        except Exception:
+            logger.exception("send_capture_ack failed: userId=%s sessionId=%s", user_id, session_id)
         # Broadcast palace_update for the newly created artifact/room
         if event.categorization:
             cat = event.categorization
@@ -106,9 +108,6 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
                 artifacts_added=[cat.artifact],
                 lobby_doors_added=lobby_doors_added,
             )
-            # Broadcast room_suggestion when user confirmation is required
-            if cat.requires_confirmation and cat.suggestion:
-                await send_room_suggestion(user_id, cat.artifact.id, cat.suggestion)
 
     async def on_audio(audio_bytes: bytes) -> None:
         await manager.send(user_id, {
@@ -172,6 +171,18 @@ async def handle_capture_voice_chunk(user_id: str, msg: dict, websocket: WebSock
         await agent.send_voice(audio_bytes)
     except Exception:
         logger.exception("capture_voice_chunk error: sessionId=%s", session_id)
+
+
+@_handler("capture_screenshot_response")
+async def handle_capture_screenshot_response(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Frontend returns a base64-encoded JPEG frame for the pending take_screenshot tool call."""
+    session_id: str = msg.get("sessionId", "")
+    image_b64: str = msg.get("data", "")
+    agent = capture_agent_module.get_agent(session_id)
+    if agent:
+        agent.resolve_screenshot(image_b64)
+    else:
+        logger.warning("capture_screenshot_response: no active agent for sessionId=%s", session_id)
 
 
 @_handler("capture_end")
