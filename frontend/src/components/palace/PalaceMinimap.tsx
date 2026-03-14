@@ -193,7 +193,11 @@ export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps)
             const active = room.id === currentRoomId;
             const hov = hoveredId === room.id;
             const col = STYLE_DOT[room.style ?? 'library'] ?? '#888';
-            const truncated = room.name.length > 11 ? room.name.slice(0, 10) + '…' : room.name;
+            const words = room.name.split(' ');
+            const midpoint = Math.ceil(words.length / 2);
+            const line1 = words.slice(0, midpoint).join(' ').toUpperCase();
+            const line2 = words.slice(midpoint).join(' ').toUpperCase();
+            const labelY = rz + rh / 2 + (line2 ? -4 : 0);
 
             return (
               <g
@@ -227,42 +231,41 @@ export function PalaceMinimap({ onEnterRoom, onEnterLobby }: PalaceMinimapProps)
                   style={{ transition: 'fill 0.12s, stroke 0.12s' }}
                 />
 
-                {/* Room name — dark-outlined white text for contrast on any color */}
-                {rh > 9 && (
+                {/* Room name — always visible, split into two lines if multi-word */}
+                <text
+                  x={rx + rw / 2} y={labelY}
+                  textAnchor="middle" dominantBaseline="middle"
+                  fill={col}
+                  stroke="rgba(0,0,0,0.95)" strokeWidth={3}
+                  paintOrder="stroke"
+                  fontSize={7}
+                  fontWeight={700}
+                  letterSpacing="0.06em"
+                  style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}
+                >
+                  {line1}
+                </text>
+                {line2 && (
                   <text
-                    x={rx + rw / 2} y={rz + rh / 2}
+                    x={rx + rw / 2} y={labelY + 9}
                     textAnchor="middle" dominantBaseline="middle"
-                    fill="#ffffff"
-                    stroke="rgba(0,0,0,0.90)" strokeWidth={2.5}
+                    fill={col}
+                    stroke="rgba(0,0,0,0.95)" strokeWidth={3}
                     paintOrder="stroke"
                     fontSize={7}
-                    fontWeight={active ? 700 : 400}
-                    style={{ pointerEvents: 'none' }}
+                    fontWeight={700}
+                    letterSpacing="0.06em"
+                    style={{ pointerEvents: 'none', fontFamily: 'system-ui, sans-serif' }}
                   >
-                    {truncated}
+                    {line2}
                   </text>
                 )}
 
                 {active && (
-                  <circle cx={rx + rw / 2} cy={rz + rh / 2} r={2.2} fill="#fff" style={{ pointerEvents: 'none' }}>
+                  <circle cx={rx + rw / 2} cy={rz + rh / 2 + (line2 ? 5 : 0)} r={2.2} fill="#fff" style={{ pointerEvents: 'none' }}>
                     <animate attributeName="r"       values="1.8;3.2;1.8" dur="1.6s" repeatCount="indefinite" />
                     <animate attributeName="opacity" values="1;0.4;1"     dur="1.6s" repeatCount="indefinite" />
                   </circle>
-                )}
-
-                {/* Hover tooltip for short room labels when rect is tiny */}
-                {hov && !active && rh <= 9 && (
-                  <text
-                    x={rx + rw / 2} y={rz - 4}
-                    textAnchor="middle" dominantBaseline="auto"
-                    fill="#ffffff"
-                    stroke="rgba(0,0,0,0.90)" strokeWidth={2.5}
-                    paintOrder="stroke"
-                    fontSize={7}
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {truncated}
-                  </text>
                 )}
               </g>
             );

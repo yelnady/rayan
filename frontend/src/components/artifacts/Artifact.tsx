@@ -35,7 +35,7 @@ const TYPE_COLORS: Record<string, string> = {
   floating_book: '#60A8FF',
   hologram_frame: '#9B6FFF',
   framed_image: '#FF8C60',
-  speech_bubble: '#60C8A0',
+  speech_bubble: '#1A6B48',
   crystal_orb: '#FF60B8',
   synthesis_map: '#FFD700',
   lesson: '#7EC8E3',
@@ -59,7 +59,7 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
   lesson: '/models/lesson.glb',
   brain: '/models/Brain.glb',
   question: '/models/question.glb',
-  coffee: '/models/coffee.glb',
+  coffee: '/models/Memory.glb',
   milestone: '/models/Milestone.glb',
   heart: '/models/heart.glb',
   dream: '/models/Dream.glb',
@@ -71,13 +71,26 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
 };
 
 /**
+ * Per-model Y rotation (radians) to correct each GLB's resting orientation so its
+ * "forward" axis aligns with local +Z (facing into the room from the wall).
+ * Only needed when a model's native forward differs from +Z.
+ */
+const GLB_ROTATIONS: Partial<Record<ArtifactVisual, [number, number, number]>> = {
+  lesson: [0, -Math.PI / 2, 0],
+};
+
+/** Models that need their material colors darkened (multiplier 0–1). */
+const GLB_DARKEN: Partial<Record<ArtifactVisual, number>> = {
+};
+
+/**
  * Per-model scale to normalise each GLB to ~0.55 units (matching FloatingBook height).
  * Derived from bounding-box analysis of each file.
  */
 const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   hologram_frame: 0.5,
   framed_image: 0.5,
-  lesson: 0.004,
+  lesson: 0.014,
   brain: 0.030,
   question: 0.052,
   coffee: 0.019,
@@ -87,14 +100,14 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   tree: 0.001,
   opinion: 0.003,
   headphones: 0.050,
-  cash_stack: 12.5,
+  cash_stack: 0.9,
   exam: 0.3,
 };
 
 /** Y offset (local space) from artifact origin to the date plaque. Override per visual as needed. */
 const DATE_Y_OFFSETS: Partial<Record<ArtifactVisual | string, number>> = {
   opinion: -0.22,
-  tree:    -0.08,
+  tree: -0.08,
 };
 const DEFAULT_DATE_Y_OFFSET = -0.45;
 
@@ -105,17 +118,32 @@ function GlbArtifact({
   path,
   scale,
   rotation,
+  darken,
   onClick,
   onHover,
 }: {
   path: string;
   scale: number;
   rotation?: [number, number, number];
+  darken?: number;
   onClick?: () => void;
   onHover?: (h: boolean) => void;
 }) {
   const { scene } = useGLTF(path);
-  const cloned = useMemo(() => scene.clone(), [scene]);
+  const cloned = useMemo(() => {
+    const c = scene.clone();
+    if (darken !== undefined) {
+      c.traverse((obj: any) => {
+        if (obj.isMesh && obj.material) {
+          const mats: any[] = Array.isArray(obj.material) ? obj.material : [obj.material];
+          mats.forEach((mat) => {
+            if (mat.color) mat.color.multiplyScalar(darken);
+          });
+        }
+      });
+    }
+    return c;
+  }, [scene, darken]);
   return (
     <primitive
       object={cloned}
@@ -225,8 +253,10 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
       default: {
         const glbPath = GLB_PATHS[artifact.visual as ArtifactVisual];
         const glbScale = GLB_SCALES[artifact.visual as ArtifactVisual] ?? 0.3;
+        const glbRotation = GLB_ROTATIONS[artifact.visual as ArtifactVisual];
+        const glbDarken = GLB_DARKEN[artifact.visual as ArtifactVisual];
         if (glbPath) {
-          return <GlbArtifact path={glbPath} scale={glbScale} onClick={handleClick} onHover={handleHover} />;
+          return <GlbArtifact path={glbPath} scale={glbScale} rotation={glbRotation} darken={glbDarken} onClick={handleClick} onHover={handleHover} />;
         }
         return null;
       }

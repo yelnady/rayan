@@ -22,9 +22,10 @@ function formatDuration(seconds: number): string {
 
 interface CaptureCompleteProps {
   onClose: () => void;
+  onArtifactClick?: (artifactId: string, roomId: string) => void;
 }
 
-export function CaptureComplete({ onClose }: CaptureCompleteProps) {
+export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompleteProps) {
   const summary = useCaptureStore((s) => s.summary);
   const status = useCaptureStore((s) => s.status);
 
@@ -65,6 +66,7 @@ export function CaptureComplete({ onClose }: CaptureCompleteProps) {
                 key={room.id}
                 room={room}
                 artifacts={summary.artifacts.filter((a) => a.roomId === room.id)}
+                onArtifactClick={onArtifactClick}
               />
             ))}
           </div>
@@ -100,9 +102,11 @@ function MetaBadge({ label, highlight = false }: { label: string; highlight?: bo
 function RoomGroup({
   room,
   artifacts,
+  onArtifactClick,
 }: {
   room: CaptureCompleteRoom;
   artifacts: CaptureCompleteArtifact[];
+  onArtifactClick?: (artifactId: string, roomId: string) => void;
 }) {
   return (
     <div className="border border-border rounded-xl overflow-hidden">
@@ -121,11 +125,15 @@ function RoomGroup({
       {/* Artifact rows */}
       <div className="flex flex-col divide-y divide-border">
         {artifacts.map((a) => (
-          <div key={a.id} className="flex items-center gap-3 px-4 py-2.5">
+          <button
+            key={a.id}
+            onClick={() => onArtifactClick?.(a.id, room.id)}
+            className="flex items-center gap-3 px-4 py-2.5 w-full text-left bg-transparent border-none cursor-pointer hover:bg-surface-hover transition-colors duration-100"
+          >
             <span className="text-base leading-none shrink-0">{ARTIFACT_TYPE_ICON[a.type] ?? '📌'}</span>
             <span className="text-sm font-body text-text-primary flex-1 min-w-0 truncate">{a.title}</span>
             <span className="text-[11px] text-text-secondary font-body shrink-0 capitalize">{a.type}</span>
-          </div>
+          </button>
         ))}
       </div>
     </div>

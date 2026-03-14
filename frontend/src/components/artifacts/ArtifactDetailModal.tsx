@@ -20,6 +20,7 @@ import { usePalaceStore } from '../../stores/palaceStore';
 import { API_BASE_URL } from '../../config/api';
 import { useAuthStore } from '../../stores/authStore';
 import { useVoice } from '../../hooks/useVoice';
+import type { Artifact } from '../../types/palace';
 
 export interface ArtifactDetailData {
     id: string;
@@ -56,6 +57,10 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
     const [regenerating, setRegenerating] = useState(false);
     const [relatedMemories, setRelatedMemories] = useState<RelatedMemory[]>([]);
     const [relatedLoading, setRelatedLoading] = useState(false);
+    const [showMoveMenu, setShowMoveMenu] = useState(false);
+    const [moving, setMoving] = useState(false);
+
+    const rooms = usePalaceStore((s) => s.rooms);
 
     const narration = useVoiceStore((s) => s.currentNarration);
     const voiceStatus = useVoiceStore((s) => s.status);
@@ -162,6 +167,38 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
             onClose();
         } catch {
             setDeleting(false);
+        }
+    };
+
+    const handleMove = async (targetRoomId: string) => {
+        if (!user || moving) return;
+        setMoving(true);
+        setShowMoveMenu(false);
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch(`${API_BASE_URL}/artifacts/${artifactId}/move`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roomId: targetRoomId }),
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const json = await res.json();
+            const moved = json.artifact as { id: string; roomId: string; type: string; visual: string; summary: string; position: { x: number; y: number; z: number } };
+            // Update palace store: remove from old room, add to new room
+            usePalaceStore.getState().removeArtifact(artifactId);
+            usePalaceStore.getState().addArtifact({
+                id: moved.id,
+                roomId: moved.roomId,
+                type: moved.type as Artifact['type'],
+                visual: moved.visual as Artifact['visual'],
+                summary: moved.summary,
+                position: moved.position,
+            } as Artifact);
+            setArtifact((prev) => prev ? { ...prev, roomId: moved.roomId } : prev);
+        } catch (err) {
+            console.error('[Move]', err);
+        } finally {
+            setMoving(false);
         }
     };
 
@@ -320,6 +357,41 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                             >
                                 ✦ Ask Rayan
                             </button>
+                        )}
+
+                        {/* Move to room */}
+                        {!loading && artifact && (
+                            <div className="relative">
+                                <button
+                                    onClick={() => setShowMoveMenu((v) => !v)}
+                                    disabled={moving}
+                                    className="rounded-md text-[13px] py-[7px] px-3.5 font-body font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    style={{
+                                        background: 'rgba(16,185,129,0.08)',
+                                        border: '1px solid rgba(16,185,129,0.3)',
+                                        color: '#10b981',
+                                    }}
+                                    aria-label="Move to a different room"
+                                >
+                                    {moving ? 'Moving…' : '⇄ Move Room'}
+                                </button>
+                                {showMoveMenu && (
+                                    <div className="absolute bottom-full mb-2 left-0 bg-surface border border-border rounded-xl shadow-lg overflow-hidden z-10 min-w-[200px] max-h-[240px] overflow-y-auto animate-[fadeIn_0.15s_ease]">
+                                        {rooms
+                                            .filter((r) => r.id !== artifact.roomId)
+                                            .map((r) => (
+                                                <button
+                                                    key={r.id}
+                                                    onClick={() => handleMove(r.id)}
+                                                    className="w-full text-left px-4 py-2.5 text-[13px] font-body text-text-primary bg-transparent border-none cursor-pointer hover:bg-surface-hover transition-colors"
+                                                >
+                                                    {r.name}
+                                                </button>
+                                            ))
+                                        }
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {/* Regenerate mind map — synthesis only */}
