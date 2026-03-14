@@ -7,7 +7,8 @@
  * Each section has an animated icon button + label + state sub-label.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
@@ -24,6 +25,18 @@ import { audioEngine } from '../../services/audioEngine';
 function MoreSection() {
     const [showMenu, setShowMenu] = useState(false);
     const [muted, setMuted] = useState(() => audioEngine.isMuted);
+    const btnRef = useRef<HTMLButtonElement>(null);
+    const [menuPos, setMenuPos] = useState({ bottom: 0, left: 0 });
+
+    useEffect(() => {
+        if (showMenu && btnRef.current) {
+            const r = btnRef.current.getBoundingClientRect();
+            setMenuPos({
+                bottom: window.innerHeight - r.top + 8,
+                left: r.left,
+            });
+        }
+    }, [showMenu]);
 
     const resetView = useCameraStore((s) => s.resetView);
     const exitOverview = useCameraStore((s) => s.exitOverview);
@@ -60,8 +73,8 @@ function MoreSection() {
 
     return (
         <div className="relative flex sm:hidden">
-            {showMenu && (
-                <div className="absolute bottom-full left-0 mb-3 bg-glass backdrop-blur-xl border border-border rounded-2xl p-1.5 flex flex-col gap-1 shadow-xl animate-[fadeIn_0.2s_ease] min-w-[140px]">
+            {showMenu && createPortal(
+                <div style={{ position: 'fixed', bottom: menuPos.bottom, left: menuPos.left, zIndex: 99999 }} className="bg-glass backdrop-blur-xl border border-border rounded-2xl p-1.5 flex flex-col gap-1 shadow-xl animate-[fadeIn_0.2s_ease] min-w-[140px]">
                     <button
                         onClick={handleReset}
                         className="flex items-center gap-3 px-3 py-2 rounded-xl border-none bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)] cursor-pointer"
@@ -89,12 +102,14 @@ function MoreSection() {
                         </div>
                         <span className="font-body text-[13px] font-medium">{muted ? 'Music off' : 'Music on'}</span>
                     </button>
-                </div>
+                </div>,
+                document.body
             )}
             <button
+                ref={btnRef}
                 onClick={() => setShowMenu(!showMenu)}
                 aria-label="More actions"
-                className="flex flex-col items-center gap-1 py-1.5 px-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+                className="flex flex-row items-center gap-1.5 py-1.5 px-2 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
             >
                 <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)]">
                     <MoreIcon size={18} />
@@ -261,7 +276,7 @@ function CaptureSection() {
 
                 {/* Labels */}
                 <div className="flex flex-col gap-0.5">
-                    <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Capture Memories</span>
+                    <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2] whitespace-nowrap">Capture Memories</span>
                     <span
                         className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isCapturing ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                     >
@@ -294,10 +309,15 @@ function SourceOption({ onClick, icon, label, active }: { onClick: () => void, i
 function VoiceSection() {
     const { status, muted, toggleMute, connect, disconnect } = useVoice();
     const captureStatus = useCaptureStore((s) => s.status);
+    const showPanel = useVoiceStore((s) => s.showPanel);
+    const setShowPanel = useVoiceStore((s) => s.setShowPanel);
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') await connect();
-        else if (status === 'connected' || status === 'responding') toggleMute();
+        else if (status === 'connected' || status === 'responding') {
+            if (!showPanel) setShowPanel(true);
+            else toggleMute();
+        }
     };
 
     const handleStop = () => {
@@ -345,7 +365,7 @@ function VoiceSection() {
             onClick={handleClick}
             disabled={voiceDisabled}
             aria-label={ariaLabel}
-            className={`action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 pr-2.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] group ${voiceDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-hover'}`}
+            className={`action-section-btn flex items-center gap-2 sm:gap-3 py-1 sm:py-1.5 sm:pr-4 pl-1 sm:pl-2 bg-transparent border-none rounded-full text-text-primary text-left transition-background duration-150 min-w-[50px] sm:min-w-[190px] group ${isSessionActive ? 'pr-1.5' : 'pr-2.5'} ${voiceDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-surface-hover'}`}
         >
             {/* Icon */}
             <div
@@ -369,7 +389,7 @@ function VoiceSection() {
 
             {/* Labels */}
             <div className="flex flex-col gap-0.5">
-                <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2]">Relive Your Memories</span>
+                <span className="font-body font-semibold text-[10.5px] sm:text-sm text-text-primary tracking-[0.01em] leading-[1.2] whitespace-nowrap">Relive Your Memories</span>
                 <span
                     className={`font-body text-[10px] sm:text-[11px] tracking-[0.02em] leading-[1.2] transition-colors duration-150 ${isActive ? 'text-[rgba(74,222,128,0.9)]' : isResponding ? 'text-[rgba(167,139,250,0.9)]' : status === 'error' ? 'text-[rgba(248,113,113,0.9)]' : 'text-text-muted'}`}
                 >
@@ -386,7 +406,7 @@ function VoiceSection() {
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); handleStop(); } }}
                     aria-label="Stop voice session"
                     title="Stop session"
-                    className="w-5 h-5 sm:w-[26px] sm:h-[26px] rounded-full bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center cursor-pointer shrink-0 transition-background duration-150 ml-0 sm:ml-1 hover:bg-[rgba(239,68,68,0.2)]"
+                    className="w-5 h-5 sm:w-[26px] sm:h-[26px] rounded-full bg-[rgba(239,68,68,0.12)] border border-[rgba(239,68,68,0.3)] flex items-center justify-center cursor-pointer shrink-0 transition-background duration-150 ml-1 sm:ml-1 hover:bg-[rgba(239,68,68,0.2)]"
                 >
                     <svg width="8" height="8" viewBox="0 0 24 24" fill="rgba(239,68,68,0.9)" className="sm:w-2.5 sm:h-2.5">
                         <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
@@ -585,7 +605,7 @@ export function ActionBar() {
             <div
                 role="toolbar"
                 aria-label="Memory actions"
-                className="fixed bottom-3 sm:bottom-7 left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1 sm:px-2.5 py-1 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[98vw] sm:max-w-none"
+                className="fixed bottom-safe left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1 sm:px-2.5 py-1 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[98vw] sm:max-w-none"
             >
                 <MovementSection />
                 <MoreSection />
