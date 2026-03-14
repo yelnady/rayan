@@ -233,13 +233,34 @@ def _next_grid_position(existing: list[Room]) -> Position3D:
 
     The lobby occupies roughly 0-12 on X and Z, so we start rooms at X=30
     to avoid any geometry overlap.
+
+    Occupied slots are derived from existing room positions rather than using
+    len(existing) as an index, so deletions and race conditions don't cause
+    two rooms to land on the same spot.
     """
-    OFFSET_X = 30.0   # clear the lobby width
+    OFFSET_X = 30.0
     OFFSET_Z = 0.0
     SPACING = 30.0
-    COLS = 3           # rooms per row before wrapping
+    COLS = 3
+    SNAP = SPACING / 2  # tolerance for snapping a position to a grid slot
 
-    n = len(existing)
-    col = n % COLS
-    row = n // COLS
-    return Position3D(x=OFFSET_X + col * SPACING, y=0.0, z=OFFSET_Z + row * SPACING)
+    occupied: set[tuple[int, int]] = set()
+    for room in existing:
+        col = round((room.position.x - OFFSET_X) / SPACING)
+        row = round((room.position.z - OFFSET_Z) / SPACING)
+        # Only count positions that are close enough to a valid grid slot
+        if (
+            abs(room.position.x - (OFFSET_X + col * SPACING)) < SNAP
+            and abs(room.position.z - (OFFSET_Z + row * SPACING)) < SNAP
+            and col >= 0 and row >= 0
+        ):
+            occupied.add((col, row))
+
+    # Scan grid slots in row-major order and return the first free one
+    n = 0
+    while True:
+        col = n % COLS
+        row = n // COLS
+        if (col, row) not in occupied:
+            return Position3D(x=OFFSET_X + col * SPACING, y=0.0, z=OFFSET_Z + row * SPACING)
+        n += 1

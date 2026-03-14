@@ -164,6 +164,41 @@ async def get_artifact_by_id(user_id: str, artifact_id: str) -> Artifact | None:
     return None
 
 
+async def move_artifact(user_id: str, artifact_id: str, target_room_id: str) -> Artifact | None:
+    """Move an artifact to a different room, assigning it a fresh wall slot there."""
+    artifact = await get_artifact_by_id(user_id, artifact_id)
+    if artifact is None:
+        return None
+
+    old_room_id = artifact.roomId
+    if old_room_id == target_room_id:
+        return artifact
+
+    # Compute a free slot in the target room
+    occupied = await _get_occupied_slots(user_id, target_room_id)
+    exit_wall = await _get_room_exit_wall(user_id, target_room_id)
+    new_position, new_wall = _next_artifact_position(occupied, exit_wall)
+
+    # Write updated document to target room
+    updated = artifact.model_copy(update={"roomId": target_room_id, "position": new_position, "wall": new_wall})
+    await _artifacts_ref(user_id, target_room_id).document(artifact_id).set(updated.model_dump())
+
+    # Remove from old room
+    await _artifacts_ref(user_id, old_room_id).document(artifact_id).delete()
+
+    logger.info(
+        "Artifact moved: userId=%s artifactId=%s from=%s to=%s",
+        user_id, artifact_id, old_room_id, target_room_id,
+    )
+
+    import asyncio
+    from app.services.room_service import recompute_room_summary
+    asyncio.create_task(recompute_room_summary(user_id, old_room_id))
+    asyncio.create_task(recompute_room_summary(user_id, target_room_id))
+
+    return updated
+
+
 async def delete_artifact_by_id(user_id: str, artifact_id: str) -> None:
     """Delete an artifact without knowing its room (finds it first)."""
     artifact = await get_artifact_by_id(user_id, artifact_id)

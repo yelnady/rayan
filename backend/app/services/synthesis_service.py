@@ -51,6 +51,7 @@ async def synthesize_room(
     """
     room = await get_room(user_id, room_id)
     room_name = room.name if room else "Memory Room"
+    room_style = room.style if room else "default"
     artifacts = await get_room_artifacts(user_id, room_id)
 
     # Exclude any existing synthesis artifacts from the input
@@ -59,7 +60,7 @@ async def synthesize_room(
     if not source_artifacts:
         raise ValueError("Room has no artifacts to synthesize.")
 
-    prompt = _build_prompt(room_name, source_artifacts)
+    prompt = _build_prompt(room_name, source_artifacts, room_style)
     image_bytes = await _generate_image(prompt)
 
     blob_path = f"syntheses/{room_id}/{uuid.uuid4().hex}.png"
@@ -154,28 +155,109 @@ async def synthesize_room(
 # ── Private helpers ────────────────────────────────────────────────────────────
 
 
-def _build_prompt(room_name: str, artifacts: list[Artifact]) -> str:
+_STYLE_PALETTES: dict[str, dict] = {
+    "library": {
+        "bg": "warm amber twilight fading into deep mahogany — like candlelight in an ancient reading room",
+        "nodes": "aged parchment nodes with ink-gold borders and soft candleflame glows",
+        "lines": "sepia-toned ink threads, gently curved like handwritten connections",
+        "accents": "warm golds, rust reds, moss greens, cream whites",
+        "feel": "scholarly and timeless, like a dream inside an ancient library at midnight",
+    },
+    "lab": {
+        "bg": "deep midnight blue dissolving into electric teal — a dark quantum laboratory",
+        "nodes": "holographic panels with neon cyan/green borders, soft bioluminescent glow",
+        "lines": "electric arc connections, pulsing with energy, data-stream thin",
+        "accents": "neon cyan, plasma green, UV violet, white sparks",
+        "feel": "scientific wonder, as if dreaming inside a particle accelerator",
+    },
+    "gallery": {
+        "bg": "soft dusk lavender bleeding into rose gold and pearl white mist",
+        "nodes": "framed canvas nodes with watercolour washes and gilt edges",
+        "lines": "impressionistic brushstroke connections, flowing and painterly",
+        "accents": "mauve, rose gold, cerulean, soft coral, antique white",
+        "feel": "artistic and ethereal, like wandering through a dream museum at golden hour",
+    },
+    "garden": {
+        "bg": "deep twilight emerald sky, bioluminescent meadow mist rising from the ground",
+        "nodes": "organic leaf-shaped or petal-shaped nodes with soft bioluminescent edges",
+        "lines": "winding vine connections with tiny glowing buds along the path",
+        "accents": "jade greens, moonlit whites, lavender, soft amber firefly dots",
+        "feel": "alive and breathing, like a dream in an enchanted midnight garden",
+    },
+    "workshop": {
+        "bg": "dark charcoal steel fading into deep burnt sienna — a forge at dusk",
+        "nodes": "metal-plate nodes with riveted edges, glowing amber welds at corners",
+        "lines": "blueprint grid lines with mechanical precision, copper or white",
+        "accents": "copper, molten orange, blueprint blue, chrome silver, rust red",
+        "feel": "industrial and inventive, like blueprints dreamed up in a forge at night",
+    },
+}
+
+_DEFAULT_PALETTE = {
+    "bg": "deep cosmic void fading from indigo to black, scattered with soft star dust",
+    "nodes": "rounded glowing nodes with luminous borders, each branch its own colour",
+    "lines": "curved luminous connections, like threads of memory through space",
+    "accents": "electric blues, purples, teals, golds",
+    "feel": "a futuristic memory palace adrift in a dream",
+}
+
+_TYPE_MOOD_MAP: dict[str, str] = {
+    "emotion": "warmth, feeling",
+    "dream": "wonder, surrealism",
+    "moment": "nostalgia, presence",
+    "milestone": "pride, achievement",
+    "insight": "revelation, clarity",
+    "question": "curiosity, mystery",
+    "goal": "ambition, direction",
+    "habit": "rhythm, growth",
+    "lesson": "learning, depth",
+    "opinion": "conviction, perspective",
+    "media": "culture, resonance",
+    "lecture": "knowledge, structure",
+    "document": "precision, reference",
+    "enrichment": "discovery, connection",
+}
+
+
+def _build_prompt(room_name: str, artifacts: list[Artifact], room_style: str = "default") -> str:
+    palette = _STYLE_PALETTES.get(room_style, _DEFAULT_PALETTE)
+
+    # Collect dominant artifact types to inform mood
+    type_counts: dict[str, int] = {}
+    for a in artifacts:
+        type_counts[a.type.value] = type_counts.get(a.type.value, 0) + 1
+    top_types = sorted(type_counts, key=lambda t: type_counts[t], reverse=True)[:3]
+    moods = [_TYPE_MOOD_MAP[t] for t in top_types if t in _TYPE_MOOD_MAP]
+    mood_line = f"Emotional undertones: {'; '.join(moods)}." if moods else ""
+
+    # Collect artifact colors for subtle node tinting hints
+    artifact_colors = list({
+        a.color for a in artifacts if getattr(a, "color", None)
+    })[:6]
+    color_hint = (
+        f"Blend these memory colours subtly into the nodes: {', '.join(artifact_colors)}."
+        if artifact_colors else ""
+    )
+
     nodes = []
     for a in artifacts:
         title = getattr(a, "title", "") or a.summary[:60]
         kw = ", ".join(getattr(a, "keywords", [])[:4])
         nodes.append(f"• {title}" + (f" [{kw}]" if kw else ""))
-
-    nodes_text = "\n".join(nodes[:30])  # cap at 30 concepts
+    nodes_text = "\n".join(nodes[:30])
 
     return (
-        f"Create a stunning, high-quality mind map titled \"{room_name}\".\n\n"
-        "STYLE REQUIREMENTS:\n"
-        "- Dark background (deep navy or black, #050512 or similar)\n"
-        "- Central node with the room topic, large and glowing\n"
-        "- Branch out to each concept with curved, luminous connection lines\n"
-        "- Each node: rounded rectangle with soft glow, distinct color per branch\n"
-        "- Colors: electric blues, purples, teals, golds — vibrant and cosmic\n"
-        "- Use clear, readable sans-serif font — white or light text on dark nodes\n"
-        "- Add subtle particle/star effects in the background\n"
-        "- Overall feel: futuristic memory palace, quantum knowledge map\n\n"
+        f'Create a stunning, high-quality mind map titled "{room_name}".\n\n'
+        f"ATMOSPHERE & STYLE (match the room's soul — a {room_style} style):\n"
+        f"- Background: {palette['bg']}\n"
+        f"- Nodes: {palette['nodes']}\n"
+        f"- Connection lines: {palette['lines']}\n"
+        f"- Colour palette: {palette['accents']}\n"
+        f"- Overall feel: {palette['feel']}\n"
+        f"{mood_line}\n"
+        f"{color_hint}\n\n"
         f"CONCEPTS TO MAP:\n{nodes_text}\n\n"
-        "Show relationships between related concepts where possible. "
+        "Draw visible relationships between related concepts. "
         "Make it beautiful enough to hang on a wall."
     )
 

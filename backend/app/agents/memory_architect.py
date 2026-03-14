@@ -57,6 +57,7 @@ async def categorize_and_store(
     concept_confidence: float,
     captured_at: Optional[datetime] = None,
     full_content: Optional[str] = None,
+    force_room_id: Optional[str] = None,
 ) -> CategorizationResult:
     """Embed concept → match room → create artifact → return result."""
     # Map raw string type to enum (default to lecture)
@@ -64,6 +65,21 @@ async def categorize_and_store(
         artifact_type = ArtifactType(concept_type)
     except ValueError:
         artifact_type = ArtifactType.lecture
+
+    # If a specific room is requested (e.g. just created), skip vector search and place directly
+    if force_room_id:
+        from app.services.room_service import get_room
+        forced_room = await get_room(user_id, force_room_id)
+        if forced_room:
+            artifact = await _store(user_id, session_id, forced_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
+            await increment_artifact_count(user_id, forced_room.id)
+            logger.info("categorize: force_room userId=%s roomId=%s title=%r", user_id, force_room_id, concept_title)
+            return CategorizationResult(
+                artifact=artifact,
+                room=forced_room,
+                action="auto_assigned",
+                requires_confirmation=False,
+            )
 
     embed_text = concept_title + ". " + concept_summary
     embedding = await get_embedding(embed_text)

@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import Query
 
 from app.middleware.auth import verify_token
-from app.services.artifact_service import get_artifact_by_id, delete_artifact_by_id
+from app.services.artifact_service import get_artifact_by_id, delete_artifact_by_id, move_artifact
 from app.services.search_service import semantic_search
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,14 @@ class RelatedMemory(BaseModel):
 
 class RelatedMemoriesResponse(BaseModel):
     related: list[RelatedMemory]
+
+
+class MoveRequest(BaseModel):
+    roomId: str
+
+
+class MoveResponse(BaseModel):
+    artifact: ArtifactDetail
 
 
 class DeleteResponse(BaseModel):
@@ -208,6 +216,45 @@ async def get_related_memories(
     ][:limit]
 
     return RelatedMemoriesResponse(related=related)
+
+
+@router.post(
+    "/{artifact_id}/move",
+    response_model=MoveResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def move_artifact_endpoint(
+    artifact_id: str,
+    body: MoveRequest,
+    user: dict = Depends(verify_token),
+) -> MoveResponse:
+    """Move an artifact to a different room."""
+    user_id: str = user["user_id"]
+
+    result = await move_artifact(user_id, artifact_id, body.roomId)
+    if result is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "RESOURCE_NOT_FOUND", "message": "Artifact not found"},
+        )
+
+    return MoveResponse(
+        artifact=ArtifactDetail(
+            id=result.id,
+            roomId=result.roomId,
+            type=result.type,
+            position=ArtifactPosition(x=result.position.x, y=result.position.y, z=result.position.z),
+            visual=result.visual,
+            summary=result.summary,
+            fullContent=getattr(result, "fullContent", None),
+            sourceMediaUrl=getattr(result, "sourceMediaUrl", None),
+            thumbnailUrl=getattr(result, "thumbnailUrl", None),
+            createdAt=result.createdAt.isoformat(),
+            capturedAt=result.capturedAt.isoformat() if result.capturedAt else None,
+            captureSessionId=getattr(result, "captureSessionId", None),
+            color=getattr(result, "color", None),
+        )
+    )
 
 
 @router.delete(
