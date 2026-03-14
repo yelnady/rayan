@@ -179,6 +179,7 @@ async def synthesize_room_endpoint(
                             "z": artifact.position.z,
                         },
                         "visual": artifact.visual.value,
+                        "title": artifact.title,
                         "summary": artifact.summary,
                         "sourceMediaUrl": artifact.sourceMediaUrl,
                         "color": artifact.color,

@@ -109,8 +109,9 @@ async def update_artifact(
     artifact_id: str,
     summary: Optional[str] = None,
     full_content: Optional[str] = None,
+    title: Optional[str] = None,
 ) -> Artifact | None:
-    """Update an artifact's summary and/or full_content, regenerating its embedding."""
+    """Update an artifact's title, summary, and/or full_content, regenerating its embedding."""
     artifact = await get_artifact_by_id(user_id, artifact_id)
     if artifact is None:
         return None
@@ -118,6 +119,9 @@ async def update_artifact(
     room_id = artifact.roomId
     updates: dict = {}
 
+    if title is not None:
+        updates["title"] = title
+        artifact.title = title
     if summary is not None:
         updates["summary"] = summary
         artifact.summary = summary

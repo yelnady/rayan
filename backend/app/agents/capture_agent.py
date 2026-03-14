@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 MIN_EXTRACTION_INTERVAL: float = 15.0
 CONFIDENCE_THRESHOLD: float = 0.7
 _MAX_TITLE_WORDS: int = 8
+MERGE_SIMILARITY_THRESHOLD: float = 0.90
 
 
 def _normalize_title_summary(title: str, summary: str) -> tuple[str, str]:
@@ -64,78 +65,55 @@ You are Rayan, a silent memory capture assistant co-listening to a live session 
 BEHAVIOR:
 - Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.
 - Respond naturally when {name} addresses you directly (by name or with a question).
-- When you capture a concept, briefly acknowledge: 'Got it, {name} — [concept name] added to [room name].'
 - You are co-listening: you hear both the content being shared AND {name} speaking to you.
-   
+
+SESSION CONTEXT:
+- At the very start of each session, greet {name} warmly, I will try to be silent and listen to you, and ask ONE short question to understand their context: what they are doing or where they are. Examples: 'Are you in a lecture, a meeting, working on something, or just out and about?' Listen to their answer and use it to calibrate everything — the artifact types you pick, the concepts you prioritise, how actively you capture.
+
+
 EXISTING ROOMS IN {name}'s PALACE: 
 {room_directory} 
-ARTIFACT (Memory) TYPES: 
-KNOWLEDGE & LEARNING: 
-- lecture: spoken explanations, presentations, teachings 
-- document: written text, papers, slides, notes 
-- lesson: structured lessons, tutorials, step-by-step guides 
-- insight: sudden realizations, aha moments, key takeaways 
-- question: open questions, things left to explore 
-EXPERIENCES & EMOTIONS: 
-- moment: a specific personal memory or experience
-- milestone: life events, achievements, transitions
-- emotion: feelings or emotional states tied to a moment
-- dream: waking up and telling my dreams
-- habit: recurring behaviors or routines
-OPINIONS & IDENTITY:
-- conversation: discussions, interviews, Q&A
-- opinion: views, stances, beliefs on a topic
-- visual: diagrams, charts, images, demonstrations
-- media: music, podcasts, films that resonated
-GOALS:
-- goal: aspirations, objectives, things to achieve
-- enrichment: supplementary research or background material
-EVENTS & DEADLINES:
-- exam: upcoming exams, tests, or assessments with a scheduled date
+
+ARTIFACT TYPES (use with create_artifact):
+  KNOWLEDGE & LEARNING:
+  - lecture      → educational talks, classes, presentations    (hologram frame)
+  - document     → notes, articles, written text               (floating book)
+  - lesson       → structured lessons, tutorials, how-tos      (lesson model)
+  - insight      → realizations, aha moments, key takeaways    (brain model)
+  - question     → open questions, things to explore           (question model)
+  EXPERIENCES & EMOTIONS:
+  - moment       → a specific personal memory or experience    (coffee model)
+  - milestone    → life events, achievements, transitions      (milestone model)
+  - emotion      → feelings or emotional states                (heart model)
+  - dream        → long-term aspirations, deep wishes          (dream model)
+  - habit        → recurring behaviors, routines               (tree model)
+  OPINIONS & IDENTITY:
+  - conversation → discussions, interviews, dialogues          (speech bubble)
+  - opinion      → views, stances, beliefs on a topic          (opinion model)
+  - visual       → images, diagrams, visual content            (framed image)
+  - media        → music, podcasts, films that resonated       (headphones model)
+  GOALS:
+  - goal         → aspirations, objectives, things to achieve  (cash stack model)
+  - enrichment   → research or supplementary material          (crystal orb)
 
 CAPTURING CONCEPTS:
-- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, 
-at least 20 seconds since the last extraction), call `capture_concept`.
-- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember 
-something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` 
-immediately — no confidence or time restrictions apply. Then verbally confirm: 
-'Got it, {name} — [concept name] added to [room name].'
-- Do NOT repeat concepts already captured.
-
-FILLING TOOL FIELDS CORRECTLY — this is critical:
-- `title`: 3-7 words only. A short, noun-phrase label. Example: 'Feynman Technique for Learning'.
-- `summary`: 2-4 full sentences. Describe what was actually said — the key idea, context, and why it matters. 
-NEVER put the full content in the title. NEVER leave the summary as a single word or fragment.
-- `full_content` (create_artifact only): The verbatim or detailed version of what was shared.
-
-NAVIGATING & INTERACTING WITH THE PALACE:
-- navigate_to_room: when your answer lives in a specific room, navigate there; use 'lobby' to return home.
-- navigate_to_map_view: toggle the bird's-eye overview map — use when {name} asks to see the map, overview, all rooms, or to exit back to first-person.
-- navigate_horizontal: when {name} wants to see more artifacts in the same room, move left or right.
-- highlight_artifact: when one artifact is the key answer, highlight it.
-- edit_artifact: when {name} wants to update, correct, or expand an existing memory — always confirm what to change before calling.
-- delete_artifact: when {name} explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling.
+- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, at least 40 seconds since the last extraction), call `capture_concept`.
+- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` immediately — no confidence or time restrictions apply. Then verbally confirm: 'Got it, {name} — [concept name] added to [room name].'
+- SMART MERGE: The system automatically detects near-duplicate concepts. If you call `capture_concept` for a topic already captured this session, the new information will be MERGED into the existing artifact rather than creating a duplicate — the summary is updated and the new content is appended. So: do NOT hold back if new, meaningful details emerge on a topic already saved. DO hold back if nothing genuinely new has been said (same point repeated verbatim).
+- edit_artifact: when you are confused that an existent memory already can be updated instead of creating new one, call it.
 
 CREATING ROOMS:
-- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above.
-- Do NOT create a room if a sufficiently similar one already exists — the system will route the 
-artifact there automatically.
-- Call `create_room` when the user explicitly asks for a new room or when no existing room fits.
-- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) 
-to save the content that triggered the new room into it.
-- After both calls, confirm verbally: 'Created a new room for [topic] and saved [concept], {name}.'
+- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above and from the current room.
+- Call `create_room` when the user explicitly asks for a new room or when no existing room fits including the current room.
+- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) to save the content that triggered the new room into it.
+
 CAPTURING SCREENSHOTS:
-- Call `take_screenshot` proactively whenever you see something visually significant on screen: 
-a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual 
-that captures an important concept better than words alone.
-- Prioritise moments where the visual IS the concept — not just decoration. Ask yourself: 
-'Would {name} want this image on their palace wall?' If yes, capture it.
-- You may call `take_screenshot` independently of `capture_concept` — they complement each other. 
-Capture the spoken idea with `capture_concept` AND the visual with `take_screenshot` when both apply.
-- Write a `title` that names what is shown (e.g. 'Transformer Attention Mechanism Diagram'). 
-Write a `summary` that explains what the visual shows and why it matters (1-3 sentences).
+- Call `take_screenshot` proactively whenever you see something visually significant on screen: a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual that captures an important concept better than words alone.
+- Prioritise moments where the visual IS the concept — not just decoration. Ask yourself: 'Would {name} want this image on their palace wall?' If yes, capture it.
+- You may call `take_screenshot` independently of `capture_concept` — they complement each other. Capture the spoken idea with `capture_concept` AND the visual with `take_screenshot` when both apply.
 - Do NOT screenshot blank screens, menus, or transitional frames. Only capture when something meaningful is visible.
 - No time restriction applies to `take_screenshot` — call it as often as the content warrants.
+
 ENDING THE SESSION:
 - Call `close_session` when the user asks to close, finish, or stop the capture session.
 """
@@ -189,6 +167,8 @@ class CaptureAgent:
         self._closed = False
         self._last_created_room_id: Optional[str] = None  # set after create_room, consumed by next extraction
         self._pending_screenshot: Optional[asyncio.Future] = None  # awaited during take_screenshot
+        # (artifact_id, room_id, title, embedding) — used for within-session dedup
+        self._session_embeddings: list[tuple[str, str, str, list[float]]] = []
 
     async def start(self) -> None:
         room_directory = await self._build_room_directory()
@@ -289,7 +269,7 @@ class CaptureAgent:
                     input=genai_types.LiveClientContent(
                         turns=[genai_types.Content(
                             role="user",
-                            parts=[genai_types.Part(text="[SESSION_START] Introduce yourself briefly to the user.")],
+                            parts=[genai_types.Part(text="[SESSION_START] Greet the user warmly with one sentence, then immediately ask them one short question to understand their current context — what they are doing or where they are (e.g. a lecture, meeting, working on something, screen session, or just out). Keep it natural and brief.")],
                         )],
                         turn_complete=True,
                     )
@@ -318,11 +298,11 @@ class CaptureAgent:
                                 fn_call.name,
                                 dict(fn_call.args) if fn_call.args else {},
                             )
-                            function_responses.append({
-                                "name": fn_call.name,
-                                "response": {"result": result},
-                                "id": fn_call.id,
-                            })
+                            function_responses.append(genai_types.FunctionResponse(
+                                id=fn_call.id,
+                                name=fn_call.name,
+                                response={"result": result},
+                            ))
                         await session.send_tool_response(function_responses=function_responses)
                         continue
 
@@ -389,32 +369,72 @@ class CaptureAgent:
             return f"concept captured and saved to room '{room_name}'"
 
         elif name == "create_artifact":
-            raw_title = (args.get("title", "") or "").strip()
-            raw_summary = (args.get("summary", "") or "").strip()
-            title, summary = _normalize_title_summary(raw_title, raw_summary)
-            # If summary is still empty after rescue, fall back to using the title text
-            if not summary:
-                summary = raw_title
-                title = _clamp_title(raw_title)
+            summary = args.get("summary", "").strip()
             if not summary:
                 return "Cannot save artifact: summary is required."
+            title = args.get("title", "").strip()
+            keywords = list(args.get("keywords", []))
             full_content = args.get("full_content", "").strip() or None
-            self._last_extraction_at = time.monotonic()
-            event = ExtractionEvent(
-                concept_title=title,
-                concept_summary=summary,
-                concept_type=args.get("artifact_type", "moment"),
-                concept_keywords=list(args.get("keywords", [])),
-                confidence=1.0,
-                full_content=full_content,
-            )
+            artifact_type_str = args.get("artifact_type", "conversation")
+
             try:
-                await self._handle_extraction(event)
+                from app.services.room_service import add_lobby_door
+                from app.websocket.manager import manager as ws_manager
+
+                await ws_manager.send(self.user_id, {
+                    "type": "tool_activity",
+                    "label": f"Saving: {title or summary[:50]}…",
+                })
+
+                result = await categorize_and_store(
+                    user_id=self.user_id,
+                    session_id=None,
+                    concept_title=title,
+                    concept_summary=summary,
+                    concept_type=artifact_type_str,
+                    concept_keywords=keywords,
+                    concept_confidence=1.0,
+                    full_content=full_content,
+                )
+                artifact = result.artifact
+                room = result.room
+
+                rooms_added: list[dict] = []
+                lobby_doors_added: list[dict] = []
+                if result.action == "suggested_new":
+                    rooms_added = [{
+                        "id": room.id,
+                        "name": room.name,
+                        "position": {"x": room.position.x, "y": room.position.y, "z": room.position.z},
+                        "style": room.style,
+                    }]
+                    lobby_doors_added = [await add_lobby_door(self.user_id, room.id)]
+
+                await ws_manager.send(self.user_id, {
+                    "type": "palace_update",
+                    "changes": {
+                        "roomsAdded": rooms_added,
+                        "artifactsAdded": [{
+                            "id": artifact.id,
+                            "roomId": artifact.roomId,
+                            "type": artifact.type.value,
+                            "position": {"x": artifact.position.x, "y": artifact.position.y, "z": artifact.position.z},
+                            "visual": artifact.visual.value,
+                            "title": artifact.title,
+                            "summary": artifact.summary,
+                        }],
+                        "connectionsAdded": [],
+                        "lobbyDoorsAdded": lobby_doors_added,
+                    },
+                })
+                logger.info(
+                    "[CaptureAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
+                    self.user_id, artifact.id, room.id, result.action,
+                )
+                return f"Artifact saved in room '{room.name}' (action={result.action}): id={artifact.id}"
             except Exception:
-                logger.exception("create_artifact failed: sessionId=%s", self.session_id)
+                logger.exception("create_artifact failed for userId=%s", self.user_id)
                 return "Failed to save artifact"
-            room_name = event.categorization.room.name if event.categorization else "your palace"
-            return f"artifact saved to room '{room_name}'"
 
 
         elif name == "create_room":
@@ -660,6 +680,7 @@ class CaptureAgent:
                         "type": result.artifact.type.value,
                         "position": {"x": result.artifact.position.x, "y": result.artifact.position.y, "z": result.artifact.position.z},
                         "visual": result.artifact.visual.value,
+                        "title": result.artifact.title,
                         "summary": result.artifact.summary,
                         "sourceMediaUrl": image_url,
                         "wall": result.artifact.wall,
@@ -678,10 +699,129 @@ class CaptureAgent:
             logger.exception("Screenshot artifact creation failed: sessionId=%s", self.session_id)
             return "Screenshot uploaded but artifact creation failed"
 
+    # ── Dedup / merge helpers ──────────────────────────────────────────────────
+
+    @staticmethod
+    def _cosine_similarity(a: list[float], b: list[float]) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = sum(x * x for x in a) ** 0.5
+        norm_b = sum(x * x for x in b) ** 0.5
+        if norm_a == 0.0 or norm_b == 0.0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    def _find_similar_session_artifact(
+        self, embedding: list[float]
+    ) -> tuple[str, str, str] | None:
+        """Return (artifact_id, room_id, title) of the most similar session artifact, or None."""
+        best_id = best_room_id = best_title = None
+        best_sim = MERGE_SIMILARITY_THRESHOLD
+        for artifact_id, room_id, title, cached_emb in self._session_embeddings:
+            sim = self._cosine_similarity(embedding, cached_emb)
+            if sim >= best_sim:
+                best_sim = sim
+                best_id = artifact_id
+                best_room_id = room_id
+                best_title = title
+        if best_id is not None:
+            return best_id, best_room_id, best_title  # type: ignore[return-value]
+        return None
+
+    async def _merge_into_artifact(
+        self,
+        artifact_id: str,
+        room_id: str,
+        existing_title: str,
+        event: ExtractionEvent,
+    ) -> None:
+        """Append new concept info into an existing artifact instead of creating a duplicate."""
+        from app.services.artifact_service import get_artifact, update_artifact
+        from app.websocket.manager import manager as ws_manager
+
+        current = await get_artifact(self.user_id, room_id, artifact_id)
+        if current is None:
+            logger.warning(
+                "Merge target not found, skipping: userId=%s artifactId=%s",
+                self.user_id, artifact_id,
+            )
+            return
+
+        # Append new info as a clearly delimited section
+        new_section = f"\n\n---\n**{event.concept_title}**\n{event.concept_summary}"
+        if event.full_content:
+            new_section += f"\n\n{event.full_content}"
+        merged_full_content = (current.fullContent or current.summary) + new_section
+
+        updated = await update_artifact(
+            user_id=self.user_id,
+            artifact_id=artifact_id,
+            summary=event.concept_summary,
+            full_content=merged_full_content,
+        )
+        if updated is None:
+            logger.warning("Merge update returned None: artifactId=%s", artifact_id)
+            return
+
+        # Show in capture panel conversation log
+        await ws_manager.send(self.user_id, {
+            "type": "live_tool_call",
+            "tool": "merge_concept",
+            "label": f"Updated: {existing_title}",
+            "payload": {},
+        })
+
+        # Propagate change to the 3D palace
+        await ws_manager.send(self.user_id, {
+            "type": "palace_update",
+            "changes": {
+                "roomsAdded": [],
+                "artifactsAdded": [],
+                "artifactsUpdated": [{
+                    "id": updated.id,
+                    "title": updated.title,
+                    "summary": updated.summary,
+                    "fullContent": updated.fullContent,
+                }],
+                "connectionsAdded": [],
+            },
+        })
+
+        await add_artifact_to_session(self.user_id, self.session_id, artifact_id)
+        logger.info(
+            "[CaptureAgent] Concept merged into existing artifact: userId=%s artifactId=%s existingTitle=%r",
+            self.user_id, artifact_id, existing_title,
+        )
+
     async def _handle_extraction(self, event: ExtractionEvent) -> None:
         # Consume the pending room ID so the artifact lands in the just-created room
         force_room_id = self._last_created_room_id
         self._last_created_room_id = None
+
+        # ── Within-session dedup check ────────────────────────────────────────
+        # Skip when a specific room is forced (e.g. right after create_room) so
+        # intentional re-categorisation is never suppressed.
+        if not force_room_id and self._session_embeddings:
+            try:
+                from app.services.embedding_service import get_embedding
+                embed_text = event.concept_title + ". " + event.concept_summary
+                new_embedding = await get_embedding(embed_text)
+                match = self._find_similar_session_artifact(new_embedding)
+                if match:
+                    artifact_id, room_id, existing_title = match
+                    logger.info(
+                        "[CaptureAgent] Near-duplicate detected (merging): userId=%s "
+                        "artifactId=%s title=%r → %r",
+                        self.user_id, artifact_id, event.concept_title, existing_title,
+                    )
+                    await self._merge_into_artifact(artifact_id, room_id, existing_title, event)
+                    self._extractions.append(event)
+                    return
+            except Exception:
+                logger.exception(
+                    "Dedup check failed (proceeding with normal extraction): sessionId=%s",
+                    self.session_id,
+                )
+
         try:
             result = await categorize_and_store(
                 user_id=self.user_id,
@@ -697,6 +837,14 @@ class CaptureAgent:
             )
             event.categorization = result
             await add_artifact_to_session(self.user_id, self.session_id, result.artifact.id)
+            # Cache embedding so future extractions can dedup against this one
+            if result.artifact.embedding:
+                self._session_embeddings.append((
+                    result.artifact.id,
+                    result.artifact.roomId,
+                    result.artifact.title or event.concept_title,
+                    result.artifact.embedding,
+                ))
         except asyncio.CancelledError:
             # Ensure the event is recorded even if cancelled mid-write.
             self._extractions.append(event)

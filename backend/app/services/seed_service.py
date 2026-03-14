@@ -26,7 +26,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.lecture,
-                "summary": "Evolution of Dinosaurs: From the Triassic to Extinction",
+                "title": "Dinosaur Evolution",
+                "summary": (
+                    "A deep dive into 165 million years of dinosaur evolution, from early Triassic archosaurs "
+                    "to the Cretaceous extinction event."
+                ),
                 "fullContent": (
                     "The exhibit traced the full arc of dinosaur evolution over 165 million years. "
                     "Starting with small bipedal archosaurs in the late Triassic, the display showed how "
@@ -37,7 +41,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.visual,
-                "summary": "Ancient Fossils Display: Trilobites and Ammonites",
+                "title": "Ancient Fossils Display",
+                "summary": (
+                    "Perfectly preserved trilobite and ammonite fossils spanning 500 million years, "
+                    "showcasing intricate spiral patterns from the Cambrian period."
+                ),
                 "fullContent": (
                     "A stunning glass case held dozens of perfectly preserved trilobite and ammonite fossils. "
                     "The oldest specimens dated back 500 million years to the Cambrian period. "
@@ -47,7 +55,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Marine Life Through the Ages: Ocean Evolution Guide",
+                "title": "Ocean Evolution Guide",
+                "summary": (
+                    "A museum guide tracing how marine ecosystems transformed from the Cambrian Explosion "
+                    "through the rise of coral reefs, sharks, and marine reptiles."
+                ),
                 "fullContent": (
                     "The museum guidebook covered how marine ecosystems changed from the Precambrian to today. "
                     "It explained the Cambrian Explosion when most major animal phyla first appeared in the oceans. "
@@ -64,7 +76,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.lecture,
-                "summary": "Gradient Descent Explained: Optimizing Loss Functions",
+                "title": "Gradient Descent",
+                "summary": (
+                    "An intuitive walkthrough of gradient descent, learning rates, and why Adam optimizer "
+                    "is the go-to choice for deep learning."
+                ),
                 "fullContent": (
                     "The lecture walked through how gradient descent iteratively minimizes a loss function. "
                     "Starting with the intuition of rolling a ball downhill, it introduced learning rates and "
@@ -75,7 +91,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Neural Network Architectures: CNNs, RNNs, and Transformers",
+                "title": "Neural Network Architectures",
+                "summary": (
+                    "A comparison of CNNs, RNNs, and Transformers — covering their strengths, limitations, "
+                    "and why attention mechanisms revolutionized NLP."
+                ),
                 "fullContent": (
                     "A comprehensive overview comparing three major neural network families. "
                     "CNNs excel at spatial pattern recognition using convolutional filters and pooling layers. "
@@ -86,7 +106,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.conversation,
-                "summary": "Debugging a Model: Why Validation Loss Keeps Increasing",
+                "title": "Debugging Overfitting",
+                "summary": (
+                    "Diagnosing a model where training loss improved but validation loss diverged — "
+                    "solved with dropout, early stopping, and learning rate scheduling."
+                ),
                 "fullContent": (
                     "Discussion about a model where training loss decreased but validation loss diverged after epoch 15. "
                     "The root cause was overfitting due to insufficient dropout and no data augmentation. "
@@ -103,7 +127,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.visual,
-                "summary": "Summit Panorama View: 360-Degree Mountain Vista",
+                "title": "Summit Panorama",
+                "summary": (
+                    "A breathtaking 360-degree view from the summit with snow-capped peaks, "
+                    "a sea of clouds below, and seven mountain ranges visible at golden hour."
+                ),
                 "fullContent": (
                     "The view from the summit was breathtaking with snow-capped peaks stretching in every direction. "
                     "Cloud formations sat below us in the valley, creating a sea-of-clouds effect at sunrise. "
@@ -113,7 +141,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.conversation,
-                "summary": "Trail Safety Tips: What We Learned from the Guide",
+                "title": "Trail Safety Tips",
+                "summary": (
+                    "Key safety advice from the trail guide: carry extra water, watch for altitude sickness, "
+                    "and always start descending before 2 PM."
+                ),
                 "fullContent": (
                     "The trail guide shared essential safety advice for high-altitude hiking. "
                     "Always carry more water than you think you need and start descending before 2 PM. "
@@ -123,7 +155,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Alpine Flora Identification: Wildflowers Above the Treeline",
+                "title": "Alpine Flora Guide",
+                "summary": (
+                    "Identification guide for hardy plants above 10,000 feet, including forget-me-nots "
+                    "and moss campion with their extreme survival adaptations."
+                ),
                 "fullContent": (
                     "A field guide section covering the hardy plants that survive above 10,000 feet. "
                     "Alpine forget-me-nots, moss campion, and sky pilot were the most common species spotted. "
@@ -140,7 +176,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.lecture,
-                "summary": "Photosynthesis Process: How Plants Convert Sunlight to Energy",
+                "title": "Photosynthesis",
+                "summary": (
+                    "The two-stage process of photosynthesis: light reactions generating ATP in thylakoids, "
+                    "and the Calvin cycle building glucose in the stroma."
+                ),
                 "fullContent": (
                     "The lecture covered the two main stages of photosynthesis: light reactions and the Calvin cycle. "
                     "In the thylakoid membranes, chlorophyll absorbs photons to split water and generate ATP. "
@@ -150,7 +190,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Cell Structure & Function: Organelles and Their Roles",
+                "title": "Cell Organelles",
+                "summary": (
+                    "A reference guide to eukaryotic organelles — from the nucleus controlling gene expression "
+                    "to mitochondria producing ATP and the Golgi shipping proteins."
+                ),
                 "fullContent": (
                     "A detailed reference covering the major organelles in eukaryotic cells. "
                     "The nucleus stores DNA and controls gene expression through mRNA transcription. "
@@ -161,7 +205,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.visual,
-                "summary": "DNA Double Helix: Structure and Base Pairing",
+                "title": "DNA Double Helix",
+                "summary": (
+                    "A 3D model of the double helix showing A-T and G-C base pairing, "
+                    "the sugar-phosphate backbone, and how helicase unzips DNA for replication."
+                ),
                 "fullContent": (
                     "A detailed 3D model showing the double helix structure discovered by Watson and Crick. "
                     "Adenine pairs with thymine, and guanine pairs with cytosine through hydrogen bonds. "
@@ -178,7 +226,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.conversation,
-                "summary": "Startup Idea Brainstorm: AI-Powered Study Companion",
+                "title": "AI Study Companion Idea",
+                "summary": (
+                    "Brainstorming an app that captures lectures, extracts concepts, and places them "
+                    "in 3D memory palace rooms with a freemium revenue model."
+                ),
                 "fullContent": (
                     "Over lattes, we brainstormed an app that records lectures and creates interactive study guides. "
                     "The key insight was using spatial memory to help retention, like a mental palace. "
@@ -188,7 +240,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Latte Art Techniques: From Hearts to Rosettas",
+                "title": "Latte Art Techniques",
+                "summary": (
+                    "The barista's guide to microfoam texturing, heart pours, and rosetta patterns — "
+                    "from proper steam wand technique to the final pull-through."
+                ),
                 "fullContent": (
                     "The barista explained the fundamentals of latte art starting with proper milk texturing. "
                     "Microfoam needs to be silky with tiny bubbles, achieved by keeping the steam wand just below the surface. "
@@ -198,7 +254,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.lecture,
-                "summary": "History of Coffee: From Ethiopia to Global Phenomenon",
+                "title": "History of Coffee",
+                "summary": (
+                    "Coffee's journey from Ethiopian highlands and Sufi monasteries in Yemen "
+                    "to Ottoman coffeehouses and Dutch plantations in Java."
+                ),
                 "fullContent": (
                     "Coffee originated in the Ethiopian highlands where legend says a goat herder noticed his goats' energy. "
                     "By the 15th century, Sufi monks in Yemen were using it for all-night prayer sessions. "
@@ -215,7 +275,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
         "artifacts": [
             {
                 "type": ArtifactType.conversation,
-                "summary": "First Words & Milestones: Tracking Her Amazing Progress",
+                "title": "First Words & Milestones",
+                "summary": (
+                    "Tracking her language development from 'dada' at 10 months to full sentences at 20 months "
+                    "— ahead of the curve according to the pediatrician."
+                ),
                 "fullContent": (
                     "Her first word was 'dada' at 10 months, quickly followed by 'mama' a week later. "
                     "By 14 months she was pointing at everything and saying 'dat?' wanting to know every name. "
@@ -225,7 +289,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.visual,
-                "summary": "Birthday Celebration: Her Third Birthday Party",
+                "title": "Third Birthday Party",
+                "summary": (
+                    "A butterfly-themed birthday with twelve kids, purple cake, and the moment "
+                    "she saw the play kitchen she had been asking for."
+                ),
                 "fullContent": (
                     "The butterfly-themed party had twelve kids from daycare and both sets of grandparents. "
                     "She insisted on a purple cake with butterflies and blew out the candles on the first try. "
@@ -235,7 +303,11 @@ _SEED_ROOMS: list[dict[str, Any]] = [
             },
             {
                 "type": ArtifactType.document,
-                "summary": "Bedtime Story Collection: Our Favorite Books to Read Together",
+                "title": "Bedtime Stories",
+                "summary": (
+                    "Our nightly three-book routine featuring Goodnight Moon, The Very Hungry Caterpillar, "
+                    "and Owl Babies — with a new book added every month."
+                ),
                 "fullContent": (
                     "Our nightly reading routine includes three books before lights out. "
                     "Current favorites are 'Goodnight Moon,' 'The Very Hungry Caterpillar,' and 'Owl Babies.' "
@@ -284,6 +356,7 @@ async def seed_palace(user_id: str) -> dict:
                 user_id=user_id,
                 room_id=room.id,
                 artifact_type=art_def["type"],
+                title=art_def["title"],
                 summary=art_def["summary"],
                 full_content=art_def["fullContent"],
                 is_seed_data=True,

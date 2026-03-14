@@ -120,6 +120,7 @@ async def broadcast_palace_update(
             "type": artifact.type.value,
             "position": artifact.position.model_dump(),
             "visual": artifact.visual.value,
+            "title": artifact.title,
             "summary": artifact.summary,
         })
 
