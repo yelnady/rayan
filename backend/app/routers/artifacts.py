@@ -57,6 +57,7 @@ class ArtifactDetail(BaseModel):
     type: str
     position: ArtifactPosition
     visual: str
+    title: Optional[str] = None
     summary: str
     fullContent: Optional[str] = None
     sourceMediaUrl: Optional[str] = None
@@ -152,6 +153,7 @@ async def get_artifact_detail(
                 z=artifact_doc.position.z,
             ),
             visual=artifact_doc.visual,
+            title=getattr(artifact_doc, "title", None),
             summary=artifact_doc.summary,
             fullContent=getattr(artifact_doc, "fullContent", None),
             sourceMediaUrl=getattr(artifact_doc, "sourceMediaUrl", None),

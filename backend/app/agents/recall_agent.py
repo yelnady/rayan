@@ -377,8 +377,12 @@ class RecallAgent:
                 turn_complete=False,
             )
             logger.info("[RecallAgent] Context updated for userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
-        except Exception:
-            logger.exception("Context update failed for userId=%s roomId=%s", user_id, room_id)
+        except Exception as exc:
+            # ConnectionClosedOK means the Live session was already torn down — not an error.
+            if "ConnectionClosed" in type(exc).__name__ or "1000" in str(exc):
+                logger.debug("Context update skipped — session already closed (userId=%s)", user_id)
+            else:
+                logger.exception("Context update failed for userId=%s roomId=%s", user_id, room_id)
 
     async def _execute_tool(
         self,
@@ -509,6 +513,7 @@ class RecallAgent:
                             "type": artifact.type.value,
                             "position": {"x": artifact.position.x, "y": artifact.position.y, "z": artifact.position.z},
                             "visual": artifact.visual.value,
+                            "title": artifact.title,
                             "summary": artifact.summary,
                         }],
                         "connectionsAdded": [],
@@ -652,6 +657,7 @@ class RecallAgent:
                                     "z": artifact.position.z,
                                 },
                                 "visual": artifact.visual.value,
+                                "title": artifact.title,
                                 "summary": artifact.summary,
                                 "sourceMediaUrl": artifact.sourceMediaUrl,
                                 "color": artifact.color,
