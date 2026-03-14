@@ -23,6 +23,7 @@ import { audioEngine } from '../../services/audioEngine';
 
 function MoreSection() {
     const [showMenu, setShowMenu] = useState(false);
+    const [muted, setMuted] = useState(() => audioEngine.isMuted);
 
     const resetView = useCameraStore((s) => s.resetView);
     const exitOverview = useCameraStore((s) => s.exitOverview);
@@ -48,6 +49,15 @@ function MoreSection() {
         });
     };
 
+    const handleMusicClick = () => {
+        if (audioEngine.isMuted) {
+            audioEngine.unmute();
+        } else {
+            audioEngine.mute();
+        }
+        setMuted(audioEngine.isMuted);
+    };
+
     return (
         <div className="relative flex sm:hidden">
             {showMenu && (
@@ -69,6 +79,15 @@ function MoreSection() {
                             <MapIcon active={isOverviewMode} size={14} />
                         </div>
                         <span className="font-body text-[13px] font-medium">{isOverviewMode ? 'Exit Map' : 'Show Map'}</span>
+                    </button>
+                    <button
+                        onClick={handleMusicClick}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl border-none bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)] cursor-pointer"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
+                            <MusicIcon muted={muted} size={14} />
+                        </div>
+                        <span className="font-body text-[13px] font-medium">{muted ? 'Music off' : 'Music on'}</span>
                     </button>
                 </div>
             )}
