@@ -28,17 +28,16 @@ import * as THREE from 'three';
 const CANVAS_BASE_STYLE: React.CSSProperties = {
   position: 'fixed',
   top: 0,
+  left: 0,
   right: 0,
   bottom: 0,
   background: '#060614',
-  transition: 'left 0.3s ease',
 };
 
 const WALL_CYCLE: WallPosition[] = ['north', 'east', 'south', 'west'];
 
 interface PalaceCanvasProps {
   onArtifactClick?: (artifact: ArtifactData) => void;
-  leftOffset?: number;
 }
 
 // Global massive ground plane that sits slightly below all rooms
@@ -145,7 +144,8 @@ interface DoorContextMenu {
   confirmDelete: boolean;
 }
 
-export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasProps) {
+export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
+  const leftOffset = 0;
   const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
 
@@ -355,6 +355,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
 
   // Show nothing until the palace record itself exists (very brief flash at most)
   const canvasStyle = { ...CANVAS_BASE_STYLE, left: leftOffset, background: isOverviewMode ? '#0d0a2e' : '#060614' };
+  const isMobileGL = typeof window !== 'undefined' && ('ontouchstart' in window || window.matchMedia('(max-width: 768px)').matches);
 
   if (!palace) {
     return <div style={canvasStyle} />;
@@ -368,16 +369,16 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
         // Three.js frustumCulled=true is the default on every mesh, so off-screen
         // geometry is already rejected by the GPU before rasterization.
         camera={{ fov: 75, near: 0.1, far: 200, position: [6, 1.7, 6] }}
-        dpr={[1, 1.5]} // Caps pixel ratio on high-res screens (like Retina Macs) to prevent lag
+        dpr={isMobileGL ? [1, 2] : [1, 1.5]} // Mobile: allow up to 2× DPR (matches device pixel ratio), desktop capped at 1.5×
         performance={{ min: 0.5 }} // Allows R3F to scale down performance if frame rate drops
         gl={{
-          antialias: true,
+          antialias: !isMobileGL, // Disable MSAA on mobile — big GPU savings, barely visible on small screens
           // T154: Hint the browser to favor the high-performance GPU on multi-GPU systems.
           powerPreference: 'high-performance',
         }}
       >
         <color attach="background" args={[isOverviewMode ? '#0d0a2e' : '#060614']} />
-        <fog attach="fog" args={[isOverviewMode ? '#0d0a2e' : '#060614', isOverviewMode ? 100 : 20, isOverviewMode ? 280 : 80]} />
+        <fog attach="fog" args={[isOverviewMode ? '#0d0a2e' : '#060614', isOverviewMode ? 100 : 20, isOverviewMode ? (isMobileGL ? 180 : 280) : (isMobileGL ? 55 : 80)]} />
 
         <CameraSync leftOffset={leftOffset} />
         <ambientLight intensity={0.5} color="#fff8f0" />

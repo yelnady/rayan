@@ -334,25 +334,7 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
       {/* Bird's-eye Labeled Island visuals */}
       {isOverviewMode && (
         <>
-          <Billboard position={[w / 2, h + 2.5, d / 2]} follow={true}>
-            <Text
-              fontSize={1.4}
-              letterSpacing={0.15}
-              color="#FFFFFF"
-              anchorX="center"
-              anchorY="middle"
-              maxWidth={w + 14}
-              textAlign="center"
-              overflowWrap="break-word"
-              font="https://cdn.jsdelivr.net/fontsource/fonts/cinzel@5/latin-400-normal.woff"
-              outlineWidth={0.06}
-              outlineColor="#000000"
-            >
-              {room.name.toUpperCase()}
-            </Text>
-          </Billboard>
-
-          <Html position={[w / 2, h + 1.0, d / 2]} center zIndexRange={[10, 0]}>
+          <Html position={[w / 2, h + 2.5, d / 2]} center zIndexRange={[20, 10]}>
             <div style={{
               display: 'flex',
               flexDirection: 'column',
@@ -361,6 +343,30 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
               fontFamily: 'system-ui, sans-serif',
               pointerEvents: 'none',
             }}>
+              {/* Title badge — highest priority */}
+              <div style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                background: 'rgba(15, 10, 40, 0.92)',
+                border: '1px solid rgba(255,215,100,0.45)',
+                borderRadius: 28,
+                backdropFilter: 'blur(14px)',
+                padding: '6px 18px',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 2px 20px rgba(200,160,80,0.25), 0 0 0 1px rgba(255,215,100,0.10)',
+              }}>
+                <span style={{
+                  fontSize: 15,
+                  fontWeight: 800,
+                  color: 'rgba(255,235,160,1)',
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                  textShadow: '0 0 12px rgba(255,200,80,0.5)',
+                }}>
+                  {room.name}
+                </span>
+              </div>
+
               {/* Memory count badge */}
               <div style={{
                 display: 'inline-flex',
@@ -387,10 +393,10 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
                   textAlign: 'center',
                   display: 'inline-block',
                 }}>
-                  {room.artifactCount}
+                  {artifacts.length}
                 </span>
                 <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', letterSpacing: '0.07em', textTransform: 'uppercase', fontWeight: 600 }}>
-                  {room.artifactCount === 1 ? 'Memory' : 'Memories'}
+                  {artifacts.length === 1 ? 'Memory' : 'Memories'}
                 </span>
               </div>
 

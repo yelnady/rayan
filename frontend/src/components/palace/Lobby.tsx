@@ -10,6 +10,13 @@ import type { LobbyDoor, Room } from '../../types/palace';
 const LOBBY_SIZE = 12;
 const LOBBY_HEIGHT = 5;
 
+const TOON_GRADIENT = (() => {
+  const data = new Uint8Array([40, 100, 180, 240]);
+  const tex = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
+  tex.needsUpdate = true;
+  return tex;
+})();
+
 // Pre-load the microphone model
 useGLTF.preload('/models/microphone.glb');
 
@@ -117,7 +124,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomCont
           position={[LOBBY_SIZE / 2, LOBBY_HEIGHT / 2, side === 'north' ? 0 : LOBBY_SIZE]}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
-          <meshStandardMaterial color="#1a1a45" side={2} roughness={0.6} metalness={0.1} />
+          <meshToonMaterial color="#1a1a45" gradientMap={TOON_GRADIENT} side={2} />
         </mesh>
       ))}
 
@@ -129,7 +136,7 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomCont
           position={[side === 'east' ? LOBBY_SIZE : 0, LOBBY_HEIGHT / 2, LOBBY_SIZE / 2]}
         >
           <planeGeometry args={[LOBBY_SIZE, LOBBY_HEIGHT]} />
-          <meshStandardMaterial color="#1a1a45" side={2} roughness={0.6} metalness={0.1} />
+          <meshToonMaterial color="#1a1a45" gradientMap={TOON_GRADIENT} side={2} />
         </mesh>
       ))}
 
