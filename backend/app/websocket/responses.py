@@ -120,8 +120,13 @@ async def broadcast_palace_update(
             "type": artifact.type.value,
             "position": artifact.position.model_dump(),
             "visual": artifact.visual.value,
-            "title": artifact.title,
+            "title": artifact.title or None,
             "summary": artifact.summary,
+            "wall": artifact.wall,
+            "color": artifact.color,
+            "sourceMediaUrl": artifact.sourceMediaUrl,
+            "keywords": artifact.keywords,
+            "capturedAt": artifact.capturedAt.isoformat() if artifact.capturedAt else None,
         })
 
     await manager.send(user_id, {"type": "palace_update", "changes": changes})

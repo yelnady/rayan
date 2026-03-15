@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { useCameraStore } from '../stores/cameraStore';
 import { usePalaceStore } from '../stores/palaceStore';
 import { useVoiceStore } from '../stores/voiceStore';
+import { useCaptureStore } from '../stores/captureStore';
 import { audioEngine } from '../services/audioEngine';
 import type { RoomStyle } from '../types/palace';
 
@@ -30,14 +31,16 @@ const ROOM_TRACK: Record<RoomStyle, string> = {
 };
 
 export function useAmbientMusic(): void {
-    const isOverview    = useCameraStore((s) => s.isOverviewMode);
-    const currentRoomId = usePalaceStore((s) => s.currentRoomId);
-    const rooms         = usePalaceStore((s) => s.rooms);
-    const voiceStatus   = useVoiceStore((s) => s.status);
+    const isOverview     = useCameraStore((s) => s.isOverviewMode);
+    const currentRoomId  = usePalaceStore((s) => s.currentRoomId);
+    const rooms          = usePalaceStore((s) => s.rooms);
+    const voiceStatus    = useVoiceStore((s) => s.status);
+    const captureStatus  = useCaptureStore((s) => s.status);
+    const captureSource  = useCaptureStore((s) => s.sourceType);
 
     useEffect(() => {
         if (isOverview) {
-            void audioEngine.playTrack('/audio/Palace.mp3');
+            audioEngine.fadeOut();
             return;
         }
 
@@ -53,7 +56,7 @@ export function useAmbientMusic(): void {
             return;
         }
 
-        void audioEngine.playTrack('/audio/Palace.mp3');
+        audioEngine.fadeOut();
     }, [isOverview, currentRoomId, rooms]);
 
     // Duck while the agent is speaking, restore when done.
@@ -64,4 +67,15 @@ export function useAmbientMusic(): void {
             audioEngine.unduck();
         }
     }, [voiceStatus]);
+
+    // Mute during screen share / webcam capture so the music doesn't bleed
+    // into the tab audio stream that getDisplayMedia captures and sends to the backend.
+    useEffect(() => {
+        const isCapturing = captureStatus === 'capturing' && captureSource !== 'voice';
+        if (isCapturing) {
+            audioEngine.mute();
+        } else {
+            audioEngine.unmute();
+        }
+    }, [captureStatus, captureSource]);
 }

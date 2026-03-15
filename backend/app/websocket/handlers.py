@@ -7,7 +7,7 @@ shared ConnectionManager.
 Per websocket.md client→server message types:
   auth            → handled before this router (in auth.py)
   capture_start   → start a capture session
-  media_chunk     → stream media data to Gemini
+  video_frame     → stream JPEG frames to Gemini Live (1fps)
   capture_end     → finalize capture session
   artifact_click  → trigger artifact narration     [T094, T097]
   request_connection → request a semantic corridor between rooms
@@ -138,22 +138,21 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
 
 
-@_handler("media_chunk")
-async def handle_media_chunk(user_id: str, msg: dict, websocket: WebSocket) -> None:
-    """T042 — Decode base64 media chunk and stream to the active CaptureAgent."""
+@_handler("video_frame")
+async def handle_video_frame(user_id: str, msg: dict, websocket: WebSocket) -> None:
+    """Decode base64 JPEG frame and forward to the active CaptureAgent as video input."""
     session_id: str = msg.get("sessionId", "")
     data_b64: str = msg.get("data", "")
 
     agent = capture_agent_module.get_agent(session_id)
     if agent is None:
-        logger.warning("media_chunk: no active agent for sessionId=%s", session_id)
         return
 
     try:
-        raw_bytes = base64.b64decode(data_b64)
-        await agent.send_chunk(raw_bytes)
+        jpeg_bytes = base64.b64decode(data_b64)
+        await agent.send_frame(jpeg_bytes)
     except Exception:
-        logger.exception("media_chunk decode/send error: sessionId=%s", session_id)
+        logger.exception("video_frame decode/send error: sessionId=%s", session_id)
 
 
 @_handler("capture_voice_chunk")
