@@ -34,7 +34,9 @@ export type ArtifactType =
   // Goals
   | 'goal' | 'enrichment'
   // Synthesis
-  | 'synthesis';
+  | 'synthesis'
+  // New types
+  | 'announcement' | 'risk' | 'blocker' | 'activity' | 'lifestyle';
 
 export type ArtifactVisual =
   // Procedural
@@ -44,7 +46,9 @@ export type ArtifactVisual =
   // GLB models
   | 'lesson' | 'brain' | 'question' | 'coffee' | 'milestone'
   | 'heart' | 'dream' | 'tree' | 'opinion' | 'headphones' | 'cash_stack'
-  | 'exam';
+  | 'exam'
+  // New GLB models
+  | 'dialogue' | 'speaker' | 'warning' | 'stop' | 'game' | 'hamburger';
 
 export type CaptureQuality = 'low' | 'medium' | 'high';
 

@@ -29,6 +29,12 @@ const TYPE_LABELS: Record<string, string> = {
   headphones: 'Media',
   cash_stack: 'Goal',
   exam: 'Exam',
+  dialogue: 'Conversation',
+  speaker: 'Announcement',
+  warning: 'Risk',
+  stop: 'Blocker',
+  game: 'Activity',
+  hamburger: 'Lifestyle',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -50,6 +56,12 @@ const TYPE_COLORS: Record<string, string> = {
   headphones: '#38BDF8',
   cash_stack: '#FBBF24',
   exam: '#F43F5E',
+  dialogue: '#06B6D4',
+  speaker: '#F97316',
+  warning: '#EAB308',
+  stop: '#EF4444',
+  game: '#8B5CF6',
+  hamburger: '#EA580C',
 };
 
 /** GLB file path for each model-based visual. */
@@ -69,6 +81,12 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
   headphones: '/models/Headphones.glb',
   cash_stack: '/models/Cash Stack.glb',
   exam: '/models/Exams.glb',
+  dialogue: '/models/Conversation.glb',
+  speaker: '/models/Speaker.glb',
+  warning: '/models/Warning.glb',
+  stop: '/models/Stop.glb',
+  game: '/models/Game.glb',
+  hamburger: '/models/Hamburger.glb',
 };
 
 /**
@@ -104,6 +122,12 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   headphones: 0.050,
   cash_stack: 0.9,
   exam: 0.3,
+  dialogue: 0.3,
+  speaker: 0.6,
+  warning: 0.3,
+  stop: 0.3,
+  game: 0.3,
+  hamburger: 0.3,
 };
 
 /** Y offset (local space) from artifact origin to the date plaque. Override per visual as needed. */
