@@ -32,7 +32,6 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
   if (status !== 'complete' || !summary) return null;
 
   const newRoomCount = summary.rooms.filter((r) => r.isNew).length;
-  const existingRoomCount = summary.rooms.length - newRoomCount;
 
   return (
     <div

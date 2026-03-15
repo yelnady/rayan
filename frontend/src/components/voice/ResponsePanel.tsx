@@ -1,9 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { useCaptureStore } from '../../stores/captureStore';
-import { useWS } from '../../hooks/useWS';
-import { stopVoiceSession } from '../../hooks/useVoice';
-import { stopCapture } from '../../hooks/useCapture';
 
 const TOOL_ICONS: Record<string, string> = {
     navigate_to_room: '🧭',
@@ -45,26 +42,22 @@ function usePanelMode(): PanelMode {
 
 export function ResponsePanel() {
     const panelMode = usePanelMode();
-    const ws = useWS();
     const bottomRef = useRef<HTMLDivElement>(null);
 
     // Voice state
     const voiceStatus = useVoiceStore((s) => s.status);
     const voiceMessages = useVoiceStore((s) => s.messages);
     const voiceSetShow = useVoiceStore((s) => s.setShowPanel);
-    const voiceClearMessages = useVoiceStore((s) => s.clearMessages);
 
     // Capture state
     const captureStatus = useCaptureStore((s) => s.status);
     const captureMessages = useCaptureStore((s) => s.messages);
     const captureSetShow = useCaptureStore((s) => s.setShowPanel);
-    const captureClearMessages = useCaptureStore((s) => s.clearMessages);
 
     // Determine active mode state
     const status = panelMode === 'voice' ? voiceStatus : captureStatus;
     const messages = panelMode === 'voice' ? voiceMessages : captureMessages;
     const setShowPanel = panelMode === 'voice' ? voiceSetShow : captureSetShow;
-    const clearMessages = panelMode === 'voice' ? voiceClearMessages : captureClearMessages;
     const modeLabel = panelMode === 'voice' ? 'Conversation' : 'Capture Session';
 
     const isStreaming =
@@ -76,16 +69,6 @@ export function ResponsePanel() {
     useEffect(() => {
         bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
-
-    const handleClear = () => {
-        clearMessages();
-        if (panelMode === 'voice') {
-            stopVoiceSession();
-            ws.sendLiveSessionEnd();
-        } else {
-            stopCapture();
-        }
-    };
 
     if (!panelMode) return null;
 
@@ -208,15 +191,6 @@ function CloseIcon() {
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-    );
-}
-
-function TrashIcon() {
-    return (
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
         </svg>
     );
 }
