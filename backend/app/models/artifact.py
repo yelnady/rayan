@@ -31,6 +31,12 @@ class ArtifactType(str, Enum):
     goal = "goal"
     # Synthesis
     synthesis = "synthesis"
+    # New types
+    announcement = "announcement"
+    risk = "risk"
+    blocker = "blocker"
+    activity = "activity"
+    lifestyle = "lifestyle"
 
 
 class ArtifactVisual(str, Enum):
@@ -46,7 +52,7 @@ class ArtifactVisual(str, Enum):
     lesson = "lesson"           # lesson.glb
     brain = "brain"             # Brain.glb
     question = "question"       # question.glb
-    coffee = "coffee"           # coffee.glb
+    coffee = "coffee"           # Memory.glb
     milestone = "milestone"     # Milestone.glb
     heart = "heart"             # heart.glb
     dream = "dream"             # Dream.glb
@@ -54,6 +60,14 @@ class ArtifactVisual(str, Enum):
     opinion = "opinion"         # Opinion.glb
     headphones = "headphones"   # Headphones.glb
     cash_stack = "cash_stack"   # Cash Stack.glb
+    exam = "exam"               # Exams.glb
+    # New GLB models
+    dialogue = "dialogue"       # Conversation.glb
+    speaker = "speaker"         # Speaker.glb
+    warning = "warning"         # Warning (1).glb
+    stop = "stop"               # Stop.glb
+    game = "game"               # Game.glb
+    hamburger = "hamburger"     # Hamburger.glb
 
 
 # Maps artifact type → visual
@@ -61,7 +75,7 @@ ARTIFACT_VISUAL_MAP: dict[ArtifactType, ArtifactVisual] = {
     ArtifactType.lecture: ArtifactVisual.hologram_frame,
     ArtifactType.document: ArtifactVisual.floating_book,
     ArtifactType.visual: ArtifactVisual.framed_image,
-    ArtifactType.conversation: ArtifactVisual.speech_bubble,
+    ArtifactType.conversation: ArtifactVisual.dialogue,
     ArtifactType.enrichment: ArtifactVisual.crystal_orb,
     ArtifactType.lesson: ArtifactVisual.lesson,
     ArtifactType.insight: ArtifactVisual.brain,
@@ -75,6 +89,11 @@ ARTIFACT_VISUAL_MAP: dict[ArtifactType, ArtifactVisual] = {
     ArtifactType.media: ArtifactVisual.headphones,
     ArtifactType.goal: ArtifactVisual.cash_stack,
     ArtifactType.synthesis: ArtifactVisual.synthesis_map,
+    ArtifactType.announcement: ArtifactVisual.speaker,
+    ArtifactType.risk: ArtifactVisual.warning,
+    ArtifactType.blocker: ArtifactVisual.stop,
+    ArtifactType.activity: ArtifactVisual.game,
+    ArtifactType.lifestyle: ArtifactVisual.hamburger,
 }
 
 

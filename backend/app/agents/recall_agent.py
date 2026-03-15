@@ -90,23 +90,31 @@ ARTIFACT TYPES (use with create_artifact):
   - emotion      → feelings or emotional states                (heart model)
   - dream        → long-term aspirations, deep wishes          (dream model)
   - habit        → recurring behaviors, routines               (tree model)
+  - lifestyle    → food, meals, daily rituals, physical habits (hamburger model)
   OPINIONS & IDENTITY:
-  - conversation → discussions, interviews, dialogues          (speech bubble)
+  - conversation → discussions, interviews, dialogues          (conversation model)
   - opinion      → views, stances, beliefs on a topic          (opinion model)
   - visual       → images, diagrams, visual content            (framed image)
   - media        → music, podcasts, films that resonated       (headphones model)
+  - announcement → broadcasts, declarations, public statements (speaker model)
   GOALS:
   - goal         → aspirations, objectives, things to achieve  (cash stack model)
   - enrichment   → research or supplementary material          (crystal orb)
+  RISKS & BLOCKERS:
+  - risk         → risks, cautions, red flags, things to watch (warning model)
+  - blocker      → obstacles, blockers, things to stop/avoid   (stop model)
+  ACTIVITIES:
+  - activity     → hobbies, games, recreational pursuits       (game model)
 
 TOOLS — use them proactively when relevant:
+- search_memories: ALWAYS call this first when the user asks about any topic not already in your MEMORIES section. Use their exact words as the query. Never say "I don't have that" without searching first.
 - navigate_to_room: when your answer lives in a specific room, navigate there; use "lobby" to return home
 - navigate_to_map_view: toggle the bird's-eye overview map — use when user asks to see the map, overview, all rooms, or to exit back to first-person
 - navigate_horizontal: when the user wants to see more artifacts in the same room, move left or right
 - highlight_artifact: when one artifact is the key answer, highlight it
 - create_artifact: when the user shares something they want to remember, save it
 - synthesize_room: when the user asks to summarize, visualize, or make a mind map of the current room — generates a beautiful AI mind map of all memories here
-- web_search: when the user asks about something you don't have in memory, search the web for it
+- web_search: only after search_memories returns nothing relevant — search the web for external facts
 - edit_artifact: when the user wants to update, correct, or expand an existing memory — always confirm what to change before calling
 - delete_artifact: when the user explicitly asks to delete or forget a specific memory — always confirm the artifact name before calling
 - end_session: call this IMMEDIATELY as soon as the user expresses a clear intent to stop, disconnect, or end the conversation. Do not wait for further confirmation.
@@ -138,7 +146,7 @@ async def _build_room_directory(user_id: str) -> str:
 
 
 def _build_system_prompt(results: list[SearchResult], room_directory: str = "", display_name: str = "") -> str:
-    current_date = datetime.now(UTC).strftime("%Y-%m-%d")
+    current_date = datetime.now().strftime("%A, %B %-d, %Y")
     name = display_name.split()[0] if display_name else "there"
     if not results:
         return _BASE_SYSTEM_PROMPT.format(
@@ -282,8 +290,8 @@ class RecallAgent:
 
         logger.info("Recall session started for userId=%s", user_id)
 
-        # Inject initial room context and semantic memories asynchronously
-        asyncio.create_task(self.update_context(user_id, room_id, artifact_id))
+        # Inject context then proactively greet the user
+        asyncio.create_task(self._greet_after_context(user_id, room_id, artifact_id, display_name))
 
     async def send_audio(self, user_id: str, audio_bytes: bytes) -> None:
         """Forward a PCM audio chunk to Gemini."""
@@ -383,6 +391,44 @@ class RecallAgent:
                 logger.debug("Context update skipped — session already closed (userId=%s)", user_id)
             else:
                 logger.exception("Context update failed for userId=%s roomId=%s", user_id, room_id)
+
+    async def _greet_after_context(
+        self,
+        user_id: str,
+        room_id: Optional[str],
+        artifact_id: Optional[str],
+        display_name: str,
+    ) -> None:
+        """Inject room context then trigger a proactive opening greeting from Rayan."""
+        await self.update_context(user_id, room_id, artifact_id)
+
+        live = self._sessions.get(user_id)
+        if not live or live._closed or live.session is None:
+            return
+
+        first_name = display_name.split()[0] if display_name else "there"
+        try:
+            await live.session.send_client_content(
+                turns=[
+                    genai_types.Content(
+                        role="user",
+                        parts=[genai_types.Part(text=(
+                            f"[SYSTEM: Open the session by greeting {first_name} warmly. "
+                            f"Use the room context you just received — mention the room name and "
+                            f"the number of memories there if they are in a room, or welcome them "
+                            f"to the palace lobby if not. Be specific, warm, and under 3 sentences. "
+                            f"Do not wait for them to speak first.]"
+                        ))],
+                    ),
+                ],
+                turn_complete=True,
+            )
+            logger.info("[RecallAgent] Greeting prompt sent for userId=%s", user_id)
+        except Exception as exc:
+            if "ConnectionClosed" in type(exc).__name__:
+                logger.debug("Greeting skipped — session already closed (userId=%s)", user_id)
+            else:
+                logger.exception("Greeting prompt failed for userId=%s", user_id)
 
     async def _execute_tool(
         self,
@@ -542,7 +588,13 @@ class RecallAgent:
                 return "Cannot edit artifact: artifact_id is required."
             if not new_summary and not new_full_content:
                 return "Cannot edit artifact: at least one of summary or full_content must be provided."
-            await notify({"label": f"Editing artifact {artifact_id[:12]}…"})
+            try:
+                from app.services.artifact_service import get_artifact_by_id as _get_artifact
+                _art = await _get_artifact(user_id, artifact_id)
+                _art_name = _art.title if _art and _art.title else artifact_id[:12]
+            except Exception:
+                _art_name = artifact_id[:12]
+            await notify({"label": f'Editing "{_art_name}"…'})
             try:
                 from app.services.artifact_service import update_artifact
                 from app.websocket.manager import manager as ws_manager
@@ -577,7 +629,13 @@ class RecallAgent:
 
         elif fn_name == "delete_artifact":
             artifact_id = fn_args.get("artifact_id", "")
-            await notify({"label": f"Deleting artifact {artifact_id[:12]}…"})
+            try:
+                from app.services.artifact_service import get_artifact_by_id as _get_artifact
+                _art = await _get_artifact(user_id, artifact_id)
+                _art_name = _art.title if _art and _art.title else artifact_id[:12]
+            except Exception:
+                _art_name = artifact_id[:12]
+            await notify({"label": f"Deleting "{_art_name}"…"})
             try:
                 from app.services.artifact_service import delete_artifact_by_id
                 from app.websocket.manager import manager as ws_manager
@@ -674,6 +732,43 @@ class RecallAgent:
 
             asyncio.create_task(_run_synthesis(user_id, room_id))
             return "Mind map generation started in the background — it will appear on the wall when ready. Feel free to keep chatting!"
+
+        elif fn_name == "search_memories":
+            query = fn_args.get("query", "").strip()
+            if not query:
+                return "No query provided."
+            await notify({"label": f"Searching memories: {query[:50]}"})
+            try:
+                results = await semantic_search(user_id=user_id, query=query, limit=6)
+                if not results:
+                    return "No memories found matching that query."
+                lines = [f"Found {len(results)} relevant memory/memories:\n"]
+                for r in results:
+                    captured = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown date"
+                    lines.append(
+                        f"- [{r.artifact_id}] in '{r.room_name}' (score: {r.similarity:.2f}, captured: {captured})\n"
+                        f"  {r.summary}"
+                    )
+                    if r.full_content:
+                        lines.append(f"  Full: {r.full_content[:300]}")
+                # Inject into context so the model can cite it
+                live = self._sessions.get(user_id)
+                if live and live.session and not live._closed:
+                    context_msg = f"[MEMORY SEARCH RESULTS for '{query}']\n" + "\n".join(lines)
+                    try:
+                        await live.session.send_client_content(
+                            turns=[
+                                genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
+                                genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the search results.")]),
+                            ],
+                            turn_complete=False,
+                        )
+                    except Exception:
+                        logger.exception("search_memories context injection failed for userId=%s", user_id)
+                return "\n".join(lines)
+            except Exception:
+                logger.exception("search_memories failed for userId=%s query=%r", user_id, query)
+                return "Memory search failed."
 
         elif fn_name == "web_search":
             query = fn_args.get("query", "")
@@ -851,7 +946,13 @@ async def _retrieve_context(
     room_id: Optional[str],
     artifact_id: Optional[str],
 ) -> list[SearchResult]:
-    """Retrieve memory context for the system prompt."""
+    """Retrieve memory context via semantic search.
+
+    Query priority:
+      1. Focused artifact summary (most specific)
+      2. Room summary / name + keywords (room-level context)
+      3. Skip — returns empty if neither is available
+    """
     search_query = ""
 
     if artifact_id:
@@ -859,9 +960,27 @@ async def _retrieve_context(
             from app.services.artifact_service import get_artifact
             artifact = await get_artifact(user_id, room_id or "lobby", artifact_id)
             if artifact:
-                search_query = artifact.summary
+                search_query = " ".join(filter(None, [
+                    artifact.title,
+                    artifact.summary,
+                    " ".join(artifact.keywords or []),
+                ]))
         except Exception:
             logger.warning("Failed to load artifact %s for semantic search query", artifact_id)
+
+    if not search_query and room_id:
+        # Fall back to searching with the room's own topic as the query
+        try:
+            from app.services.room_service import get_room
+            room = await get_room(user_id, room_id)
+            if room:
+                search_query = " ".join(filter(None, [
+                    room.name,
+                    room.summary,
+                    " ".join(room.topicKeywords or []),
+                ]))
+        except Exception:
+            logger.warning("Failed to load room %s for semantic search query", room_id)
 
     if not search_query:
         return []

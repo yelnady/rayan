@@ -34,6 +34,26 @@ class SearchResult:
     captured_at: Optional[datetime] = None
 
 
+MIN_SIMILARITY: float = 0.25
+KEYWORD_BOOST: float = 0.08  # added per matching query keyword found in artifact text
+
+
+def _keyword_boost(query: str, artifact: "Artifact") -> float:
+    """Return a small additive score boost for exact query-keyword matches in the artifact."""
+    query_words = {w.lower() for w in query.split() if len(w) > 3}
+    if not query_words:
+        return 0.0
+    searchable = " ".join(filter(None, [
+        artifact.title or "",
+        artifact.summary or "",
+        artifact.fullContent or "",
+        " ".join(artifact.keywords or []),
+    ])).lower()
+    matched = sum(1 for w in query_words if w in searchable)
+    # Cap boost at 3 matches so very long queries don't dominate
+    return min(matched, 3) * KEYWORD_BOOST
+
+
 async def semantic_search(
     user_id: str,
     query: str,
@@ -41,14 +61,15 @@ async def semantic_search(
     room_id: Optional[str] = None,
     captured_after: Optional[datetime] = None,
     captured_before: Optional[datetime] = None,
+    min_similarity: float = MIN_SIMILARITY,
 ) -> list[SearchResult]:
-    """Semantic search across user's memories.
+    """Hybrid semantic + keyword search across user's memories.
 
     Steps:
       1. Embed the query string.
-      2. Load all rooms (optionally filtered to `room_id`).
-      3. For each room, load all artifacts and cosine-rank against query embedding.
-      4. Return top-`limit` results sorted by similarity descending.
+      2. Load rooms — if room_id given, prioritise that room first then search others.
+      3. For each room, cosine-rank artifacts and apply a keyword boost.
+      4. Filter below min_similarity and return top-`limit` results.
     """
     if not query.strip():
         return []
@@ -62,16 +83,18 @@ async def semantic_search(
     db = get_firestore_client()
     rooms_ref = db.collection("users").document(user_id).collection("rooms")
 
+    # Always load all rooms; if room_id is set, score those artifacts first so
+    # they rank higher when similarity is equal (preserves room-context relevance).
+    rooms_snapshot = await rooms_ref.get()
+    all_rooms = [Room(**snap.to_dict()) for snap in rooms_snapshot if snap.exists]
+
+    # Put the focused room first so ties resolve in its favour
     if room_id:
-        rooms_snapshot = [await rooms_ref.document(room_id).get()]
-        rooms = [Room(**snap.to_dict()) for snap in rooms_snapshot if snap.exists]
-    else:
-        rooms_snapshot = await rooms_ref.get()
-        rooms = [Room(**snap.to_dict()) for snap in rooms_snapshot if snap.exists]
+        all_rooms.sort(key=lambda r: (0 if r.id == room_id else 1))
 
     results: list[SearchResult] = []
 
-    for room in rooms:
+    for room in all_rooms:
         artifacts_ref = rooms_ref.document(room.id).collection("artifacts")
         artifact_docs = await artifacts_ref.get()
 
@@ -87,7 +110,7 @@ async def semantic_search(
             if not artifact.embedding:
                 continue
 
-            # Date filtering: exclude artifacts without capturedAt when filters active
+            # Date filtering
             if captured_after or captured_before:
                 if artifact.capturedAt is None:
                     continue
@@ -97,7 +120,10 @@ async def semantic_search(
                     continue
 
             sim = cosine_similarity(query_embedding, artifact.embedding)
-            if sim <= 0.0:
+            # Hybrid: add keyword boost before threshold check
+            score = sim + _keyword_boost(query, artifact)
+
+            if score < min_similarity:
                 continue
 
             highlight = _extract_highlight(query, artifact.summary)
@@ -107,7 +133,7 @@ async def semantic_search(
                     room_id=room.id,
                     room_name=room.name,
                     summary=artifact.summary,
-                    similarity=sim,
+                    similarity=score,
                     highlight=highlight,
                     full_content=artifact.fullContent,
                     embedding=artifact.embedding,
@@ -118,8 +144,8 @@ async def semantic_search(
     results.sort(key=lambda r: r.similarity, reverse=True)
     top = results[:limit]
     logger.info(
-        "semantic_search: userId=%s query=%r rooms=%d artifacts=%d top=%d",
-        user_id, query[:60], len(rooms), len(results), len(top),
+        "semantic_search: userId=%s query=%r rooms=%d candidates=%d top=%d",
+        user_id, query[:60], len(all_rooms), len(results), len(top),
     )
     return top
 

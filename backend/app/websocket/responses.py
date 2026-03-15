@@ -50,6 +50,7 @@ async def send_capture_complete(
     duration_seconds: Optional[float] = None,
     source_type: Optional[str] = None,
     voice_summary_audio: Optional[bytes] = None,
+    narrative: Optional[str] = None,
 ) -> None:
     """Send capture_complete when a session finishes per websocket.md."""
     voice_b64: Optional[str] = (
@@ -67,6 +68,7 @@ async def send_capture_complete(
             "rooms": rooms or [],
             "durationSeconds": duration_seconds,
             "sourceType": source_type,
+            "narrative": narrative,
         },
         "voiceSummary": voice_b64 or "",
     })

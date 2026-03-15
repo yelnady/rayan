@@ -29,6 +29,7 @@ export interface DoorSpec {
   wall: WallSide;
   index: number;
   targetRoomId: string;
+  targetRoomName?: string;
 }
 
 /** Camera pose snapshot used for position restore. */

@@ -236,6 +236,23 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
     # Prefer in-memory count (always accurate) over Firestore, which can lag
     # or be 0 if add_artifact_to_session failed or was cancelled mid-write.
     concept_count = len(extractions) or (session.conceptCount if session else 0)
+
+    # Generate a Gemini narrative summary (best-effort, non-blocking)
+    narrative: str | None = None
+    if concept_count > 0:
+        try:
+            narrative = await asyncio.wait_for(
+                _generate_session_narrative(
+                    concept_count=concept_count,
+                    rooms=list(rooms_seen.values()),
+                    artifacts=rich_artifacts,
+                    duration_seconds=session.durationSeconds if session else None,
+                ),
+                timeout=12.0,
+            )
+        except (asyncio.TimeoutError, Exception):
+            logger.warning("Session narrative generation failed or timed out for userId=%s", user_id)
+
     await send_capture_complete(
         user_id, session_id,
         artifact_ids=artifact_ids,
@@ -246,6 +263,7 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
         rooms=list(rooms_seen.values()),
         duration_seconds=session.durationSeconds if session else None,
         source_type=session.sourceType.value if session else None,
+        narrative=narrative,
     )
     logger.info("capture_end: userId=%s sessionId=%s concepts=%d", user_id, session_id, concept_count)
 
@@ -403,6 +421,38 @@ async def handle_live_session_end(user_id: str, msg: dict, websocket: WebSocket)
     """Close the persistent Gemini Live session."""
     await recall_agent.close_session(user_id)
     logger.info("live_session_end: userId=%s", user_id)
+
+
+async def _generate_session_narrative(
+    concept_count: int,
+    rooms: list[dict],
+    artifacts: list[dict],
+    duration_seconds: float | None,
+) -> str:
+    """Generate a 2-sentence Gemini narrative for the capture session summary."""
+    from app.core.gemini import STANDARD_MODEL, get_genai_client
+
+    new_rooms = [r for r in rooms if r.get("isNew")]
+    # Collect up to 3 distinct topic names from room names
+    topics = list(dict.fromkeys(r.get("name", "") for r in rooms if r.get("name")))[:3]
+    duration_str = f"~{round(duration_seconds / 60)} minutes" if duration_seconds else "unknown duration"
+
+    prompt = (
+        f"Write exactly 2 sentences summarizing a memory capture session in second person.\n\n"
+        f"Stats:\n"
+        f"- {concept_count} memor{'y' if concept_count == 1 else 'ies'} captured\n"
+        f"- {len(rooms)} room{'s' if len(rooms) != 1 else ''} touched"
+        f" ({len(new_rooms)} new)\n"
+        f"- Topics: {', '.join(topics) or 'various'}\n"
+        f"- Duration: {duration_str}\n\n"
+        f"Start the first sentence with 'Today you captured…' or similar. "
+        f"Reference the specific topics and rooms. Be warm and specific, not generic. "
+        f"No bullet points, just 2 flowing sentences."
+    )
+
+    client = get_genai_client()
+    response = await client.aio.models.generate_content(model=STANDARD_MODEL, contents=prompt)
+    return (response.text or "").strip()
 
 
 @_handler("request_connection")

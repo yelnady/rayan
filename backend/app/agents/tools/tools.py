@@ -514,6 +514,26 @@ RECALL_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
     {
+        "name": "search_memories",
+        "description": (
+            "Semantically search the user's entire memory palace for memories related to a query. "
+            "Call this whenever the user asks about something you don't already have in context — "
+            "e.g. 'what did I say about X?', 'do I have anything on Y?', or any topic not covered "
+            "by the current room's artifacts. Always prefer this over saying 'I don't know'."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Natural language description of what to search for.",
+                },
+            },
+            "required": ["query"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
         "name": "web_search",
         "description": "Search the web for facts, definitions, or context about anything mentioned.",
         "parameters": {

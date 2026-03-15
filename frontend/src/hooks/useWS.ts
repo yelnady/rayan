@@ -16,7 +16,7 @@ import { useVoiceStore } from '../stores/voiceStore';
 import { AudioPlayback } from '../services/audioPlayback';
 import { useEnrichmentStore } from '../stores/enrichmentStore';
 import { useTransitionStore } from '../stores/transitionStore';
-import { stopVoiceSession } from './useVoice';
+import { stopVoiceSession, releaseAudioHold } from './useVoice';
 
 let _instance: RayanWebSocket | null = null;
 /** Singleton AudioPlayback shared across listeners (reset on disconnect). */
@@ -273,6 +273,8 @@ function wireListeners(ws: RayanWebSocket): void {
       voiceStore.setStatus('connected');
     }),
     ws.on('live_turn_complete', () => {
+      // Release the greeting audio hold (idempotent after the first turn).
+      releaseAudioHold();
       const voiceStore = useVoiceStore.getState();
       setTimeout(() => {
         if (voiceStore.status === 'responding') {

@@ -93,9 +93,10 @@ class AudioEngine {
 
     async playTrack(url: string): Promise<void> {
         if (url === this.currentUrl) return;
-        this.currentUrl = url;
 
         if (!this.unlocked) { this.pendingUrl = url; return; }
+
+        this.currentUrl = url;
 
         const ctx = this.getCtx();
         if (!ctx) return;

@@ -85,6 +85,7 @@ export interface CaptureCompleteMessage {
     rooms: CaptureCompleteRoom[];
     durationSeconds: number | null;
     sourceType: string | null;
+    narrative?: string | null;
   };
   voiceSummary: string;
 }

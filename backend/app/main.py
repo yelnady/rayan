@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logging.basicConfig(level=logging.DEBUG if settings.debug else logging.INFO)
+    logging.getLogger("grpc").setLevel(logging.WARNING)
     init_firebase(settings.firebase_project_id)
     yield
 

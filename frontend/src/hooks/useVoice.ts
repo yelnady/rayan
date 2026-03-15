@@ -23,10 +23,25 @@ import { stopCapture } from './useCapture';
 let _streamer: AudioStreamer | null = null;
 let _started = false;
 let _muted = false;
+/** True while the proactive greeting turn is in progress — audio is held back
+ *  so the VAD does not interrupt Rayan mid-sentence. Cleared by the first
+ *  live_turn_complete or by a safety timeout. */
+let _holdAudio = false;
+let _holdAudioTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Called by useWS when the first live_turn_complete fires after connect. */
+export function releaseAudioHold(): void {
+    _holdAudio = false;
+    if (_holdAudioTimer !== null) {
+        clearTimeout(_holdAudioTimer);
+        _holdAudioTimer = null;
+    }
+}
 
 /** Stop the voice session from outside the hook (e.g. when the server initiates close). */
 export function stopVoiceSession(): void {
     if (!_started) return;
+    releaseAudioHold();
     _streamer?.stop();
     _streamer = null;
     const voiceStore = useVoiceStore.getState();
@@ -68,15 +83,21 @@ export function useVoice() {
         const streamer = new AudioStreamer();
         _streamer = streamer;
 
+        // Hold audio until the greeting turn completes (avoids VAD interrupting Rayan).
+        // Safety valve: release unconditionally after 10 seconds.
+        _holdAudio = true;
+        _holdAudioTimer = setTimeout(releaseAudioHold, 10_000);
+
         try {
             await streamer.start((base64Pcm) => {
-                if (!_muted) {
+                if (!_muted && !_holdAudio) {
                     wsRef.current.sendAudioChunk(base64Pcm);
                 }
             });
             voiceStore.setStatus('connected');
         } catch (err) {
             voiceStore.setError(err instanceof Error ? err.message : 'Microphone access denied');
+            releaseAudioHold();
             _started = false;
         }
     }, []);

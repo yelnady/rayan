@@ -39,24 +39,19 @@ export function useAmbientMusic(): void {
     const captureSource  = useCaptureStore((s) => s.sourceType);
 
     useEffect(() => {
-        if (isOverview) {
+        if (isOverview || !currentRoomId) {
+            void audioEngine.playTrack('/audio/rooms/Palace.mp3');
+            return;
+        }
+
+        const room = rooms.find((r) => r.id === currentRoomId);
+        const style = room?.style;
+        const url = style ? ROOM_TRACK[style] : null;
+        if (url) {
+            void audioEngine.playTrack(url);
+        } else {
             audioEngine.fadeOut();
-            return;
         }
-
-        if (currentRoomId) {
-            const room = rooms.find((r) => r.id === currentRoomId);
-            const style = room?.style;
-            const url = style ? ROOM_TRACK[style] : null;
-            if (url) {
-                void audioEngine.playTrack(url);
-            } else {
-                audioEngine.fadeOut();
-            }
-            return;
-        }
-
-        audioEngine.fadeOut();
     }, [isOverview, currentRoomId, rooms]);
 
     // Duck while the agent is speaking, restore when done.
