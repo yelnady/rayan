@@ -4,6 +4,7 @@ import { useFrame } from '@react-three/fiber';
 import { Text, Billboard, Html } from '@react-three/drei';
 import { useCameraStore } from '../../stores/cameraStore';
 import { WallsWithDoors } from './WallsWithDoors';
+import { Door } from './Door';
 import { BookInstancedRenderer } from '../artifacts/BookInstancedRenderer';
 import { OrbInstancedRenderer } from '../artifacts/OrbInstancedRenderer';
 import type { Room as RoomData, Artifact as ArtifactData } from '../../types/palace';
@@ -37,6 +38,7 @@ interface RoomProps {
   onExitLobby?: () => void;
   onEnterRoom?: (roomId: string) => void;
   onEnterPortal?: (wall: WallSide, targetRoomId: string) => void;
+  onRoomContextMenu?: (roomId: string, screenX: number, screenY: number) => void;
   children?: React.ReactNode;
 }
 
@@ -261,7 +263,19 @@ function WallParticles({ w, d, h }: { w: number; d: number; h: number }) {
   );
 }
 
-export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtifactClick, onEnter, children }: RoomProps) {
+/** Returns the world-space position of a door within the room, matching WallsWithDoors gap placement. */
+function doorWorldPosition(wall: WallSide, index: number, wallDoorCount: number, w: number, d: number): [number, number, number] {
+  const wallLength = (wall === 'north' || wall === 'south') ? w : d;
+  const center = (index + 1) * (wallLength / (wallDoorCount + 1));
+  switch (wall) {
+    case 'north': return [center, 0, 0];
+    case 'south': return [w - center, 0, d];
+    case 'east':  return [w, 0, center];
+    case 'west':  return [0, 0, d - center];
+  }
+}
+
+export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtifactClick, onEnter, onExitLobby, onEnterPortal, onRoomContextMenu, children }: RoomProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
   const theme = STYLE_THEMES[(room.style ?? 'library') as keyof typeof STYLE_THEMES] ?? STYLE_THEMES.library;
   const h = ROOM_HEIGHT;
@@ -270,6 +284,13 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
 
   const bookArtifacts = artifacts.filter((a) => a.visual === 'floating_book');
   const orbArtifacts = artifacts.filter((a) => a.visual === 'crystal_orb');
+
+  // Group doors by wall so we can calculate per-wall door counts (matching WallsWithDoors)
+  const doorsByWall = useMemo(() => {
+    const map: Record<WallSide, DoorSpec[]> = { north: [], east: [], south: [], west: [] };
+    doors.forEach(d => map[d.wall].push(d));
+    return map;
+  }, [doors]);
 
   return (
     <group position={[room.position.x, room.position.y, room.position.z]}>
@@ -286,6 +307,25 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
         eastColor={theme.eastWall}
         westColor={theme.westWall}
       />
+
+      {/* Door meshes — one per gap in the walls */}
+      {(Object.keys(doorsByWall) as WallSide[]).flatMap(wall =>
+        doorsByWall[wall].map(door => {
+          const pos = doorWorldPosition(wall, door.index, doorsByWall[wall].length, w, d);
+          const handleEnter = door.targetRoomId === 'lobby'
+            ? onExitLobby
+            : () => onEnterPortal?.(wall, door.targetRoomId);
+          return (
+            <Door
+              key={`door-${wall}-${door.index}`}
+              wall={wall}
+              position={pos}
+              targetRoomName={door.targetRoomName}
+              onEnter={handleEnter}
+            />
+          );
+        })
+      )}
 
 
       <BookInstancedRenderer artifacts={bookArtifacts} onClick={onArtifactClick} highlightedIds={highlightedIds} />
@@ -312,12 +352,12 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
             </Text>
           </Billboard>
 
-          <Html position={[w / 2, h + 1.0, d / 2]} center distanceFactor={18} zIndexRange={[10, 0]}>
+          <Html position={[w / 2, h + 1.0, d / 2]} center zIndexRange={[10, 0]}>
             <div style={{
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              gap: 5,
+              gap: 7,
               fontFamily: 'system-ui, sans-serif',
               pointerEvents: 'none',
             }}>
@@ -325,30 +365,31 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
               <div style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 5,
-                background: 'rgba(10, 10, 28, 0.78)',
-                border: '1px solid rgba(255,255,255,0.18)',
-                borderRadius: 20,
-                backdropFilter: 'blur(8px)',
-                padding: '3px 10px 3px 6px',
+                gap: 7,
+                background: 'rgba(30, 20, 60, 0.82)',
+                border: '1px solid rgba(180,150,255,0.30)',
+                borderRadius: 24,
+                backdropFilter: 'blur(10px)',
+                padding: '5px 14px 5px 8px',
                 whiteSpace: 'nowrap',
+                boxShadow: '0 2px 12px rgba(120,80,255,0.18)',
               }}>
                 <span style={{
-                  fontSize: 11,
-                  fontWeight: 700,
-                  color: 'rgba(180,150,255,0.95)',
-                  background: 'rgba(180,150,255,0.18)',
-                  border: '1px solid rgba(180,150,255,0.30)',
-                  borderRadius: 10,
-                  padding: '0 6px',
-                  lineHeight: '18px',
-                  minWidth: 18,
+                  fontSize: 14,
+                  fontWeight: 800,
+                  color: 'rgba(200,170,255,1)',
+                  background: 'rgba(180,150,255,0.22)',
+                  border: '1px solid rgba(180,150,255,0.35)',
+                  borderRadius: 12,
+                  padding: '1px 9px',
+                  lineHeight: '22px',
+                  minWidth: 22,
                   textAlign: 'center',
                   display: 'inline-block',
                 }}>
                   {room.artifactCount}
                 </span>
-                <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', letterSpacing: '0.07em', textTransform: 'uppercase', fontWeight: 600 }}>
                   {room.artifactCount === 1 ? 'Memory' : 'Memories'}
                 </span>
               </div>
@@ -358,24 +399,24 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
                 <div style={{
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 5,
-                  background: 'rgba(10, 10, 28, 0.70)',
-                  border: '1px solid rgba(255,255,255,0.10)',
-                  borderRadius: 20,
-                  backdropFilter: 'blur(8px)',
-                  padding: '2px 10px',
+                  gap: 6,
+                  background: 'rgba(30, 20, 60, 0.72)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  borderRadius: 24,
+                  backdropFilter: 'blur(10px)',
+                  padding: '4px 13px',
                   whiteSpace: 'nowrap',
                 }}>
-                  <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.38)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.40)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
                     From
                   </span>
-                  <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.72)' }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.80)' }}>
                     {new Date(room.firstMemoryAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
                   </span>
                   {room.lastMemoryAt && room.lastMemoryAt !== room.firstMemoryAt && (
                     <>
-                      <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.28)' }}>—</span>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.72)' }}>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.28)' }}>—</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.80)' }}>
                         {new Date(room.lastMemoryAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })}
                       </span>
                     </>
@@ -391,6 +432,10 @@ export function Room({ room, doors = [], artifacts = [], highlightedIds, onArtif
             onClick={(e) => {
               e.stopPropagation();
               onEnter?.();
+            }}
+            onContextMenu={(e) => {
+              e.stopPropagation();
+              onRoomContextMenu?.(room.id, e.nativeEvent.clientX, e.nativeEvent.clientY);
             }}
             onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
             onPointerOut={() => { document.body.style.cursor = 'auto'; }}

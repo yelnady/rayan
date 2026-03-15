@@ -61,6 +61,13 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
           )}
         </div>
 
+        {/* AI-generated session narrative */}
+        {summary.narrative && (
+          <p className="text-sm font-body text-text-secondary leading-relaxed mb-5 px-1 italic border-l-2 border-primary/40 pl-3">
+            {summary.narrative}
+          </p>
+        )}
+
         {/* Per-room artifact list */}
         {summary.rooms.length > 0 ? (
           <div className="flex flex-col gap-3 mb-6 max-h-[360px] overflow-y-auto pr-1">

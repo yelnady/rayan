@@ -354,7 +354,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
   }, []);
 
   // Show nothing until the palace record itself exists (very brief flash at most)
-  const canvasStyle = { ...CANVAS_BASE_STYLE, left: leftOffset };
+  const canvasStyle = { ...CANVAS_BASE_STYLE, left: leftOffset, background: isOverviewMode ? '#0d0a2e' : '#060614' };
 
   if (!palace) {
     return <div style={canvasStyle} />;
@@ -376,7 +376,8 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
           powerPreference: 'high-performance',
         }}
       >
-        <fog attach="fog" args={['#060614', isOverviewMode ? 80 : 20, isOverviewMode ? 300 : 80]} />
+        <color attach="background" args={[isOverviewMode ? '#0d0a2e' : '#060614']} />
+        <fog attach="fog" args={[isOverviewMode ? '#0d0a2e' : '#060614', isOverviewMode ? 100 : 20, isOverviewMode ? 280 : 80]} />
 
         <CameraSync leftOffset={leftOffset} />
         <ambientLight intensity={0.5} color="#fff8f0" />
@@ -402,11 +403,15 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
           {rooms.map((room, index) => {
             // T157: doors array built per room
             // 1. Room-to-Room connections
-            const roomDoors: DoorSpec[] = (room.connections ?? []).map((targetId, i) => ({
-              wall: 'north',
-              index: i + 1, // Start at index 1 to avoid overlap with potential exit door
-              targetRoomId: targetId,
-            }));
+            const roomDoors: DoorSpec[] = (room.connections ?? []).map((targetId, i) => {
+              const targetRoom = rooms.find(r => r.id === targetId);
+              return {
+                wall: 'north' as const,
+                index: i + 1, // Start at index 1 to avoid overlap with potential exit door
+                targetRoomId: targetId,
+                targetRoomName: targetRoom?.name,
+              };
+            });
 
             // 2. Add Lobby Exit Door (mapped inverse from lobby door position)
             const lobbyDoor = lobbyDoors.find(d => d.roomId === room.id);
@@ -420,7 +425,8 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
               roomDoors.push({
                 wall: exitWallMap[lobbyDoor.wallPosition] || 'south',
                 index: 0, // Primary exit is always index 0
-                targetRoomId: 'lobby'
+                targetRoomId: 'lobby',
+                targetRoomName: 'Lobby',
               });
             }
 
@@ -445,6 +451,7 @@ export function PalaceCanvas({ onArtifactClick, leftOffset = 0 }: PalaceCanvasPr
                 onEnter={() => handleEnterRoom(room.id)}
                 onExitLobby={handleEnterLobby}
                 onEnterPortal={handlePortalEnter}
+                onRoomContextMenu={handleDoorContextMenu}
               >
                 {nonInstancedArtifacts.map((artifact) => (
                   <Artifact

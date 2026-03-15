@@ -32,12 +32,13 @@ function usePanelMode(): PanelMode {
     const captureStatus = useCaptureStore((s) => s.status);
     const captureMessages = useCaptureStore((s) => s.messages);
 
-    // Prioritize capture when active, just completed, or still has history to show
-    if (captureShow && (captureStatus === 'capturing' || captureStatus === 'processing' || captureStatus === 'complete' || captureMessages.length > 0)) {
-        return 'capture';
-    }
+    // Voice takes priority when explicitly shown (user clicked "Relive your memories")
     if (voiceShow) {
         return 'voice';
+    }
+    // Capture shown when active, just completed, or still has history to show
+    if (captureShow && (captureStatus === 'capturing' || captureStatus === 'processing' || captureStatus === 'complete' || captureMessages.length > 0)) {
+        return 'capture';
     }
     return null;
 }
@@ -117,13 +118,6 @@ export function ResponsePanel() {
                     <span className="text-slate-500 text-[10px] font-bold uppercase tracking-widest mr-1">
                         {statusLabel}
                     </span>
-                    <button
-                        onClick={handleClear}
-                        className="p-1.5 rounded-full hover:bg-[rgba(0,0,0,0.05)] text-slate-400 hover:text-rose-500 transition-colors"
-                        title="Clear conversation"
-                    >
-                        <TrashIcon />
-                    </button>
                     <button
                         onClick={() => setShowPanel(false)}
                         className="p-1.5 rounded-full hover:bg-[rgba(0,0,0,0.05)] text-slate-400 hover:text-slate-600 transition-colors"

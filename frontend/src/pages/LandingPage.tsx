@@ -114,7 +114,7 @@ const FLOATING_ROOMS = [
 
 export function LandingPage() {
   useEffect(() => {
-    void audioEngine.playTrack('/audio/Palace.mp3');
+    void audioEngine.playTrack('/audio/rooms/Palace.mp3');
     return () => { audioEngine.fadeOut(); };
   }, []);
 

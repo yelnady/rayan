@@ -126,11 +126,35 @@ export function Door({ wall, position, targetRoomName, onEnter, onContextMenu, i
 
 
         {/* Nameplate above door */}
-        {targetRoomName && (
-          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.44, 0]}>
+        {targetRoomName && (() => {
+          // Estimate line count to size the panel dynamically
+          const name = targetRoomName.toUpperCase();
+          const maxWidth = DOOR_WIDTH + 0.1;
+          // Cinzel uppercase at fontSize=0.13, letterSpacing=0.08
+          const avgCharWidth = 0.13 * 0.65 * 1.08;
+          const words = name.split(' ');
+          let lines = 1;
+          let lineWidth = 0;
+          for (const word of words) {
+            const wordWidth = word.length * avgCharWidth;
+            if (lineWidth === 0) {
+              lineWidth = wordWidth;
+            } else if (lineWidth + avgCharWidth + wordWidth <= maxWidth) {
+              lineWidth += avgCharWidth + wordWidth;
+            } else {
+              lines++;
+              lineWidth = wordWidth;
+            }
+          }
+          const lineH = 0.13 * 1.25; // fontSize * line-height
+          const panelH = lines * lineH + 0.16;
+          const borderH = panelH + 0.10;
+
+          return (
+          <group position={[DOOR_WIDTH / 2, DOOR_HEIGHT + 0.20 + panelH / 2, 0]}>
             {/* Thin border frame */}
             <mesh position={[0, 0, 0.008]}>
-              <boxGeometry args={[DOOR_WIDTH + 0.28, 0.50, 0.018]} />
+              <boxGeometry args={[DOOR_WIDTH + 0.28, borderH, 0.018]} />
               <meshStandardMaterial
                 color={hovered ? '#C8A020' : '#A07820'}
                 metalness={0.7}
@@ -141,7 +165,7 @@ export function Door({ wall, position, targetRoomName, onEnter, onContextMenu, i
             </mesh>
             {/* Panel background */}
             <mesh position={[0, 0, 0.022]}>
-              <boxGeometry args={[DOOR_WIDTH + 0.18, 0.40, 0.016]} />
+              <boxGeometry args={[DOOR_WIDTH + 0.18, panelH, 0.016]} />
               <meshStandardMaterial
                 color="#0E1018"
                 metalness={0.1}
@@ -171,7 +195,8 @@ export function Door({ wall, position, targetRoomName, onEnter, onContextMenu, i
               decay={2}
             />
           </group>
-        )}
+          );
+        })()}
 
         {/* Highlight glow: golden pulsing light + emissive overlay around the frame */}
         {highlighted && (
