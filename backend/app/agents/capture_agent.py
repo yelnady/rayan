@@ -61,6 +61,8 @@ def _clamp_title(title: str) -> str:
     return title
 
 _SYSTEM_PROMPT_TEMPLATE = """
+Today is {current_date}.
+
 You are Rayan, a silent memory capture assistant co-listening to a live session with {name}.
 BEHAVIOR:
 - Stay silent while observing. Do NOT narrate, comment, or summarise unless asked.
@@ -87,31 +89,45 @@ ARTIFACT TYPES (use with create_artifact):
   - emotion      → feelings or emotional states                (heart model)
   - dream        → long-term aspirations, deep wishes          (dream model)
   - habit        → recurring behaviors, routines               (tree model)
+  - lifestyle    → food, meals, daily rituals, physical habits (hamburger model)
   OPINIONS & IDENTITY:
-  - conversation → discussions, interviews, dialogues          (speech bubble)
+  - conversation → discussions, interviews, dialogues          (conversation model)
   - opinion      → views, stances, beliefs on a topic          (opinion model)
   - visual       → images, diagrams, visual content            (framed image)
   - media        → music, podcasts, films that resonated       (headphones model)
+  - announcement → broadcasts, declarations, public statements (speaker model)
   GOALS:
   - goal         → aspirations, objectives, things to achieve  (cash stack model)
   - enrichment   → research or supplementary material          (crystal orb)
+  RISKS & BLOCKERS:
+  - risk         → risks, cautions, red flags, things to watch (warning model)
+  - blocker      → obstacles, blockers, things to stop/avoid   (stop model)
+  ACTIVITIES:
+  - activity     → hobbies, games, recreational pursuits       (game model)
 
 WRITING SUMMARIES:
 - NEVER write summaries in first or second person. Do NOT use phrases like "you mentioned", "you spoke about", "you discussed", "the user said", etc.
 - Write summaries as objective, factual descriptions of the concept itself. Example: "Bias mitigation in ML pipelines involves…" not "You mentioned that bias mitigation…"
 - The source of information does not matter — whether the user spoke it or it came from a lecture, video, or screen — the summary should always describe the content, not attribute it.
 
-CAPTURING CONCEPTS:
-- Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, at least 40 seconds since the last extraction), call `capture_concept`.
-- Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` immediately — no confidence or time restrictions apply. Then verbally confirm: 'Got it, {name} — [concept name] added to [room name].'
-- SMART MERGE: The system automatically detects near-duplicate concepts. If you call `capture_concept` for a topic already captured this session, the new information will be MERGED into the existing artifact rather than creating a duplicate — the summary is updated and the new content is appended. So: do NOT hold back if new, meaningful details emerge on a topic already saved. DO hold back if nothing genuinely new has been said (same point repeated verbatim).
-- edit_artifact: when you are confused that an existent memory already can be updated instead of creating new one, call it.
+CAPTURING CONCEPTS — EDIT FIRST, CREATE LAST:
+Your default instinct must be to UPDATE existing memories, not create new ones. Before capturing anything, ask: "Does a memory already exist that covers this topic?"
+
+PRIORITY ORDER (always follow this):
+1. **edit_artifact** — PREFERRED. If an existing memory (listed above under each room) covers the same topic, call `edit_artifact` with an updated summary that absorbs the new information. The new summary should be a complete, improved rewrite — not just an append. Do this even if only partial overlap exists.
+2. **capture_concept** — only when no existing memory is relevant. The system also auto-detects near-duplicates and merges them. At least 40 seconds must have passed since the last capture, and confidence >= 0.7.
+3. **create_artifact** — only when the user EXPLICITLY asks you to save something (e.g. 'add this', 'save that', 'remember this'). No time or confidence restrictions. Then confirm: 'Got it, {name} — [concept name] added to [room name].'
+
+EDITING RULES:
+- When calling `edit_artifact`, always provide a full rewritten `summary` that integrates the old content with the new information — do NOT just append a sentence.
+- Prefer editing over creating even if the topic has evolved or expanded — an updated memory is better than two fragmented ones.
+- You have the artifact IDs listed above in the room directory. Use them directly.
 
 CREATING ROOMS:
-- `capture_concept` AUTOMATICALLY creates a new room when no existing room fits — you do NOT need to call `create_room` before capturing. Just call `capture_concept` and the system handles room placement.
-- Only call `create_room` explicitly when the user directly asks for a specific named room (e.g. "create a room called X").
-- If you do call `create_room`, immediately follow it with `capture_concept` to place the triggering content into it.
-- NEVER call both `create_room` and `capture_concept` for the same concept unless the user explicitly named the room — doing so creates a duplicate empty room.
+- `capture_concept` and `take_screenshot` AUTOMATICALLY place content into the best existing room — you almost never need to call `create_room`.
+- Only call `create_room` when the user directly and explicitly asks for a specific named room (e.g. "create a room called X"). Do NOT call it because you think the topic deserves its own room.
+- If you call `create_room` and an existing room already covers the topic, the system will redirect automatically — no new room will be created.
+- NEVER call both `create_room` and `capture_concept` for the same concept unless the user named the room.
 
 CAPTURING SCREENSHOTS:
 - Call `take_screenshot` proactively whenever you see something visually significant on screen: a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual that captures an important concept better than words alone.
@@ -178,12 +194,17 @@ class CaptureAgent:
         # Set to True when capture_concept auto-creates a room inside categorize_and_store.
         # Cleared after the next create_room check so only ONE consecutive duplicate is skipped.
         self._skip_next_create_room: bool = False
+        # Running list of memories captured this session: (artifact_id, title, room_name)
+        # Appended after every successful capture_concept / create_artifact / screenshot.
+        # Returned in every capture_concept tool response so the model always has fresh IDs for edit_artifact.
+        self._session_memory_list: list[tuple[str, str, str]] = []
 
     async def start(self) -> None:
         room_directory = await self._build_room_directory()
         self._system_prompt = _SYSTEM_PROMPT_TEMPLATE.format(
             name=self._display_name,
             room_directory=room_directory,
+            current_date=datetime.now().strftime("%A, %B %-d, %Y"),
         )
         self._task = asyncio.create_task(
             self._lifecycle(), name=f"capture-{self.session_id}"
@@ -192,6 +213,7 @@ class CaptureAgent:
 
     async def _build_room_directory(self) -> str:
         try:
+            from app.services.artifact_service import get_room_artifacts
             from app.services.room_service import get_all_rooms
             rooms = await get_all_rooms(self.user_id)
         except Exception:
@@ -203,6 +225,12 @@ class CaptureAgent:
         for r in rooms:
             kw = ", ".join(r.topicKeywords) if r.topicKeywords else "—"
             lines.append(f"- [{r.id}] {r.name} (keywords: {kw})")
+            try:
+                artifacts = await get_room_artifacts(self.user_id, r.id)
+                for a in artifacts:
+                    lines.append(f"    • [{a.id}] {a.title or '(untitled)'} [{a.type.value}]")
+            except Exception:
+                logger.exception("Failed to fetch artifacts for room %s: sessionId=%s", r.id, self.session_id)
         return "\n".join(lines)
 
     async def send_frame(self, jpeg_bytes: bytes) -> None:
@@ -372,8 +400,17 @@ class CaptureAgent:
                 confidence=confidence,
             )
             await self._handle_extraction(event)
-            room_name = event.categorization.room.name if event.categorization else "your palace"
-            return f"concept captured and saved to room '{room_name}'"
+            if event.categorization:
+                room = event.categorization.room
+                artifact = event.categorization.artifact
+                response = f"Saved as [{artifact.id}] '{artifact.title}' in room '{room.name}'."
+                # Echo the full up-to-date session memory list so the model has current IDs for edit_artifact
+                prior = [(aid, t, r) for aid, t, r in self._session_memory_list if aid != artifact.id]
+                if prior:
+                    mem_lines = "; ".join(f"[{aid}] '{t}' ({r})" for aid, t, r in prior)
+                    response += f" MEMORIES THIS SESSION (use edit_artifact to update these instead of creating new): {mem_lines}"
+                return response
+            return "concept captured and saved to your palace"
 
         elif name == "create_artifact":
             summary = args.get("summary", "").strip()
@@ -430,11 +467,22 @@ class CaptureAgent:
                     },
                 })
                 await self._send_capture_event(f"Saved: {artifact.title or summary[:40]}", "create_artifact")
+                self._session_memory_list.append((artifact.id, artifact.title or title, room.name))
+                # Register in extractions so this artifact appears in the session-end summary
+                ev = ExtractionEvent(
+                    concept_title=artifact.title or title,
+                    concept_summary=summary,
+                    concept_type=artifact_type_str,
+                    concept_keywords=keywords,
+                    confidence=1.0,
+                )
+                ev.categorization = result
+                self._extractions.append(ev)
                 logger.info(
                     "[CaptureAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
                     self.user_id, artifact.id, room.id, result.action,
                 )
-                return f"Artifact saved in room '{room.name}' (action={result.action}): id={artifact.id}"
+                return f"Artifact saved as [{artifact.id}] '{artifact.title}' in room '{room.name}'"
             except Exception:
                 logger.exception("create_artifact failed for userId=%s", self.user_id)
                 return "Failed to save artifact"
@@ -453,6 +501,32 @@ class CaptureAgent:
                     self.session_id, room_name,
                 )
                 return "Room was already auto-created by the preceding capture_concept call. No new room needed."
+            # Similarity guard: if an existing room is semantically close, redirect there
+            # instead of creating a new one. Threshold is lower than categorize_and_store's
+            # HIGH_SIMILARITY (0.75) so we catch near-misses the model misses.
+            try:
+                from app.services.embedding_service import get_embedding
+                from app.services.room_service import find_best_room_match
+                candidate_text = room_name + " " + " ".join(keywords)
+                candidate_embedding = await get_embedding(candidate_text)
+                best_room, similarity = await find_best_room_match(
+                    self.user_id, candidate_embedding, keywords=keywords
+                )
+                REDIRECT_THRESHOLD = 0.40
+                if best_room and similarity >= REDIRECT_THRESHOLD:
+                    # Route next capture/screenshot into the existing room instead
+                    self._last_created_room_id = best_room.id
+                    logger.info(
+                        "[CaptureAgent] create_room redirected to existing room '%s' (similarity=%.2f): sessionId=%s",
+                        best_room.name, similarity, self.session_id,
+                    )
+                    return (
+                        f"Existing room '{best_room.name}' (ID: {best_room.id}) already covers this topic "
+                        f"({similarity:.0%} match). No new room created — next capture will go into '{best_room.name}'."
+                    )
+            except Exception:
+                logger.exception("Room similarity pre-check failed in create_room: sessionId=%s", self.session_id)
+
             try:
                 from app.services.room_service import add_lobby_door, create_room as svc_create_room
                 from app.websocket.manager import manager as ws_manager
@@ -725,11 +799,12 @@ class CaptureAgent:
             })
 
             await self._send_capture_event(f"Screenshot: {title}", "take_screenshot")
+            self._session_memory_list.append((result.artifact.id, title, result.room.name))
             logger.info(
                 "Screenshot saved: userId=%s sessionId=%s artifactId=%s url=%s",
                 self.user_id, self.session_id, result.artifact.id, image_url,
             )
-            return f"Screenshot saved as visual artifact in room '{result.room.name}'"
+            return f"Screenshot saved as [{result.artifact.id}] '{title}' in room '{result.room.name}'"
         except Exception:
             logger.exception("Screenshot artifact creation failed: sessionId=%s", self.session_id)
             return "Screenshot uploaded but artifact creation failed"
@@ -844,6 +919,22 @@ class CaptureAgent:
                         self.user_id, artifact_id, event.concept_title, existing_title,
                     )
                     await self._merge_into_artifact(artifact_id, room_id, existing_title, event)
+                    # Set categorization so the merged event appears in the session-end summary
+                    try:
+                        from app.agents.memory_architect import CategorizationResult
+                        from app.services.artifact_service import get_artifact
+                        from app.services.room_service import get_room
+                        merged_artifact = await get_artifact(self.user_id, room_id, artifact_id)
+                        merged_room = await get_room(self.user_id, room_id)
+                        if merged_artifact and merged_room:
+                            event.categorization = CategorizationResult(
+                                artifact=merged_artifact,
+                                room=merged_room,
+                                action="auto_assigned",
+                                requires_confirmation=False,
+                            )
+                    except Exception:
+                        logger.exception("Failed to set categorization for merged event: sessionId=%s", self.session_id)
                     self._extractions.append(event)
                     return
             except Exception:
@@ -871,6 +962,13 @@ class CaptureAgent:
             # explicit create_room call in the same tool batch gets skipped.
             if result.action == "suggested_new" and not force_room_id:
                 self._skip_next_create_room = True
+            # Track in session memory list so every future capture_concept response
+            # can echo back an up-to-date list of all captured IDs for edit_artifact.
+            self._session_memory_list.append((
+                result.artifact.id,
+                result.artifact.title or event.concept_title,
+                result.room.name,
+            ))
             # Cache embedding so future extractions can dedup against this one
             if result.artifact.embedding:
                 self._session_embeddings.append((
