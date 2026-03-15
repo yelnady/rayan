@@ -12,7 +12,7 @@
  */
 
 const AMBIENT_VOLUME = 0.16;
-const DUCKED_VOLUME  = 0.04;
+const DUCKED_VOLUME  = 0.10;
 const CHIME_VOLUME   = 0.55;
 const CROSSFADE_MS   = 500;
 const DUCK_MS        = 300;
@@ -41,6 +41,8 @@ class AudioEngine {
             this.unlocked = true;
             document.removeEventListener('click', unlock);
             document.removeEventListener('keydown', unlock);
+            document.removeEventListener('touchstart', unlock);
+            document.removeEventListener('pointerdown', unlock);
             if (this.pendingUrl) {
                 const url = this.pendingUrl;
                 this.pendingUrl = null;
@@ -49,6 +51,8 @@ class AudioEngine {
         };
         document.addEventListener('click', unlock);
         document.addEventListener('keydown', unlock);
+        document.addEventListener('touchstart', unlock, { passive: true });
+        document.addEventListener('pointerdown', unlock);
     }
 
     private getCtx(): AudioContext | null {
