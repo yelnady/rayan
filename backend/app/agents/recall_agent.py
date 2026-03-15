@@ -340,11 +340,7 @@ class RecallAgent:
 
         live.current_room_id = room_id
 
-        # Load room artifacts and semantic context in parallel
-        artifacts_text_task = _load_room_context_text(user_id, room_id)
-        semantic_context_task = _retrieve_context(user_id, room_id, artifact_id)
-
-        artifacts_text, results = await asyncio.gather(artifacts_text_task, semantic_context_task)
+        artifacts_text = await _load_room_context_text(user_id, room_id)
 
         if room_id:
             intro = "[ROOM CONTEXT UPDATE] The user is now in a room."
@@ -356,25 +352,13 @@ class RecallAgent:
         if artifact_id:
             context_msg += f"The user is specifically looking at ARTIFACT ID: {artifact_id}.\n"
 
-        if results:
-            context_msg += "Here are some relevant memories related to what the user is seeing:\n"
-            for r in results:
-                captured_str = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown"
-                context_msg += (
-                    f"- [{r.artifact_id} in {r.room_name}]: {r.summary} (Captured: {captured_str})\n"
-                )
-
         context_msg += "\nUse this context to answer questions or provide narration if the user asks."
 
-        # Notify the frontend that semantic search ran and how many memories were loaded
-        if results:
-            from app.websocket.manager import manager as ws_manager
-            label = "Memories loaded"
-            await ws_manager.send(user_id, {
-                "type": "live_memory_loaded",
-                "count": len(results),
-                "label": label,
-            })
+        from app.websocket.manager import manager as ws_manager
+        await ws_manager.send(user_id, {
+            "type": "live_memory_loaded",
+            "label": "Updating Context",
+        })
 
         try:
             await live.session.send_client_content(
@@ -467,6 +451,7 @@ class RecallAgent:
                 room = await get_room(user_id, room_id)
                 room_name = room.name if room else room_id
             except Exception:
+                logger.warning("navigate_to_room: get_room failed for userId=%s roomId=%s", user_id, room_id, exc_info=True)
                 room_name = room_id
             await notify({
                 "label": f"Navigating to {room_name}",
