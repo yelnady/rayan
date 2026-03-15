@@ -96,6 +96,11 @@ ARTIFACT TYPES (use with create_artifact):
   - goal         → aspirations, objectives, things to achieve  (cash stack model)
   - enrichment   → research or supplementary material          (crystal orb)
 
+WRITING SUMMARIES:
+- NEVER write summaries in first or second person. Do NOT use phrases like "you mentioned", "you spoke about", "you discussed", "the user said", etc.
+- Write summaries as objective, factual descriptions of the concept itself. Example: "Bias mitigation in ML pipelines involves…" not "You mentioned that bias mitigation…"
+- The source of information does not matter — whether the user spoke it or it came from a lecture, video, or screen — the summary should always describe the content, not attribute it.
+
 CAPTURING CONCEPTS:
 - Autonomous capture: When YOU identify a key concept worth remembering (confidence >= 0.7, at least 40 seconds since the last extraction), call `capture_concept`.
 - Direct user request: When the user EXPLICITLY asks you to save, add, capture, or remember something (e.g. 'add this', 'save that', 'remember this'), ALWAYS call `create_artifact` immediately — no confidence or time restrictions apply. Then verbally confirm: 'Got it, {name} — [concept name] added to [room name].'
@@ -103,9 +108,10 @@ CAPTURING CONCEPTS:
 - edit_artifact: when you are confused that an existent memory already can be updated instead of creating new one, call it.
 
 CREATING ROOMS:
-- Only call `create_room` when the topic is clearly distinct from ALL existing rooms listed above and from the current room.
-- Call `create_room` when the user explicitly asks for a new room or when no existing room fits including the current room.
-- Immediately after `create_room` returns, call `capture_concept` (or `create_artifact` if user-requested) to save the content that triggered the new room into it.
+- `capture_concept` AUTOMATICALLY creates a new room when no existing room fits — you do NOT need to call `create_room` before capturing. Just call `capture_concept` and the system handles room placement.
+- Only call `create_room` explicitly when the user directly asks for a specific named room (e.g. "create a room called X").
+- If you do call `create_room`, immediately follow it with `capture_concept` to place the triggering content into it.
+- NEVER call both `create_room` and `capture_concept` for the same concept unless the user explicitly named the room — doing so creates a duplicate empty room.
 
 CAPTURING SCREENSHOTS:
 - Call `take_screenshot` proactively whenever you see something visually significant on screen: a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual that captures an important concept better than words alone.
@@ -169,6 +175,9 @@ class CaptureAgent:
         self._pending_screenshot: Optional[asyncio.Future] = None  # awaited during take_screenshot
         # (artifact_id, room_id, title, embedding) — used for within-session dedup
         self._session_embeddings: list[tuple[str, str, str, list[float]]] = []
+        # Set to True when capture_concept auto-creates a room inside categorize_and_store.
+        # Cleared after the next create_room check so only ONE consecutive duplicate is skipped.
+        self._skip_next_create_room: bool = False
 
     async def start(self) -> None:
         room_directory = await self._build_room_directory()
@@ -196,17 +205,15 @@ class CaptureAgent:
             lines.append(f"- [{r.id}] {r.name} (keywords: {kw})")
         return "\n".join(lines)
 
-    async def send_chunk(self, data: bytes) -> None:
-        """Send media bytes (screen/webcam audio) directly to the session."""
+    async def send_frame(self, jpeg_bytes: bytes) -> None:
+        """Send a JPEG video frame to Gemini Live via send_realtime_input(video=...)."""
         if self._session and not self._closed:
             try:
-                await self._session.send(
-                    input=genai_types.LiveClientRealtimeInput(
-                        media_chunks=[genai_types.Blob(data=data, mime_type="audio/webm")]
-                    )
+                await self._session.send_realtime_input(
+                    video=genai_types.Blob(data=jpeg_bytes, mime_type="image/jpeg")
                 )
             except Exception:
-                logger.exception("send_chunk error: sessionId=%s", self.session_id)
+                logger.exception("send_frame error: sessionId=%s", self.session_id)
 
     async def send_voice(self, data: bytes) -> None:
         """Forward user's mic audio as conversational input."""
@@ -381,11 +388,6 @@ class CaptureAgent:
                 from app.services.room_service import add_lobby_door
                 from app.websocket.manager import manager as ws_manager
 
-                await ws_manager.send(self.user_id, {
-                    "type": "tool_activity",
-                    "label": f"Saving: {title or summary[:50]}…",
-                })
-
                 result = await categorize_and_store(
                     user_id=self.user_id,
                     session_id=None,
@@ -427,6 +429,7 @@ class CaptureAgent:
                         "lobbyDoorsAdded": lobby_doors_added,
                     },
                 })
+                await self._send_capture_event(f"Saved: {artifact.title or summary[:40]}", "create_artifact")
                 logger.info(
                     "[CaptureAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
                     self.user_id, artifact.id, room.id, result.action,
@@ -440,6 +443,16 @@ class CaptureAgent:
         elif name == "create_room":
             room_name = args.get("name", "New Room")
             keywords = list(args.get("keywords", []))
+            # Guard: if capture_concept just auto-created a room in the same tool batch,
+            # skip this create_room to prevent a duplicate empty room.
+            if self._skip_next_create_room:
+                self._skip_next_create_room = False
+                logger.info(
+                    "[CaptureAgent] Skipping create_room — capture_concept already auto-created a room: "
+                    "sessionId=%s skipped_name=%r",
+                    self.session_id, room_name,
+                )
+                return "Room was already auto-created by the preceding capture_concept call. No new room needed."
             try:
                 from app.services.room_service import add_lobby_door, create_room as svc_create_room
                 from app.websocket.manager import manager as ws_manager
@@ -464,6 +477,21 @@ class CaptureAgent:
                     },
                 })
                 self._last_created_room_id = new_room.id
+                await self._send_capture_event(f"Room created: {room_name}", "create_room")
+
+                # Inform Gemini about the new room so it's aware for the rest of the session
+                if self._session and not self._closed:
+                    try:
+                        await self._session.send_client_content(
+                            turns=[
+                                genai_types.Content(role="user", parts=[genai_types.Part(text=f"[ROOM CREATED] A new room '{room_name}' (ID: {new_room.id}) has been added to the palace. The next concept you capture will be placed here automatically.")]),
+                                genai_types.Content(role="model", parts=[genai_types.Part(text=f"Understood. Room '{room_name}' is ready. I'll place the next captured concept into it.")]),
+                            ],
+                            turn_complete=False,
+                        )
+                    except Exception:
+                        logger.exception("Context injection failed after create_room: sessionId=%s", self.session_id)
+
                 return f"Room '{room_name}' created with ID {new_room.id}"
             except Exception:
                 logger.exception("create_room failed: sessionId=%s", self.session_id)
@@ -518,6 +546,7 @@ class CaptureAgent:
                 if updated is None:
                     return f"Artifact {artifact_id} not found."
                 await ws_manager.send(self.user_id, {"type": "palace_update", "changes": {"roomsAdded": [], "artifactsAdded": [], "artifactsUpdated": [{"id": updated.id, "summary": updated.summary}], "connectionsAdded": []}})
+                await self._send_capture_event(f"Updated: {updated.title or artifact_id}", "edit_artifact")
                 return f"Artifact {artifact_id} updated."
             except Exception:
                 logger.exception("edit_artifact failed: sessionId=%s", self.session_id)
@@ -530,6 +559,7 @@ class CaptureAgent:
             try:
                 await delete_artifact_by_id(self.user_id, artifact_id)
                 await ws_manager.send(self.user_id, {"type": "palace_update", "changes": {"roomsAdded": [], "artifactsAdded": [], "artifactsRemoved": [artifact_id], "connectionsAdded": []}})
+                await self._send_capture_event("Artifact deleted", "delete_artifact")
                 return f"Artifact {artifact_id} deleted."
             except Exception:
                 logger.exception("delete_artifact failed: sessionId=%s", self.session_id)
@@ -543,9 +573,13 @@ class CaptureAgent:
             )
 
         elif name == "web_search":
-            return await execute_web_search(args.get("query", ""))
+            query = args.get("query", "")
+            result = await execute_web_search(query)
+            await self._send_capture_event(f"Web search: {query[:40]}", "web_search")
+            return result
 
         elif name in ("end_session", "close_session"):
+            await self._send_capture_event("Session closing…", "close_session")
             self._closed = True
             self._close_event.set()
             if self._on_close:
@@ -690,6 +724,7 @@ class CaptureAgent:
                 },
             })
 
+            await self._send_capture_event(f"Screenshot: {title}", "take_screenshot")
             logger.info(
                 "Screenshot saved: userId=%s sessionId=%s artifactId=%s url=%s",
                 self.user_id, self.session_id, result.artifact.id, image_url,
@@ -763,12 +798,7 @@ class CaptureAgent:
             return
 
         # Show in capture panel conversation log
-        await ws_manager.send(self.user_id, {
-            "type": "live_tool_call",
-            "tool": "merge_concept",
-            "label": f"Updated: {existing_title}",
-            "payload": {},
-        })
+        await self._send_capture_event(f"Updated: {existing_title}", "merge_concept")
 
         # Propagate change to the 3D palace
         await ws_manager.send(self.user_id, {
@@ -837,6 +867,10 @@ class CaptureAgent:
             )
             event.categorization = result
             await add_artifact_to_session(self.user_id, self.session_id, result.artifact.id)
+            # If categorize_and_store auto-created a room, flag it so that a redundant
+            # explicit create_room call in the same tool batch gets skipped.
+            if result.action == "suggested_new" and not force_room_id:
+                self._skip_next_create_room = True
             # Cache embedding so future extractions can dedup against this one
             if result.artifact.embedding:
                 self._session_embeddings.append((
@@ -857,6 +891,15 @@ class CaptureAgent:
             await self._on_extraction(event)
         except Exception:
             logger.exception("Extraction callback error: sessionId=%s", self.session_id)
+
+    async def _send_capture_event(self, label: str, tool: str) -> None:
+        """Send a capture_tool_event so the left panel shows a badge for this action."""
+        from app.websocket.manager import manager as ws_manager
+        await ws_manager.send(self.user_id, {
+            "type": "capture_tool_event",
+            "tool": tool,
+            "label": label,
+        })
 
     def _should_extract(self, confidence: float) -> bool:
         elapsed = time.monotonic() - self._last_extraction_at
