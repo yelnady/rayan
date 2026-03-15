@@ -120,7 +120,7 @@ export interface PalaceUpdateMessage {
   type: "palace_update";
   changes: {
     roomsAdded: Array<{ id: string; name: string; position: { x: number; y: number; z: number }; style: string }>;
-    artifactsAdded: Array<{ id: string; roomId: string; type: string; position: { x: number; y: number; z: number }; visual: string; summary: string; sourceMediaUrl?: string; color?: string; wall?: string }>;
+    artifactsAdded: Array<{ id: string; roomId: string; type: string; position: { x: number; y: number; z: number }; visual: string; title?: string; summary: string; sourceMediaUrl?: string; color?: string; wall?: string }>;
     connectionsAdded: Array<{ fromRoomId: string; toRoomId: string; reason: string }>;
     lobbyDoorsAdded?: Array<{ roomId: string; wallPosition: string; doorIndex: number }>;
     roomsRemoved?: string[];
