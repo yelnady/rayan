@@ -18,8 +18,9 @@ export class AudioStreamer {
     /**
      * Start capturing microphone audio and streaming PCM chunks.
      * @param onPcmChunk Called every ~100ms with a base64-encoded Int16 PCM buffer.
+     * @param additionalStream Optional extra MediaStream to mix in (e.g. display audio from screen share).
      */
-    async start(onPcmChunk: (base64: string) => void): Promise<void> {
+    async start(onPcmChunk: (base64: string) => void, additionalStream?: MediaStream): Promise<void> {
         this.stream = await navigator.mediaDevices.getUserMedia({
             audio: {
                 sampleRate: 16000,
@@ -30,9 +31,8 @@ export class AudioStreamer {
             video: false,
         });
 
-        // Create AudioContext at 16kHz — the browser will resample the mic input
+        // Create AudioContext at 16kHz — the browser will resample all inputs
         this.ctx = new AudioContext({ sampleRate: 16000 });
-        const source = this.ctx.createMediaStreamSource(this.stream);
 
         // Load and register the PCM worklet processor
         await this.ctx.audioWorklet.addModule('/pcm-processor.js');
@@ -44,7 +44,20 @@ export class AudioStreamer {
             onPcmChunk(base64);
         };
 
-        source.connect(this.worklet);
+        // Connect microphone
+        const micSource = this.ctx.createMediaStreamSource(this.stream);
+        micSource.connect(this.worklet);
+
+        // Mix in display/screen-share audio if provided (e.g. YouTube tab audio)
+        if (additionalStream) {
+            const audioTracks = additionalStream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                const displayAudioStream = new MediaStream(audioTracks);
+                const displaySource = this.ctx.createMediaStreamSource(displayAudioStream);
+                displaySource.connect(this.worklet);
+            }
+        }
+
         // Worklet doesn't need to connect to destination (no local playback)
         this._isStreaming = true;
     }

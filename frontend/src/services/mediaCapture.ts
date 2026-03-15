@@ -1,69 +1,90 @@
 /**
- * MediaCapture — wraps MediaRecorder for webcam and screen share capture.
- * Fires onChunk callbacks with base64-encoded WebM chunks for streaming
- * to the backend via WebSocket.
+ * MediaCapture — captures video frames as JPEG images for streaming to Gemini Live.
+ *
+ * Per Gemini Live API docs, video input must be sent as individual JPEG frames
+ * (max 1 frame per second) via send_realtime_input(video=Blob(mime_type="image/jpeg")).
+ * Audio from the display stream is handled separately by AudioStreamer (PCM mixing).
  */
 
 export type CaptureSource = 'webcam' | 'screen_share' | 'voice';
 
 interface MediaCaptureOptions {
   source: CaptureSource;
-  /** Chunk interval in ms (default 1000). */
-  timeslice?: number;
-  onChunk: (data: string, index: number, timestamp: number) => void;
+  /** Frames per second — capped at 1 per Gemini Live API limit. */
+  fps?: number;
+  onFrame: (jpegBase64: string, index: number, timestamp: number) => void;
   onError: (err: Error) => void;
 }
 
 export class MediaCapture {
-  private recorder: MediaRecorder | null = null;
   private stream: MediaStream | null = null;
-  private chunkIndex = 0;
+  private videoEl: HTMLVideoElement | null = null;
+  private canvas: HTMLCanvasElement | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private frameIndex = 0;
 
   async start(opts: MediaCaptureOptions): Promise<void> {
-    this.chunkIndex = 0;
+    this.frameIndex = 0;
 
     if (opts.source === 'webcam') {
       this.stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    } else if (opts.source === 'voice') {
-      // Voice-only mode — MediaCapture handles NO data if AudioStreamer is used.
-      // But we can let it capture audio:true just in case, but prefer disabling it here.
-      this.stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: false });
-    } else {
+    } else if (opts.source === 'screen_share') {
       this.stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+    } else {
+      // voice-only — no video frames
+      return;
     }
 
-    const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9,opus')
-      ? 'video/webm;codecs=vp9,opus'
-      : 'video/webm';
+    // Feed the stream into an offscreen video element so we can draw frames
+    this.videoEl = document.createElement('video');
+    this.videoEl.srcObject = this.stream;
+    this.videoEl.muted = true;
+    await this.videoEl.play();
 
-    this.recorder = new MediaRecorder(this.stream, { mimeType });
+    this.canvas = document.createElement('canvas');
 
-    this.recorder.ondataavailable = async (event) => {
-      if (!event.data || event.data.size === 0) return;
-      const buffer = await event.data.arrayBuffer();
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-      opts.onChunk(base64, this.chunkIndex++, Date.now());
-    };
+    // Gemini Live cap: max 1 fps
+    const fps = Math.min(opts.fps ?? 1, 1);
+    const intervalMs = Math.round(1000 / fps);
 
-    this.recorder.onerror = () => {
-      opts.onError(new Error('MediaRecorder error'));
-    };
+    this.intervalId = setInterval(() => {
+      if (!this.videoEl || !this.canvas) return;
+      const { videoWidth, videoHeight } = this.videoEl;
+      if (videoWidth === 0 || videoHeight === 0) return;
 
-    this.recorder.start(opts.timeslice ?? 1000);
+      this.canvas.width = videoWidth;
+      this.canvas.height = videoHeight;
+      const ctx = this.canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(this.videoEl, 0, 0);
+
+      const dataUrl = this.canvas.toDataURL('image/jpeg', 0.8);
+      const base64 = dataUrl.split(',')[1];
+      opts.onFrame(base64, this.frameIndex++, Date.now());
+    }, intervalMs);
   }
 
   stop(): void {
-    this.recorder?.stop();
-    this.stream?.getTracks().forEach((track) => track.stop());
-    this.recorder = null;
+    if (this.intervalId !== null) {
+      clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    if (this.videoEl) {
+      this.videoEl.srcObject = null;
+      this.videoEl = null;
+    }
+    this.canvas = null;
+    this.stream?.getTracks().forEach((t) => t.stop());
     this.stream = null;
   }
 
+  /** Returns the raw MediaStream so the UI can render a live preview and
+   *  AudioStreamer can mix in the display audio track. */
   getStream(): MediaStream | null {
     return this.stream;
   }
 
   get isRecording(): boolean {
-    return this.recorder?.state === 'recording';
+    return this.intervalId !== null;
   }
 }

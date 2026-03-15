@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useWS } from './useWS';
 import { useCaptureStore } from '../stores/captureStore';
 import { AudioPlayback } from '../services/audioPlayback';
-import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessage, CaptureSessionEndedMessage, CaptureTextMessage, CaptureUserTextMessage } from '../services/websocket';
+import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessage, CaptureSessionEndedMessage, CaptureTextMessage, CaptureToolEventMessage, CaptureUserTextMessage } from '../services/websocket';
 
 /**
  * Hook to handle capture session WebSocket messages.
@@ -79,6 +79,13 @@ export function useCaptureWS() {
     unsubscribers.push(
       ws.on('capture_audio', (msg: CaptureAudioMessage) => {
         if (playbackRef.current) void playbackRef.current.enqueue(msg.data);
+      })
+    );
+
+    // Tool events — badge in the left panel for every agent action
+    unsubscribers.push(
+      ws.on('capture_tool_event', (msg: CaptureToolEventMessage) => {
+        addToolEvent(msg.label, msg.tool);
       })
     );
 
