@@ -197,6 +197,7 @@ function CaptureSection() {
     const voiceStatus = useVoiceStore((s) => s.status);
     const [selectedSource, setSelectedSource] = useState<'webcam' | 'screen_share' | 'voice'>('webcam');
     const [showMenu, setShowMenu] = useState(false);
+    const supportsScreenShare = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
 
     const isCapturing = status === 'capturing';
     const isProcessing = status === 'processing';
@@ -243,12 +244,14 @@ function CaptureSection() {
                         label="Webcam"
                         active={selectedSource === 'webcam'}
                     />
-                    <SourceOption
-                        onClick={() => handleStart('screen_share')}
-                        icon={<MapIcon size={16} active={false} />}
-                        label="Screen"
-                        active={selectedSource === 'screen_share'}
-                    />
+                    {supportsScreenShare && (
+                        <SourceOption
+                            onClick={() => handleStart('screen_share')}
+                            icon={<MapIcon size={16} active={false} />}
+                            label="Screen"
+                            active={selectedSource === 'screen_share'}
+                        />
+                    )}
                     <SourceOption
                         onClick={() => handleStart('voice')}
                         icon={<MicIcon size={16} color="rgba(0,0,0,0.6)" />}
