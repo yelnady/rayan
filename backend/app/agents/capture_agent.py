@@ -582,6 +582,7 @@ class CaptureAgent:
                 room = await get_room(self.user_id, room_id)
                 room_name = room.name if room else room_id
             except Exception:
+                logger.warning("navigate_to_room: get_room failed for userId=%s roomId=%s", self.user_id, room_id, exc_info=True)
                 room_name = room_id
             await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_room", "label": f"Navigating to {room_name}", "payload": {"navigation": {"targetRoomId": room_id, "highlightArtifacts": [], "enterRoom": True, "selectedArtifactId": None}}})
             return f"Navigated to room {room_name}"
