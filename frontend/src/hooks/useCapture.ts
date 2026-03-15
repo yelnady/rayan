@@ -46,15 +46,16 @@ export function useCapture() {
       // Notify backend
       ws.sendCaptureStart(sessionId, source);
 
-      // Start local media recording for visual sources (webcam, screen share)
+      // Start frame capture for visual sources (webcam, screen share)
+      let displayStream: MediaStream | null = null;
       if (source !== 'voice') {
         const capture = new MediaCapture();
         _captureInstance = capture;
 
         await capture.start({
           source,
-          onChunk: (data, index, timestamp) => {
-            ws.sendMediaChunk(sessionId, index, data, timestamp);
+          onFrame: (data, index, timestamp) => {
+            ws.sendVideoFrame(sessionId, index, data, timestamp);
           },
           onError: (err) => {
             store.setError(err.message);
@@ -62,15 +63,18 @@ export function useCapture() {
           },
         });
 
+        displayStream = capture.getStream();
         // Save stream to store so UI can render the floating preview
-        store.setActiveStream(capture.getStream());
+        store.setActiveStream(displayStream);
       }
-      // Start audio streamer for real-time voice interaction with Rayan
+
+      // Start audio streamer — mic always captured; display audio mixed in when screen sharing
       const streamer = new AudioStreamer();
       _audioStreamer = streamer;
-      await streamer.start((base64Pcm) => {
-        ws.sendCaptureVoiceChunk(sessionId, base64Pcm);
-      });
+      await streamer.start(
+        (base64Pcm) => { ws.sendCaptureVoiceChunk(sessionId, base64Pcm); },
+        displayStream ?? undefined,
+      );
 
     },
     [ws, store],
