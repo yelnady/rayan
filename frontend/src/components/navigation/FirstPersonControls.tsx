@@ -178,6 +178,12 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         };
 
         function onTouchStart(e: TouchEvent) {
+            if (e.touches.length >= 2) {
+                // Two-finger gesture — block pinch-to-zoom and stop rotation
+                e.preventDefault();
+                touchState.isRotating = false;
+                return;
+            }
             // Only handle single-finger touch for rotation
             if (e.touches.length === 1) {
                 touchState.isRotating = true;
@@ -187,6 +193,11 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         }
 
         function onTouchMove(e: TouchEvent) {
+            if (e.touches.length >= 2) {
+                // Block pinch-to-zoom scroll
+                e.preventDefault();
+                return;
+            }
             if (!touchState.isRotating || e.touches.length !== 1) return;
 
             const touch = e.touches[0];
@@ -215,9 +226,9 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         canvas.addEventListener('wheel', onWheel, { passive: true });
         canvas.addEventListener('contextmenu', onContextMenu);
 
-        // Mobile touch listeners
-        canvas.addEventListener('touchstart', onTouchStart);
-        canvas.addEventListener('touchmove', onTouchMove);
+        // Mobile touch listeners — non-passive so we can preventDefault on pinch
+        canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', onTouchMove, { passive: false });
         canvas.addEventListener('touchend', onTouchEnd);
 
         return () => {

@@ -13,6 +13,7 @@ export function Joystick() {
 
     const handleStart = (e: React.TouchEvent) => {
         setIsDragging(true);
+        navigator.vibrate?.(8);
         handleMove(e);
     };
 
@@ -48,6 +49,7 @@ export function Joystick() {
         setIsDragging(false);
         setStickPos({ x: 0, y: 0 });
         setMobileMovement({ x: 0, z: 0 });
+        navigator.vibrate?.(4);
     }, [setMobileMovement]);
 
     useEffect(() => {
