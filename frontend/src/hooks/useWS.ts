@@ -24,6 +24,8 @@ let _playback: AudioPlayback | null = null;
 /** Track whether listeners have been wired to prevent duplicates. */
 let _listenersWired = false;
 let _listenerUnsubs: Array<() => void> = [];
+/** Cancellable timer for clearing highlightedArtifactIds — prevents stale clears from racing. */
+let _highlightArtifactTimer: ReturnType<typeof setTimeout> | null = null;
 
 function getInstance(userId: string, getToken: () => Promise<string>): RayanWebSocket {
   if (!_instance) {
@@ -142,7 +144,7 @@ function wireListeners(ws: RayanWebSocket): void {
           useVoiceStore.getState().setToolActivity(null);
         }
       });
-      msg.changes.artifactsUpdated?.forEach((patch: { id: string; [key: string]: unknown }) =>
+      msg.changes.artifactsUpdated?.forEach((patch: { id: string;[key: string]: unknown }) =>
         palaceStore.updateArtifact(patch.id, patch as never)
       );
 
@@ -168,16 +170,16 @@ function wireListeners(ws: RayanWebSocket): void {
         switch (wallPosition) {
           case 'south':
             facingX = LOBBY_SIZE / 2 + offset; facingZ = LOBBY_SIZE - 3;
-            doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = LOBBY_SIZE; break;
+            doorCX = LOBBY_SIZE / 2 + offset; doorCZ = LOBBY_SIZE; break;
           case 'east':
             facingX = LOBBY_SIZE - 3; facingZ = LOBBY_SIZE / 2 + offset;
-            doorCX  = LOBBY_SIZE;     doorCZ  = LOBBY_SIZE / 2 + offset; break;
+            doorCX = LOBBY_SIZE; doorCZ = LOBBY_SIZE / 2 + offset; break;
           case 'west':
             facingX = 3; facingZ = LOBBY_SIZE / 2 + offset;
-            doorCX  = 0; doorCZ  = LOBBY_SIZE / 2 + offset; break;
+            doorCX = 0; doorCZ = LOBBY_SIZE / 2 + offset; break;
           default: // north
             facingX = LOBBY_SIZE / 2 + offset; facingZ = 3;
-            doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = 0; break;
+            doorCX = LOBBY_SIZE / 2 + offset; doorCZ = 0; break;
         }
 
         useCameraStore.getState().flyTo(
@@ -248,6 +250,7 @@ function wireListeners(ws: RayanWebSocket): void {
     }),
     ws.on('live_audio', (msg) => {
       const voiceStore = useVoiceStore.getState();
+      if (voiceStore.status === 'disconnected' || voiceStore.status === 'error') return;
       if (voiceStore.status !== 'responding') {
         voiceStore.setStatus('responding');
       }
@@ -257,6 +260,7 @@ function wireListeners(ws: RayanWebSocket): void {
     }),
     ws.on('live_text', (msg) => {
       const voiceStore = useVoiceStore.getState();
+      if (voiceStore.status === 'disconnected' || voiceStore.status === 'error') return;
       if (voiceStore.status !== 'responding') {
         voiceStore.setStatus('responding');
       }
@@ -269,16 +273,18 @@ function wireListeners(ws: RayanWebSocket): void {
     ws.on('live_interrupted', () => {
       _playback?.stop();
       const voiceStore = useVoiceStore.getState();
+      if (voiceStore.status === 'disconnected' || voiceStore.status === 'error') return;
       voiceStore.resetTranscript();
       voiceStore.setStatus('connected');
     }),
     ws.on('live_turn_complete', () => {
       // Release the greeting audio hold (idempotent after the first turn).
       releaseAudioHold();
-      const voiceStore = useVoiceStore.getState();
       setTimeout(() => {
-        if (voiceStore.status === 'responding') {
-          useVoiceStore.getState().setStatus('connected');
+        // Re-read current status inside the timeout to avoid stale closure.
+        const current = useVoiceStore.getState();
+        if (current.status === 'responding') {
+          current.setStatus('connected');
         }
       }, 2500);
     }),
@@ -311,13 +317,14 @@ function wireListeners(ws: RayanWebSocket): void {
           const WALL_CYCLE = ['north', 'east', 'south', 'west'] as const;
           const DOOR_SPACING = 2.2;
           const LOBBY_SIZE = 12;
-          const layout = palaceStore.layout;
 
-          // Find which lobby wall/index this room's door is on (mirrors PalaceCanvas fallback logic)
+          // Find which lobby wall/index this room's door is on (mirrors PalaceCanvas fallback logic).
+          // Always reads fresh store state — this may be called up to ~2 s after the WS event.
           const getLobbyDoor = (roomId: string) => {
-            const fromLayout = layout?.lobbyDoors?.find(d => d.roomId === roomId);
+            const freshStore = usePalaceStore.getState();
+            const fromLayout = freshStore.layout?.lobbyDoors?.find(d => d.roomId === roomId);
             if (fromLayout) return fromLayout;
-            const idx = Math.max(palaceStore.rooms.findIndex(r => r.id === roomId), 0);
+            const idx = Math.max(freshStore.rooms.findIndex(r => r.id === roomId), 0);
             return { wallPosition: WALL_CYCLE[idx % 4], doorIndex: Math.floor(idx / 4) };
           };
 
@@ -326,20 +333,22 @@ function wireListeners(ws: RayanWebSocket): void {
             const { w, d } = room.dimensions;
             const rx = room.position.x, rz = room.position.z;
             switch (wallPosition) {
-              case 'south': return { entryX: rx + w / 2, entryZ: rz + 0.5,       lookX: rx + w / 2, lookZ: rz + d };
-              case 'east':  return { entryX: rx + 0.5,       entryZ: rz + d / 2,  lookX: rx + w,     lookZ: rz + d / 2 };
-              case 'west':  return { entryX: rx + w - 0.5,   entryZ: rz + d / 2,  lookX: rx,         lookZ: rz + d / 2 };
-              default:      return { entryX: rx + w / 2,     entryZ: rz + d - 0.5, lookX: rx + w / 2, lookZ: rz };
+              case 'south': return { entryX: rx + w / 2, entryZ: rz + 0.5, lookX: rx + w / 2, lookZ: rz + d };
+              case 'east': return { entryX: rx + 0.5, entryZ: rz + d / 2, lookX: rx + w, lookZ: rz + d / 2 };
+              case 'west': return { entryX: rx + w - 0.5, entryZ: rz + d / 2, lookX: rx, lookZ: rz + d / 2 };
+              default: return { entryX: rx + w / 2, entryZ: rz + d - 0.5, lookX: rx + w / 2, lookZ: rz };
             }
           };
 
           const enterTarget = () => {
             usePalaceStore.getState().setHighlightedLobbyDoorRoomId(null);
             startTransition(isLobby ? 'exit' : 'enter', () => {
-              palaceStore.setCurrentRoomId(targetRoomId);
+              // Use fresh store state — enterTarget may run up to ~2 s after the WS snapshot.
+              const freshStore = usePalaceStore.getState();
+              freshStore.setCurrentRoomId(targetRoomId);
               useCameraStore.getState().exitOverview();
               if (!isLobby) {
-                const room = palaceStore.rooms.find(r => r.id === nav.targetRoomId);
+                const room = freshStore.rooms.find(r => r.id === nav.targetRoomId);
                 if (room) {
                   const ld = getLobbyDoor(nav.targetRoomId);
                   const { entryX, entryZ, lookX, lookZ } = getRoomEntry(room, ld.wallPosition);
@@ -366,16 +375,16 @@ function wireListeners(ws: RayanWebSocket): void {
             switch (ld.wallPosition) {
               case 'south':
                 facingX = LOBBY_SIZE / 2 + offset; facingZ = LOBBY_SIZE - 3;
-                doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = LOBBY_SIZE; break;
+                doorCX = LOBBY_SIZE / 2 + offset; doorCZ = LOBBY_SIZE; break;
               case 'east':
                 facingX = LOBBY_SIZE - 3; facingZ = LOBBY_SIZE / 2 + offset;
-                doorCX  = LOBBY_SIZE;     doorCZ  = LOBBY_SIZE / 2 + offset; break;
+                doorCX = LOBBY_SIZE; doorCZ = LOBBY_SIZE / 2 + offset; break;
               case 'west':
                 facingX = 3; facingZ = LOBBY_SIZE / 2 + offset;
-                doorCX  = 0; doorCZ  = LOBBY_SIZE / 2 + offset; break;
+                doorCX = 0; doorCZ = LOBBY_SIZE / 2 + offset; break;
               default: // north
                 facingX = LOBBY_SIZE / 2 + offset; facingZ = 3;
-                doorCX  = LOBBY_SIZE / 2 + offset; doorCZ  = 0; break;
+                doorCX = LOBBY_SIZE / 2 + offset; doorCZ = 0; break;
             }
 
             // Leave the room immediately so lobby collision/rendering takes over
@@ -403,7 +412,8 @@ function wireListeners(ws: RayanWebSocket): void {
 
         if (nav.highlightArtifacts?.length) {
           palaceStore.setHighlightedArtifacts(nav.highlightArtifacts);
-          setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+          if (_highlightArtifactTimer !== null) clearTimeout(_highlightArtifactTimer);
+          _highlightArtifactTimer = setTimeout(() => { usePalaceStore.getState().setHighlightedArtifacts([]); _highlightArtifactTimer = null; }, 5_000);
         }
         if (nav.selectedArtifactId) {
           palaceStore.setAgentSelectedArtifactId(nav.selectedArtifactId);
@@ -421,7 +431,8 @@ function wireListeners(ws: RayanWebSocket): void {
       if (msg.payload.artifactId) {
         const artifactId = msg.payload.artifactId;
         usePalaceStore.getState().setHighlightedArtifacts([artifactId]);
-        setTimeout(() => usePalaceStore.getState().setHighlightedArtifacts([]), 5_000);
+        if (_highlightArtifactTimer !== null) clearTimeout(_highlightArtifactTimer);
+        _highlightArtifactTimer = setTimeout(() => { usePalaceStore.getState().setHighlightedArtifacts([]); _highlightArtifactTimer = null; }, 5_000);
         usePalaceStore.getState().setAgentSelectedArtifactId(artifactId);
 
         // If the highlighted artifact is a synthesis map, open the overlay directly

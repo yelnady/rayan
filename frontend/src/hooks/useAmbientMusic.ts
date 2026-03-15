@@ -54,14 +54,18 @@ export function useAmbientMusic(): void {
         }
     }, [isOverview, currentRoomId, rooms]);
 
-    // Duck while the agent is speaking, restore when done.
+    // Duck to 10% for the full duration of any active session (recall or voice capture).
+    // Screen/webcam capture is already muted entirely by the effect below — don't duck there.
     useEffect(() => {
-        if (voiceStatus === 'responding') {
+        const sessionActive =
+            (voiceStatus !== 'disconnected' && voiceStatus !== 'error') ||
+            (captureStatus === 'capturing' && captureSource === 'voice');
+        if (sessionActive) {
             audioEngine.duck();
         } else {
             audioEngine.unduck();
         }
-    }, [voiceStatus]);
+    }, [voiceStatus, captureStatus, captureSource]);
 
     // Mute during screen share / webcam capture so the music doesn't bleed
     // into the tab audio stream that getDisplayMedia captures and sends to the backend.
