@@ -23,14 +23,28 @@ def _rooms_ref(user_id: str):
 
 async def get_all_rooms(user_id: str) -> list[Room]:
     docs = await _rooms_ref(user_id).get()
-    return [Room(**doc.to_dict()) for doc in docs if doc.exists]
+    rooms = []
+    for doc in docs:
+        if not doc.exists:
+            continue
+        data = doc.to_dict() or {}
+        # Always use the Firestore document key as the authoritative ID.
+        # Older writes may have stored a different or missing `id` field.
+        data["id"] = doc.id
+        try:
+            rooms.append(Room(**data))
+        except Exception:
+            logger.warning("get_all_rooms: skipping malformed room doc %s for user %s", doc.id, user_id)
+    return rooms
 
 
 async def get_room(user_id: str, room_id: str) -> Room | None:
     doc = await _rooms_ref(user_id).document(room_id).get()
     if not doc.exists:
         return None
-    return Room(**doc.to_dict())
+    data = doc.to_dict() or {}
+    data["id"] = doc.id  # always authoritative
+    return Room(**data)
 
 
 async def create_room(
