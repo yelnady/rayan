@@ -233,7 +233,7 @@ CAPTURE_LIVE_TOOLS = [
             "type": "object",
             "properties": {
                 "title": {"type": "string", "description": "Short title for the concept (3-7 words)."},
-                "summary": {"type": "string", "description": "Detailed summary of the concept (50-150 words)."},
+                "summary": {"type": "string", "description": "Detailed, objective summary of the concept (50-150 words). Write in third person — describe what the concept IS, never use 'you mentioned', 'you spoke about', or any attribution to the user or speaker."},
                 "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
                 "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-4 topic keywords for categorisation."},
                 "confidence": {"type": "number", "description": "Confidence score 0.0-1.0."},
@@ -253,7 +253,7 @@ CAPTURE_LIVE_TOOLS = [
             "properties": {
                 "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
                 "title": {"type": "string", "description": "Short descriptive name (3-7 words)."},
-                "summary": {"type": "string", "description": "Concise summary of the artifact."},
+                "summary": {"type": "string", "description": "Concise, objective summary of the artifact. Describe what it IS — never use 'you mentioned', 'you spoke about', or attribute content to the user."},
                 "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-5 topic keywords."},
                 "full_content": {"type": "string", "description": "Full detailed content (optional but recommended)."},
             },

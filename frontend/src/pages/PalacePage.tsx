@@ -40,7 +40,7 @@ export function PalacePage() {
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
   const isSeeding = usePalaceStore((s) => s.isSeeding);
   const voicePanelOpen = useVoiceStore((s) => s.showPanel);
-  const capturePanelOpen = useCaptureStore((s) => s.showPanel && (s.status === 'capturing' || s.status === 'processing' || s.status === 'complete'));
+  const capturePanelOpen = useCaptureStore((s) => s.showPanel && (s.status === 'capturing' || s.status === 'processing' || s.status === 'complete' || s.messages.length > 0));
   const panelOpen = voicePanelOpen || capturePanelOpen;
   const PANEL_WIDTH = 320;
   const [isMobile, setIsMobile] = useState(false);
@@ -223,7 +223,7 @@ export function PalacePage() {
         </>
       )}
       <CaptureComplete
-        onClose={() => useCaptureStore.getState().reset()}
+        onClose={() => useCaptureStore.getState().setStatus('idle')}
         onArtifactClick={(artifactId, roomId) => { playArtifactChime(); setSelectedArtifact({ id: artifactId, roomId }); }}
       />
 

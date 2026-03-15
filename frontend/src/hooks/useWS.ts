@@ -128,6 +128,7 @@ function wireListeners(ws: RayanWebSocket): void {
           type: a.type as never,
           position: a.position,
           visual: a.visual as never,
+          title: a.title,
           summary: a.summary,
           sourceMediaUrl: a.sourceMediaUrl,
           color: a.color,
