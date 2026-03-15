@@ -51,6 +51,12 @@ export interface CaptureToolCallMessage {
   confidence: number;
 }
 
+export interface CaptureToolEventMessage {
+  type: "capture_tool_event";
+  tool: string;
+  label: string;
+}
+
 export interface CaptureCompleteArtifact {
   id: string;
   title: string;
@@ -208,6 +214,7 @@ export type ServerMessage =
   | CaptureTextMessage
   | CaptureUserTextMessage
   | CaptureToolCallMessage
+  | CaptureToolEventMessage
   | CaptureScreenshotRequestMessage
   | ArtifactRecallMessage
   | EnrichmentUpdateMessage
@@ -268,8 +275,8 @@ export class RayanWebSocket {
     this._send({ type: "capture_start", sessionId, sourceType });
   }
 
-  sendMediaChunk(sessionId: string, chunkIndex: number, data: string, timestamp: number): void {
-    this._send({ type: "media_chunk", sessionId, chunkIndex, data, timestamp });
+  sendVideoFrame(sessionId: string, frameIndex: number, data: string, timestamp: number): void {
+    this._send({ type: "video_frame", sessionId, frameIndex, data, timestamp });
   }
 
   sendCaptureEnd(sessionId: string): void {
