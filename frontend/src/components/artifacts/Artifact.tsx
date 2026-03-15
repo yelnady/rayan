@@ -125,8 +125,8 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   dialogue: 0.3,
   speaker: 0.6,
   warning: 0.3,
-  stop: 0.3,
-  game: 0.3,
+  stop: 1000,
+  game: 0.18,
   hamburger: 0.3,
 };
 

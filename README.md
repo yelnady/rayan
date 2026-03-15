@@ -1,8 +1,26 @@
 # Rayan — AI Memory Palace
 
+**Live app: [rayan-memory.web.app](https://rayan-memory.web.app)**
+
 **Gemini Live Agent Challenge submission — Live Agents category**
 
 Rayan is a voice-first AI memory system that turns everything you hear, see, and say into a living 3D Memory Palace. Two persistent Gemini Live agents run simultaneously: one silently captures knowledge as you move through the world, and one lets you walk through your memories and have a natural voice conversation with them.
+
+---
+
+## How It Was Built with Google AI & Google Cloud
+
+*I created this write-up for the purposes of entering the **Gemini Live Agent Challenge** hackathon. #GeminiLiveAgentChallenge*
+
+Rayan is powered end-to-end by Google AI models and Google Cloud infrastructure.
+
+The core of the application is the **Gemini Live API** (`gemini-live-2.5-flash-native-audio`), which drives two always-on voice agents. The **CaptureAgent** silently co-listens to your microphone and screen in real time, extracting key concepts and saving them as typed 3D artifacts — all without you lifting a finger. The **RecallAgent** runs a persistent voice session inside your 3D Memory Palace: you speak naturally, it searches your memories semantically, and it responds in your ear with grounded, cited answers. Both agents use `enable_affective_dialog=True`, letting Gemini adapt its vocal tone and pacing to your emotional state mid-conversation.
+
+For semantic grounding and deduplication, Rayan uses **Vertex AI `text-embedding-005`** to generate 768-dimensional embeddings for every saved memory. On each Recall session, the top-8 most relevant memories are retrieved via cosine similarity and injected into the live system prompt — preventing hallucination entirely. The same embeddings power within-session deduplication in the Capture agent: near-duplicate captures (similarity ≥ 0.90) are merged rather than stored twice.
+
+The **Memory Architect** — a `gemini-2.5-flash` orchestration layer — categorizes and clusters captured concepts into themed rooms in the 3D palace automatically. A separate synthesis step uses `gemini-2.5-flash` to generate AI mind-map images of each room on demand, rendered live on the 3D palace walls.
+
+The entire backend runs on **Cloud Run** (FastAPI + WebSockets) with session affinity, so each user's two simultaneous Live agent sessions stay pinned to the same instance. **Firestore** stores all rooms, artifacts, and embeddings. **Cloud Storage** holds screenshots taken by the Capture agent and AI-generated mind maps. **Firebase Hosting** serves the React + Three.js frontend. All infrastructure is provisioned with **Terraform** in a single `terraform apply`.
 
 > **GDG Profile:** [g.dev/yelnady](https://g.dev/yelnady)
 
