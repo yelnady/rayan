@@ -369,7 +369,7 @@ class RecallAgent:
         # Notify the frontend that semantic search ran and how many memories were loaded
         if results:
             from app.websocket.manager import manager as ws_manager
-            label = f"Recalled {len(results)} memor{'y' if len(results) == 1 else 'ies'}"
+            label = "Memories loaded"
             await ws_manager.send(user_id, {
                 "type": "live_memory_loaded",
                 "count": len(results),
@@ -635,7 +635,7 @@ class RecallAgent:
                 _art_name = _art.title if _art and _art.title else artifact_id[:12]
             except Exception:
                 _art_name = artifact_id[:12]
-            await notify({"label": f"Deleting "{_art_name}"…"})
+            await notify({"label": f'Deleting "{_art_name}"…'})
             try:
                 from app.services.artifact_service import delete_artifact_by_id
                 from app.websocket.manager import manager as ws_manager
