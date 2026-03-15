@@ -48,7 +48,7 @@ export default {
       },
       zIndex: {
         hud: '20',
-        joystick: '40',
+        joystick: '160',
         overlay: '50',
         toast: '1100',
         modal: '1000',

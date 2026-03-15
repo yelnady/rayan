@@ -79,6 +79,7 @@ gcloud run deploy "${SERVICE}" \
   --memory               2Gi \
   --cpu                  2 \
   --timeout              300 \
+  --min-instances        1 \
   --concurrency          80 \
   --set-env-vars         "^@^DEBUG=false@${ENV_VARS}" \
   --service-account      "rayan-backend@rayan-memory.iam.gserviceaccount.com" \
