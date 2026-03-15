@@ -42,7 +42,6 @@ export function PalacePage() {
   const voicePanelOpen = useVoiceStore((s) => s.showPanel);
   const capturePanelOpen = useCaptureStore((s) => s.showPanel && (s.status === 'capturing' || s.status === 'processing' || s.status === 'complete' || s.messages.length > 0));
   const panelOpen = voicePanelOpen || capturePanelOpen;
-  const PANEL_WIDTH = 320;
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -175,8 +174,8 @@ export function PalacePage() {
 
   return (
     <>
-      {/* 3D palace scene — shifts right when side panel is open */}
-      <PalaceCanvas onArtifactClick={handleArtifactClick} leftOffset={panelOpen && !isMobile ? PANEL_WIDTH : 0} />
+      {/* 3D palace scene — always full width, panel floats on top */}
+      <PalaceCanvas onArtifactClick={handleArtifactClick} />
 
       {/* Loading overlay */}
       {(loading || isSeeding) && (
@@ -231,7 +230,8 @@ export function PalacePage() {
       {!panelOpen && !isMobile && (
         <button
           onClick={() => useVoiceStore.getState().setShowPanel(true)}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-response-panel flex flex-col items-center justify-center gap-1.5 bg-[rgba(255,255,255,0.92)] backdrop-blur-xl border border-r border-[rgba(0,0,0,0.08)] rounded-r-xl px-1.5 py-4 shadow-md hover:bg-white transition-colors group"
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-response-panel flex flex-col items-center justify-center gap-1.5 rounded-r-2xl px-2 py-4 group transition-all duration-200"
+          style={{ background: 'linear-gradient(160deg,rgba(255,255,255,0.55),rgba(255,255,255,0.35))', backdropFilter: 'blur(40px) saturate(200%) brightness(1.1)', WebkitBackdropFilter: 'blur(40px) saturate(200%) brightness(1.1)', border: '1px solid rgba(255,255,255,0.6)', borderLeft: 'none', boxShadow: '4px 0 20px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.9)' }}
           title="Open conversation panel"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 group-hover:text-indigo-500 transition-colors">
