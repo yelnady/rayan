@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import { gsap } from 'gsap';
 import type { Group } from 'three';
@@ -7,7 +7,7 @@ interface FramedImageProps {
   position: [number, number, number];
   rotation?: [number, number, number];
   color?: string;
-  thumbnailUrl?: string;
+  sourceMediaUrl?: string;
   onClick?: () => void;
   onHover?: (hovered: boolean) => void;
 }
@@ -20,10 +20,43 @@ export function FramedImage({
   position,
   rotation = [0, 0, 0],
   color = '#C8A96E',
+  sourceMediaUrl,
   onClick,
   onHover,
 }: FramedImageProps) {
   const groupRef = useRef<Group>(null);
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+  const [planeSize, setPlaneSize] = useState<[number, number]>([IMG_W, IMG_H]);
+
+  useEffect(() => {
+    if (!sourceMediaUrl) return;
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.setCrossOrigin('anonymous');
+    loader.load(
+      sourceMediaUrl,
+      (tex) => {
+        if (cancelled) return;
+        const imgW = tex.image.width as number;
+        const imgH = tex.image.height as number;
+        if (imgW && imgH) {
+          const imgAspect = imgW / imgH;
+          const frameAspect = IMG_W / IMG_H;
+          let w = IMG_W, h = IMG_H;
+          if (imgAspect > frameAspect) {
+            h = IMG_W / imgAspect;
+          } else {
+            w = IMG_H * imgAspect;
+          }
+          setPlaneSize([w, h]);
+        }
+        setTexture(tex);
+      },
+      undefined,
+      (err) => { console.warn('FramedImage: texture load failed', err); },
+    );
+    return () => { cancelled = true; };
+  }, [sourceMediaUrl]);
 
   function handlePointerOver() {
     if (!groupRef.current) return;
@@ -52,15 +85,19 @@ export function FramedImage({
           <meshPhysicalMaterial color="#F5F0E8" roughness={0.8} />
         </mesh>
 
-        {/* Image surface (solid color placeholder for when no texture) */}
+        {/* Image surface — actual screenshot when loaded, placeholder otherwise */}
         <mesh
           position={[0, 0, 0.027]}
           onClick={onClick}
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
         >
-          <planeGeometry args={[IMG_W, IMG_H]} />
-          <meshPhysicalMaterial color="#8BA8C8" side={THREE.DoubleSide} emissive="#ffffff" emissiveIntensity={0.05} />
+          <planeGeometry args={planeSize} />
+          {texture ? (
+            <meshBasicMaterial map={texture} toneMapped={false} side={THREE.DoubleSide} />
+          ) : (
+            <meshPhysicalMaterial color="#8BA8C8" side={THREE.DoubleSide} emissive="#ffffff" emissiveIntensity={0.05} />
+          )}
         </mesh>
 
         {/* Subtle highlight on frame top edge */}

@@ -31,8 +31,8 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
 
   if (status !== 'complete' || !summary) return null;
 
-  const visualCount = summary.artifacts.filter((a) => a.type === 'visual').length;
   const newRoomCount = summary.rooms.filter((r) => r.isNew).length;
+  const existingRoomCount = summary.rooms.length - newRoomCount;
 
   return (
     <div
@@ -46,10 +46,13 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
 
         {/* Session meta row */}
         <div className="flex flex-wrap gap-3 mb-5">
-          <MetaBadge label={`${summary.conceptCount} concept${summary.conceptCount !== 1 ? 's' : ''}`} />
-          <MetaBadge label={`${summary.rooms.length} room${summary.rooms.length !== 1 ? 's' : ''}`} />
-          {newRoomCount > 0 && <MetaBadge label={`${newRoomCount} new room${newRoomCount !== 1 ? 's' : ''}`} highlight />}
-          {visualCount > 0 && <MetaBadge label={`${visualCount} image${visualCount !== 1 ? 's' : ''}`} />}
+          <MetaBadge label={`${summary.conceptCount} memor${summary.conceptCount !== 1 ? 'ies' : 'y'}`} />
+          {summary.rooms.length > 0 && (
+            <MetaBadge
+              label={`${summary.rooms.length} room${summary.rooms.length !== 1 ? 's' : ''}${newRoomCount > 0 ? ` · ${newRoomCount} new` : ''}`}
+              highlight={newRoomCount > 0}
+            />
+          )}
           {summary.durationSeconds != null && (
             <MetaBadge label={formatDuration(summary.durationSeconds)} />
           )}
@@ -71,12 +74,12 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
             ))}
           </div>
         ) : (
-          <p className="text-text-secondary font-body text-sm mb-6">No artifacts were extracted this session.</p>
+          <p className="text-text-secondary font-heading text-sm mb-6">No memories were captured this session.</p>
         )}
 
         <button
           onClick={onClose}
-          className="bg-primary text-text-primary border-none rounded-md px-6 py-[11px] text-[15px] font-body font-medium cursor-pointer w-full shadow-[0_4px_16px_rgba(99,102,241,0.35)]"
+          className="bg-primary text-text-primary border-none rounded-md px-6 py-[11px] text-[15px] font-heading font-medium cursor-pointer w-full shadow-[0_4px_16px_rgba(99,102,241,0.35)]"
         >
           View in Palace
         </button>
@@ -88,7 +91,7 @@ export function CaptureComplete({ onClose, onArtifactClick }: CaptureCompletePro
 function MetaBadge({ label, highlight = false }: { label: string; highlight?: boolean }) {
   return (
     <span
-      className={`text-xs font-body font-medium px-3 py-1 rounded-full border ${
+      className={`text-xs font-heading font-medium px-3 py-1 rounded-full border ${
         highlight
           ? 'bg-primary/15 border-primary/40 text-primary'
           : 'bg-surface border-border text-text-secondary'
@@ -118,8 +121,8 @@ function RoomGroup({
             New
           </span>
         )}
-        <span className="ml-auto text-xs text-text-secondary font-body">
-          {room.artifactCount} artifact{room.artifactCount !== 1 ? 's' : ''}
+        <span className="ml-auto text-xs text-text-secondary font-heading">
+          {room.artifactCount} memor{room.artifactCount !== 1 ? 'ies' : 'y'}
         </span>
       </div>
       {/* Artifact rows */}
@@ -131,8 +134,8 @@ function RoomGroup({
             className="flex items-center gap-3 px-4 py-2.5 w-full text-left bg-transparent border-none cursor-pointer hover:bg-surface-hover transition-colors duration-100"
           >
             <span className="text-base leading-none shrink-0">{ARTIFACT_TYPE_ICON[a.type] ?? '📌'}</span>
-            <span className="text-sm font-body text-text-primary flex-1 min-w-0 truncate">{a.title}</span>
-            <span className="text-[11px] text-text-secondary font-body shrink-0 capitalize">{a.type}</span>
+            <span className="text-sm font-heading text-text-primary flex-1 min-w-0 truncate">{a.title}</span>
+            <span className="text-[11px] text-text-secondary font-heading shrink-0 capitalize">{a.type}</span>
           </button>
         ))}
       </div>

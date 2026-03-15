@@ -267,13 +267,13 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                 );
             })}
 
-            {/* Hover tooltip */}
-            {hoveredIdx !== null && entries[hoveredIdx] && (
+            {/* Hover tooltip — reads from artifacts prop (live) not entries (stale) */}
+            {hoveredIdx !== null && artifacts[hoveredIdx] && (
                 <Html
                     position={[
-                        entries[hoveredIdx].artifact.position.x,
-                        entries[hoveredIdx].artifact.position.y + 0.75,
-                        entries[hoveredIdx].artifact.position.z,
+                        artifacts[hoveredIdx].position.x,
+                        artifacts[hoveredIdx].position.y + 0.75,
+                        artifacts[hoveredIdx].position.z,
                     ]}
                     center
                     distanceFactor={10}
@@ -298,7 +298,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
                             Enrichment
                         </div>
                         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.90)', lineHeight: 1.45, marginBottom: '6px' }}>
-                            {entries[hoveredIdx].artifact.summary}
+                            {artifacts[hoveredIdx].title || artifacts[hoveredIdx].summary}
                         </div>
                         <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', letterSpacing: '0.04em' }}>
                             Click to explore

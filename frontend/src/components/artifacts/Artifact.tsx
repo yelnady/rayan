@@ -8,6 +8,7 @@ import { registerArtifactCenter, artifactCenters } from '../palace/artifactCente
 import { SpeechBubble } from './SpeechBubble';
 import { CrystalOrb } from './CrystalOrb';
 import { SynthesisMap } from './SynthesisMap';
+import { FramedImage } from './FramedImage';
 
 const TYPE_LABELS: Record<string, string> = {
   floating_book: 'Document',
@@ -241,7 +242,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
       case 'hologram_frame':
         return <GlbArtifact path="/models/lecture.glb" scale={1.5} rotation={[0, -Math.PI / 2, 0]} onClick={handleClick} />;
       case 'framed_image':
-        return <GlbArtifact path="/models/Photo.glb" scale={0.5} rotation={[0, Math.PI, 0]} onClick={handleClick} />;
+        return <FramedImage position={O} sourceMediaUrl={artifact.sourceMediaUrl} onClick={handleClick} onHover={handleHover} />;
       case 'speech_bubble':
         return <SpeechBubble position={O} color={color ?? accentColor} hovered={hovered} onClick={handleClick} />;
       case 'crystal_orb':
@@ -367,7 +368,7 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
                 marginBottom: '6px',
               }}
             >
-              {artifact.title || artifact.summary}
+              {artifact.title}
             </div>
 
             {/* Click hint */}

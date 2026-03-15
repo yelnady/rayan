@@ -30,9 +30,10 @@ function usePanelMode(): PanelMode {
     const voiceShow = useVoiceStore((s) => s.showPanel);
     const captureShow = useCaptureStore((s) => s.showPanel);
     const captureStatus = useCaptureStore((s) => s.status);
+    const captureMessages = useCaptureStore((s) => s.messages);
 
-    // Prioritize capture when active or just completed
-    if (captureShow && (captureStatus === 'capturing' || captureStatus === 'processing' || captureStatus === 'complete')) {
+    // Prioritize capture when active, just completed, or still has history to show
+    if (captureShow && (captureStatus === 'capturing' || captureStatus === 'processing' || captureStatus === 'complete' || captureMessages.length > 0)) {
         return 'capture';
     }
     if (voiceShow) {
