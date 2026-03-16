@@ -110,8 +110,7 @@ async def recompute_room_summary(user_id: str, room_id: str) -> str:
     # Date range calculation
     dates = []
     for a in artifacts:
-        # Prefer capturedAt, fallback to createdAt
-        dt = a.capturedAt or a.createdAt
+        dt = a.capturedAt
         if dt:
             dates.append(dt)
 

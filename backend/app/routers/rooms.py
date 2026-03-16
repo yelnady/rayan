@@ -37,7 +37,7 @@ async def get_room_detail(room_id: str, user: dict = Depends(verify_token)):
             "visual": art.visual.value,
             "summary": art.summary,
             "thumbnailUrl": art.thumbnailUrl,
-            "createdAt": art.createdAt,
+            "capturedAt": art.capturedAt,
             "color": art.color,
         })
 

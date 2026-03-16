@@ -916,7 +916,7 @@ async def _load_room_context_text(user_id: str, room_id: Optional[str]) -> str:
         lines = [f"Room: {room_name} (ID: {room_id})"]
         for a in artifacts:
             date_str = ""
-            dt = getattr(a, "capturedAt", None) or getattr(a, "createdAt", None)
+            dt = getattr(a, "capturedAt", None)
             if dt:
                 date_str = f" | {dt.strftime('%Y-%m-%d')}"
             lines.append(f"- [ARTIFACT ID: {a.id}] [{a.type.value}]{date_str} {a.summary or '(no summary)'}")

@@ -110,11 +110,10 @@ class Artifact(BaseModel):
     embedding: list[float] = []
     sourceMediaUrl: Optional[str] = None
     thumbnailUrl: Optional[str] = None
-    createdAt: datetime
+    capturedAt: datetime
     captureSessionId: Optional[str] = None
     enrichments: list[str] = []
     relatedArtifacts: list[str] = []
     color: Optional[str] = None
     wall: Optional[str] = None
     isSeedData: bool = False
-    capturedAt: Optional[datetime] = None

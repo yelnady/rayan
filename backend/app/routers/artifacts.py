@@ -62,8 +62,7 @@ class ArtifactDetail(BaseModel):
     fullContent: Optional[str] = None
     sourceMediaUrl: Optional[str] = None
     thumbnailUrl: Optional[str] = None
-    createdAt: str
-    capturedAt: Optional[str] = None
+    capturedAt: str
     captureSessionId: Optional[str] = None
     relatedArtifacts: list[str] = []
     color: Optional[str] = None
@@ -158,8 +157,7 @@ async def get_artifact_detail(
             fullContent=getattr(artifact_doc, "fullContent", None),
             sourceMediaUrl=getattr(artifact_doc, "sourceMediaUrl", None),
             thumbnailUrl=getattr(artifact_doc, "thumbnailUrl", None),
-            createdAt=artifact_doc.createdAt.isoformat(),
-            capturedAt=artifact_doc.capturedAt.isoformat() if artifact_doc.capturedAt else None,
+            capturedAt=artifact_doc.capturedAt.isoformat(),
             captureSessionId=getattr(artifact_doc, "captureSessionId", None),
             relatedArtifacts=getattr(artifact_doc, "relatedArtifacts", []),
             color=getattr(artifact_doc, "color", None),
@@ -251,8 +249,7 @@ async def move_artifact_endpoint(
             fullContent=getattr(result, "fullContent", None),
             sourceMediaUrl=getattr(result, "sourceMediaUrl", None),
             thumbnailUrl=getattr(result, "thumbnailUrl", None),
-            createdAt=result.createdAt.isoformat(),
-            capturedAt=result.capturedAt.isoformat() if result.capturedAt else None,
+            capturedAt=result.capturedAt.isoformat(),
             captureSessionId=getattr(result, "captureSessionId", None),
             color=getattr(result, "color", None),
         )

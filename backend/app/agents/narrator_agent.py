@@ -100,7 +100,7 @@ async def narrate_artifact(
     artifact_text = (
         f"Title: {artifact.summary}\n"
         f"Type: {artifact.type.value}\n"
-        f"Created: {artifact.createdAt.strftime('%A, %B %d %Y') if artifact.createdAt else 'unknown'}\n"
+        f"Captured: {artifact.capturedAt.replace(tzinfo=None).strftime('%A, %B %d %Y at %I:%M %p')}\n"
     )
     if artifact.fullContent:
         artifact_text += f"Content: {artifact.fullContent[:1000]}"

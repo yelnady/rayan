@@ -67,12 +67,11 @@ async def create_artifact(
         summary=summary,
         fullContent=full_content,
         embedding=embedding,
-        createdAt=now,
+        capturedAt=captured_at or now,
         captureSessionId=capture_session_id,
         color=color,
         wall=wall,
         isSeedData=is_seed_data,
-        capturedAt=captured_at or now,
     )
     await _artifacts_ref(user_id, room_id).document(artifact_id).set(artifact.model_dump())
     logger.info("Artifact created: userId=%s roomId=%s artifactId=%s", user_id, room_id, artifact_id)
@@ -93,7 +92,7 @@ async def get_artifact(user_id: str, room_id: str, artifact_id: str) -> Artifact
 
 
 async def get_room_artifacts(user_id: str, room_id: str) -> list[Artifact]:
-    docs = await _artifacts_ref(user_id, room_id).order_by("createdAt").get()
+    docs = await _artifacts_ref(user_id, room_id).order_by("capturedAt").get()
     return [Artifact(**doc.to_dict()) for doc in docs if doc.exists]
 
 
