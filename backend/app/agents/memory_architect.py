@@ -25,7 +25,7 @@ from app.services.room_service import (
 logger = logging.getLogger(__name__)
 
 HIGH_SIMILARITY: float = 0.75
-LOW_SIMILARITY: float = 0.50
+LOW_SIMILARITY: float = 0.35
 
 
 
