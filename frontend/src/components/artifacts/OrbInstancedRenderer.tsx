@@ -41,8 +41,8 @@ const DEFAULT_ORB_COLOR = '#FF60B8';
 function formatDate(iso?: string): { datePart: string; timePart: string } {
     const d = new Date(iso ?? Date.now());
     return {
-        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase(),
-        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
     };
 }
 
@@ -234,7 +234,7 @@ export function OrbInstancedRenderer({ artifacts, onClick }: OrbInstancedRendere
 
             {/* Date/time plaques — only when inside this room */}
             {entries.filter((e) => currentRoomId === e.artifact.roomId).map((entry) => {
-                const dl = formatDate(entry.artifact.capturedAt ?? entry.artifact.createdAt);
+                const dl = formatDate(entry.artifact.capturedAt);
                 const color = entry.color ?? DEFAULT_ORB_COLOR;
                 return (
                     <Html

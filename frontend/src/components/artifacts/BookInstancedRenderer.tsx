@@ -42,8 +42,8 @@ function wallRotation(artifact: ArtifactData): [number, number, number] {
 function formatDate(iso?: string): { datePart: string; timePart: string } {
     const d = new Date(iso ?? Date.now());
     return {
-        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase(),
-        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }),
+        datePart: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase(),
+        timePart: d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
     };
 }
 
@@ -53,7 +53,7 @@ function DocumentItem({ artifact, onClick }: DocumentItemProps) {
     const [hovered, setHovered] = useState(false);
 
     const rotation = useMemo(() => wallRotation(artifact), [artifact]);
-    const dateLabel = useMemo(() => formatDate(artifact.capturedAt ?? artifact.createdAt), [artifact.capturedAt, artifact.createdAt]);
+    const dateLabel = useMemo(() => formatDate(artifact.capturedAt), [artifact.capturedAt]);
     const currentRoomId = usePalaceStore((s) => s.currentRoomId);
 
     // T164: Upgrade to MeshPhysicalMaterial for 'Premium' glossy document look.

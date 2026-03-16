@@ -32,8 +32,7 @@ export interface ArtifactDetailData {
     fullContent?: string;
     sourceMediaUrl?: string;
     thumbnailUrl?: string;
-    createdAt: string;
-    capturedAt?: string;
+    capturedAt: string;
     color?: string;
 }
 
@@ -347,9 +346,9 @@ export function ArtifactDetailModal({ artifactId, onClose }: ArtifactDetailModal
                     )}
 
                     {/* Meta */}
-                    {(artifact?.capturedAt || artifact?.createdAt) && (
+                    {artifact?.capturedAt && (
                         <p className="text-text-faint text-[11px] font-body m-0">
-                            Captured {new Date(artifact.capturedAt || artifact.createdAt).toLocaleString(undefined, {
+                            Captured {new Date(artifact.capturedAt).toLocaleString(undefined, {
                                 month: 'long', day: 'numeric', year: 'numeric',
                                 hour: '2-digit', minute: '2-digit',
                             })}

@@ -126,13 +126,12 @@ export interface Artifact {
   fullContent?: string;
   sourceMediaUrl?: string;
   thumbnailUrl?: string;
-  createdAt: string;
+  capturedAt: string;
   captureSessionId?: string;
   enrichments?: string[];
   relatedArtifacts?: string[];
   color?: string;
   wall?: WallPosition | 'center';
-  capturedAt?: string;
 }
 
 export interface EnrichmentImage {

@@ -245,11 +245,11 @@ export const Artifact = memo(function Artifact({ artifact, onClick, onHover }: A
   const accentColor = useMemo(() => TYPE_COLORS[artifact.visual] ?? '#60A8FF', [artifact.visual]);
 
   const dateLabel = useMemo(() => {
-    const d = new Date(artifact.capturedAt ?? artifact.createdAt);
-    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).toUpperCase();
-    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    const d = new Date(artifact.capturedAt);
+    const datePart = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
+    const timePart = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
     return { datePart, timePart };
-  }, [artifact.capturedAt, artifact.createdAt]);
+  }, [artifact.capturedAt]);
 
   const handleClick = () => onClick?.(artifact);
 

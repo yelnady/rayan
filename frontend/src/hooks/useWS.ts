@@ -135,7 +135,7 @@ function wireListeners(ws: RayanWebSocket): void {
           sourceMediaUrl: a.sourceMediaUrl,
           color: a.color,
           wall: a.wall,
-          createdAt: new Date().toISOString(),
+          capturedAt: new Date().toISOString(),
         } as never);
         // Reveal synthesis result overlay when the mind map artifact arrives
         if (a.type === 'synthesis' && a.sourceMediaUrl) {
