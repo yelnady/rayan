@@ -90,7 +90,7 @@ const GOOGLE_STACK = [
   { label: 'Gemini Live API',         sub: 'gemini-live-2.5-flash-native-audio', desc: 'Real-time voice agents with affective dialogue' },
   { label: 'Gemini 2.5 Flash',        sub: 'gemini-2.5-flash',                   desc: 'Categorization, narration, room clustering' },
   { label: 'Gemini Image',            sub: 'gemini-2.5-flash-image',             desc: 'Creative mind map synthesis for room walls' },
-  { label: 'Vertex AI Embeddings',    sub: 'gemini-embedding-2-preview',         desc: '768-dim semantic search and grounding' },
+  { label: 'Vertex AI Embeddings',    sub: 'text-embedding-005',                 desc: '768-dim semantic search and grounding' },
   { label: 'Google Search Grounding', sub: 'Built-in Gemini tool',               desc: 'Live web search injected into agent context mid-session' },
   { label: 'Google ADK',              sub: 'Agent Development Kit',              desc: 'Multi-agent orchestration — Capture, Recall, Narrator' },
   { label: 'Cloud Firestore',         sub: '',                                   desc: 'Rooms, artifacts, sessions, users' },
@@ -529,7 +529,7 @@ export function LandingPage() {
         <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
           <CalloutCard index={0} icon={Shield} iconBg="bg-emerald-50 border-emerald-200" iconColor="text-emerald-600" title="Zero Hallucination by Design">
             <p className="text-base sm:text-lg text-gray-600 leading-relaxed mb-3">
-              Every Recall answer is grounded by Vertex AI <code className="text-emerald-600 text-sm bg-emerald-50 px-1 rounded">gemini-embedding-2-preview</code>. Your query is embedded into a 768-dimensional vector, cosine-compared against every stored artifact, and the top 8 most relevant memories are injected into the live system prompt.
+              Every Recall answer is grounded by Vertex AI <code className="text-emerald-600 text-sm bg-emerald-50 px-1 rounded">text-embedding-005</code>. Your query is embedded into a 768-dimensional vector, cosine-compared against every stored artifact, and the top 8 most relevant memories are injected into the live system prompt.
             </p>
             <p className="text-base sm:text-lg text-gray-500 leading-relaxed">
               On every room navigation and artifact highlight, the search re-runs and fresh memories are injected mid-conversation. No reconnection. Always current.

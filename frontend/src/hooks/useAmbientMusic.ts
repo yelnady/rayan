@@ -53,7 +53,7 @@ export function useAmbientMusic(): void {
         }
     }, [isOverview, currentRoomId, rooms]);
 
-    // Duck to 10% during active recall/voice sessions.
+    // Duck to 1% during active recall/voice sessions.
     useEffect(() => {
         const sessionActive = voiceStatus !== 'disconnected' && voiceStatus !== 'error';
         if (sessionActive) {

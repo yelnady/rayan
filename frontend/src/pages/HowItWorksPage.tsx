@@ -136,7 +136,7 @@ const TECH_STACK = [
   {
     icon: Database,
     title: 'Vertex AI Embeddings',
-    desc: 'gemini-embedding-2-preview generates 768-dimensional vectors for every artifact. Cosine similarity search grounds every Recall answer in real captured memories with zero hallucination.',
+    desc: 'text-embedding-005 generates 768-dimensional vectors for every artifact. Cosine similarity search grounds every Recall answer in real captured memories with zero hallucination.',
     iconBg: 'bg-purple-50 border-purple-200',
     iconColor: 'text-purple-600',
   },

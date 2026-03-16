@@ -12,10 +12,10 @@
  */
 
 const AMBIENT_VOLUME = 0.16;
-const DUCKED_VOLUME  = 0.10;
-const CHIME_VOLUME   = 0.55;
-const CROSSFADE_MS   = 500;
-const DUCK_MS        = 300;
+const DUCKED_VOLUME = 0.02;
+const CHIME_VOLUME = 0.55;
+const CROSSFADE_MS = 500;
+const DUCK_MS = 300;
 
 type Slot = {
     source: AudioBufferSourceNode | null;
@@ -134,11 +134,12 @@ class AudioEngine {
         outgoing.gain.gain.setValueAtTime(outgoing.gain.gain.value, now);
         outgoing.gain.gain.linearRampToValueAtTime(0, now + fadeS);
 
-        // Fade incoming → AMBIENT_VOLUME (or stay silent if muted).
+        // Fade incoming → target volume (or stay silent if muted).
         incoming.gain.gain.cancelScheduledValues(now);
         incoming.gain.gain.setValueAtTime(0, now);
         if (!this._isMuted) {
-            incoming.gain.gain.linearRampToValueAtTime(AMBIENT_VOLUME, now + fadeS);
+            const target = this.isDucked ? DUCKED_VOLUME : AMBIENT_VOLUME;
+            incoming.gain.gain.linearRampToValueAtTime(target, now + fadeS);
         }
 
         this.activeSlot = this.activeSlot === 'A' ? 'B' : 'A';

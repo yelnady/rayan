@@ -84,7 +84,7 @@ Captured knowledge is **typed and visually rendered** as one of 16 distinct 3D o
 | ...and 9 more | Unique 3D models per type |
 
 ### 🔍 Semantic Search Grounding (Zero Hallucination)
-Every Recall answer is grounded by **`gemini-embedding-2-preview`**  -  768-dimensional cosine similarity search over your stored memories. The system prompt enforces citation. Rayan cannot invent information that isn't in your palace.
+Every Recall answer is grounded by **`text-embedding-005`**  -  768-dimensional cosine similarity search over your stored memories. The system prompt enforces citation. Rayan cannot invent information that isn't in your palace.
 
 ### 🌐 Google Search Grounding (Live Web Knowledge)
 Both the Capture and Recall agents have access to Gemini's built-in **`google_search`** tool — no external API key required. When a user asks about something not yet in their palace, the agent queries the live web mid-session and injects verified facts directly into its spoken response. This is native Gemini grounding, not a wrapper around a third-party search API.
@@ -293,7 +293,7 @@ Rayan isn't a notes app. It's a **persistent second brain** you can walk through
               │             └──────────────┬──────────────┘    │
               │                            │                   │
               │  ┌─────────────────────────▼─────────────┐    │
-              │  │  Vertex AI  gemini-embedding-2-preview │    │
+              │  │  Vertex AI  text-embedding-005 │    │
               │  │  Semantic search grounding             │    │
               │  │  768-dim cosine similarity             │    │
               │  └────────────────────────────────────────┘    │
@@ -314,13 +314,13 @@ graph TD
         CA["CaptureAgent\ngemini-live-2.5-flash-native-audio\nenable_affective_dialog=true"]
         RA["RecallAgent\ngemini-live-2.5-flash-native-audio\nenable_affective_dialog=true"]
         MA["Memory Architect\ngemini-2.5-flash\ncategorize + cluster rooms"]
-        SS["Semantic Search\ngemini-embedding-2-preview\n768-dim cosine grounding"]
+        SS["Semantic Search\ntext-embedding-005\n768-dim cosine grounding"]
     end
 
     subgraph GCP["Google Cloud"]
         FS["Firestore\nrooms / artifacts / embeddings"]
         GCS["Cloud Storage\nscreenshots / mind maps"]
-        VAI["Vertex AI\ngemini-embedding-2-preview"]
+        VAI["Vertex AI\ntext-embedding-005"]
     end
 
     Browser <-->|"WebSocket\naudio chunks, video frames\npalace_update events"| WS
@@ -342,7 +342,7 @@ graph TD
 
 Every Recall session is semantically grounded before Rayan speaks a single word:
 
-1. On session start, `_retrieve_context()` embeds your current artifact summary via **`gemini-embedding-2-preview`**
+1. On session start, `_retrieve_context()` embeds your current artifact summary via **`text-embedding-005`**
 2. It runs cosine similarity search across every stored artifact embedding in Firestore
 3. The **top-8 most semantically relevant memories** are injected into the live system prompt under `MEMORIES:`
 4. The system prompt enforces: *"ONLY use information from the provided MEMORIES section. NEVER hallucinate or invent information. Cite which artifact/room the information comes from."*
@@ -377,7 +377,7 @@ Gemini naturally adjusts its vocal tone, pacing, and empathy based on your emoti
 | AI  -  Live Agents | Gemini Live API (`gemini-live-2.5-flash-native-audio`) |
 | AI  -  Categorization | `gemini-2.5-flash` |
 | AI  -  Creative Synthesis | `gemini-2.5-flash-image` — generates styled mind map images to visually summarize room memories |
-| AI  -  Semantic Grounding | Vertex AI `gemini-embedding-2-preview` (768-dim cosine similarity) |
+| AI  -  Semantic Grounding | Vertex AI `text-embedding-005` (768-dim cosine similarity) |
 | SDK | Google GenAI SDK (`google-genai`), Google ADK (`google-adk`) |
 | Database | Cloud Firestore |
 | Storage | Cloud Storage (screenshots + mind maps) |
@@ -399,7 +399,7 @@ rayan/
 │   │   │   └── tools/tools.py        # Tool declarations for both agents
 │   │   ├── services/
 │   │   │   ├── search_service.py     # Semantic search (Vertex AI embeddings)
-│   │   │   ├── embedding_service.py  # gemini-embedding-2-preview via Vertex AI
+│   │   │   ├── embedding_service.py  # text-embedding-005 via Vertex AI
 │   │   │   ├── synthesis_service.py  # AI mind map generation
 │   │   │   ├── room_service.py       # Room CRUD
 │   │   │   └── artifact_service.py   # Artifact CRUD

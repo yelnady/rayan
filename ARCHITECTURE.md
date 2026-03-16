@@ -58,13 +58,13 @@
 │  │  Memory Architect  (gemini-2.5-flash)                         │   │
 │  │  • Categorizes concept into existing room or suggests new one  │   │
 │  │  • Assigns artifact type and visual                            │   │
-│  │  • Generates embedding via Vertex AI gemini-embedding-2-preview        │   │
+│  │  • Generates embedding via Vertex AI text-embedding-005        │   │
 │  │  • Writes artifact + embedding to Firestore                    │   │
 │  └────────────────────────────────┬───────────────────────────────┘  │
 │                                   │                                  │
 │  ┌────────────────────────────────▼───────────────────────────────┐  │
 │  │  Semantic Search  (recall grounding)                           │  │
-│  │  • Embeds user query via Vertex AI gemini-embedding-2-preview          │  │
+│  │  • Embeds user query via Vertex AI text-embedding-005          │  │
 │  │  • Cosine similarity scan across all stored embeddings         │  │
 │  │  • Top-8 results injected into RecallAgent system prompt       │  │
 │  │  • Re-runs on every room navigation and artifact highlight      │  │
@@ -77,7 +77,7 @@
 │  ┌──────────────────────┐   ┌────────────────────────────────────┐   │
 │  │  Cloud Firestore     │   │  Vertex AI                         │   │
 │  │                      │   │                                    │   │
-│  │  users/              │   │  gemini-embedding-2-preview                │   │
+│  │  users/              │   │  text-embedding-005                │   │
 │  │   {userId}/          │   │  768-dimensional embeddings        │   │
 │  │    rooms/            │   │  Used for:                         │   │
 │  │     {roomId}/        │   │  • Artifact storage (capture)      │   │
@@ -130,7 +130,7 @@ Memory Architect (gemini-2.5-flash)
   • Assigns artifact type + visual
      │
      ▼
-gemini-embedding-2-preview (Vertex AI)
+text-embedding-005 (Vertex AI)
   • Generates 768-dim embedding
      │
      ├──► Firestore  (artifact + embedding stored)
@@ -155,7 +155,7 @@ On session start / room nav / artifact highlight:
   update_context() → semantic_search()
      │
      ▼
-gemini-embedding-2-preview (Vertex AI)
+text-embedding-005 (Vertex AI)
   Embed current context / artifact summary
      │
      ▼
