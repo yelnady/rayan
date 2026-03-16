@@ -2,11 +2,13 @@ import { create } from 'zustand';
 import type { CaptureAckMessage, CaptureCompleteMessage, RoomSuggestionMessage } from '../services/websocket';
 
 export type CaptureStatus = 'idle' | 'capturing' | 'processing' | 'complete' | 'error';
+export type CapturePace = 'selective' | 'balanced' | 'thorough';
 
 interface CaptureState {
   sessionId: string | null;
   status: CaptureStatus;
   sourceType: 'webcam' | 'screen_share' | 'upload' | 'text_input' | 'voice';
+  capturePace: CapturePace;
   concepts: CaptureAckMessage['extraction'][];
   summary: CaptureCompleteMessage['summary'] | null;
   roomSuggestion: RoomSuggestionMessage | null;
@@ -22,6 +24,7 @@ interface CaptureState {
   setSessionId: (id: string | null) => void;
   setStatus: (status: CaptureStatus) => void;
   setSourceType: (type: CaptureState['sourceType']) => void;
+  setCapturePace: (pace: CapturePace) => void;
   addConcept: (extraction: CaptureAckMessage['extraction']) => void;
   setSummary: (summary: CaptureCompleteMessage['summary']) => void;
   setRoomSuggestion: (
@@ -59,6 +62,7 @@ const defaultState = {
   sessionId: null,
   status: 'idle' as CaptureStatus,
   sourceType: 'webcam' as const,
+  capturePace: 'balanced' as CapturePace,
   concepts: [],
   summary: null,
   roomSuggestion: null,
@@ -75,6 +79,7 @@ export const useCaptureStore = create<CaptureState>((set) => ({
   setSessionId: (sessionId) => set({ sessionId }),
   setStatus: (status) => set({ status }),
   setSourceType: (sourceType) => set({ sourceType }),
+  setCapturePace: (capturePace) => set({ capturePace }),
   addConcept: (extraction) =>
     set((state) => ({ concepts: [...state.concepts, extraction] })),
   setSummary: (summary) => set({ summary }),

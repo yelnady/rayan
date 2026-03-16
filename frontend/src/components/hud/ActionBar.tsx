@@ -11,6 +11,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useCapture } from '../../hooks/useCapture';
 import { useCaptureStore } from '../../stores/captureStore';
+import type { CapturePace } from '../../stores/captureStore';
 import { useVoice } from '../../hooks/useVoice';
 import { useVoiceStore } from '../../stores/voiceStore';
 import { useCameraStore } from '../../stores/cameraStore';
@@ -190,10 +191,18 @@ function OverviewSection() {
 
 // ─── Capture half ─────────────────────────────────────────────────────────────
 
+const PACE_OPTIONS: { pace: CapturePace; label: string; description: string }[] = [
+    { pace: 'selective', label: 'Selective', description: 'Key ideas only' },
+    { pace: 'balanced', label: 'Balanced', description: 'Steady rhythm' },
+    { pace: 'thorough', label: 'Thorough', description: 'Catch everything' },
+];
+
 function CaptureSection() {
     const { startCapture, stopCapture } = useCapture();
     const status = useCaptureStore((s) => s.status);
     const concepts = useCaptureStore((s) => s.concepts);
+    const capturePace = useCaptureStore((s) => s.capturePace);
+    const setCapturePace = useCaptureStore((s) => s.setCapturePace);
     const voiceStatus = useVoiceStore((s) => s.status);
     const [selectedSource, setSelectedSource] = useState<'webcam' | 'screen_share' | 'voice'>('webcam');
     const [showMenu, setShowMenu] = useState(false);
@@ -235,29 +244,51 @@ function CaptureSection() {
 
     return (
         <div className="relative">
-            {/* Source Selection Menu */}
+            {/* Source + Pace Selection Menu */}
             {!isCapturing && showMenu && (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-glass backdrop-blur-xl border border-border rounded-2xl p-1.5 flex flex-col gap-1 shadow-xl animate-[fadeIn_0.2s_ease]">
-                    <SourceOption
-                        onClick={() => handleStart('webcam')}
-                        icon={<CamIcon size={16} />}
-                        label="Webcam"
-                        active={selectedSource === 'webcam'}
-                    />
-                    {supportsScreenShare && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 bg-glass backdrop-blur-xl border border-border rounded-2xl p-2 flex flex-col gap-2 shadow-xl animate-[fadeIn_0.2s_ease] min-w-[180px]">
+                    {/* Source options */}
+                    <div className="flex flex-col gap-0.5">
+                        <span className="font-body text-[10px] font-semibold text-text-muted uppercase tracking-[0.06em] px-2 pb-0.5">Source</span>
                         <SourceOption
-                            onClick={() => handleStart('screen_share')}
-                            icon={<MapIcon size={16} active={false} />}
-                            label="Screen"
-                            active={selectedSource === 'screen_share'}
+                            onClick={() => handleStart('webcam')}
+                            icon={<CamIcon size={16} />}
+                            label="Webcam"
+                            active={selectedSource === 'webcam'}
                         />
-                    )}
-                    <SourceOption
-                        onClick={() => handleStart('voice')}
-                        icon={<MicIcon size={16} color="rgba(0,0,0,0.6)" />}
-                        label="Voice Only"
-                        active={selectedSource === 'voice'}
-                    />
+                        {supportsScreenShare && (
+                            <SourceOption
+                                onClick={() => handleStart('screen_share')}
+                                icon={<MapIcon size={16} active={false} />}
+                                label="Screen"
+                                active={selectedSource === 'screen_share'}
+                            />
+                        )}
+                        <SourceOption
+                            onClick={() => handleStart('voice')}
+                            icon={<MicIcon size={16} color="rgba(0,0,0,0.6)" />}
+                            label="Voice Only"
+                            active={selectedSource === 'voice'}
+                        />
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-border-light mx-1" />
+
+                    {/* Pace options */}
+                    <div className="flex flex-col gap-0.5">
+                        <span className="font-body text-[10px] font-semibold text-text-muted uppercase tracking-[0.06em] px-2 pb-0.5">Capture Pace</span>
+                        {PACE_OPTIONS.map(({ pace, label, description }) => (
+                            <button
+                                key={pace}
+                                onClick={() => setCapturePace(pace)}
+                                className={`flex items-center justify-between gap-3 px-3 py-2 rounded-xl border-none cursor-pointer transition-colors w-full text-left ${capturePace === pace ? 'bg-primary text-white' : 'bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)]'}`}
+                            >
+                                <span className="font-body text-[13px] font-medium whitespace-nowrap">{label}</span>
+                                <span className={`font-body text-[10px] whitespace-nowrap ${capturePace === pace ? 'text-white/70' : 'text-text-muted'}`}>{description}</span>
+                            </button>
+                        ))}
+                    </div>
                 </div>
             )}
 
