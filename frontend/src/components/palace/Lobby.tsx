@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { Text, useGLTF, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useCameraStore } from '../../stores/cameraStore';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useTransitionStore } from '../../stores/transitionStore';
+import { useVoiceStore } from '../../stores/voiceStore';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
 
@@ -26,6 +27,7 @@ interface LobbyProps {
   onEnterRoom: (roomId: string) => void;
   onEnterLobby?: () => void;
   onRoomContextMenu?: (roomId: string, screenX: number, screenY: number) => void;
+  onMicClick?: () => void;
 }
 
 // Compute door position on a wall, supporting multiple doors per wall via doorIndex.
@@ -48,7 +50,7 @@ function wallDoorPosition(wall: string, doorIndex: number): [number, number, num
   }
 }
 
-export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomContextMenu }: LobbyProps) {
+export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomContextMenu, onMicClick }: LobbyProps) {
   const isOverviewMode = useCameraStore(s => s.isOverviewMode);
   const highlightedDoorRoomId = usePalaceStore(s => s.highlightedLobbyDoorRoomId);
   const roomMap = useMemo(() => new Map(rooms.map((r) => [r.id, r])), [rooms]);
@@ -158,8 +160,12 @@ export function Lobby({ lobbyDoors, rooms, onEnterRoom, onEnterLobby, onRoomCont
       {/* On-wall "LOBBY" label (North wall) removed per user request */}
 
       {/* ── Centerpiece Microphone ────────────────────────────────────────── */}
-      <group position={[LOBBY_SIZE / 2, 1.2, 3]}>
-        {/* Slowly rotate or just place statically. For now, static in center of lobby */}
+      <group
+        position={[LOBBY_SIZE / 2, 1.2, 3]}
+        onClick={(e) => { e.stopPropagation(); onMicClick?.(); }}
+        onPointerOver={() => { document.body.style.cursor = 'pointer'; }}
+        onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+      >
         <primitive
           object={micScene}
           scale={0.6}

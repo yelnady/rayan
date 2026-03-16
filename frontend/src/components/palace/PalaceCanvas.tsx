@@ -38,6 +38,7 @@ const WALL_CYCLE: WallPosition[] = ['north', 'east', 'south', 'west'];
 
 interface PalaceCanvasProps {
   onArtifactClick?: (artifact: ArtifactData) => void;
+  onMicClick?: () => void;
 }
 
 // Global massive ground plane that sits slightly below all rooms
@@ -144,7 +145,7 @@ interface DoorContextMenu {
   confirmDelete: boolean;
 }
 
-export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
+export function PalaceCanvas({ onArtifactClick, onMicClick }: PalaceCanvasProps) {
   const leftOffset = 0;
   const { palace, layout, rooms, artifacts, highlightedArtifactIds } = usePalaceStore();
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
@@ -398,6 +399,7 @@ export function PalaceCanvas({ onArtifactClick }: PalaceCanvasProps) {
             onEnterRoom={handleEnterRoom}
             onEnterLobby={handleEnterLobby}
             onRoomContextMenu={handleDoorContextMenu}
+            onMicClick={onMicClick}
           />
 
           {/* Rooms with their artifacts */}

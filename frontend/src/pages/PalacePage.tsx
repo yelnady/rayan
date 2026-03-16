@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { usePalace } from '../hooks/usePalace';
 import { useWS } from '../hooks/useWS';
 import { useCaptureWS } from '../hooks/useCaptureWS';
+import { useVoice } from '../hooks/useVoice';
 import { useAmbientMusic } from '../hooks/useAmbientMusic';
 import { playArtifactChime } from '../services/audioEngine';
 import { PalaceCanvas } from '../components/palace/PalaceCanvas';
@@ -35,6 +36,16 @@ export function PalacePage() {
   // Initialize capture WebSocket listeners
   useCaptureWS();
   useAmbientMusic();
+
+  const { status: voiceStatus, connect: voiceConnect, toggleMute } = useVoice();
+
+  const handleMicClick = useCallback(async () => {
+    if (voiceStatus === 'disconnected' || voiceStatus === 'error') {
+      await voiceConnect();
+    } else if (voiceStatus === 'connected' || voiceStatus === 'responding') {
+      toggleMute();
+    }
+  }, [voiceStatus, voiceConnect, toggleMute]);
 
   const currentRoomId = usePalaceStore((s) => s.currentRoomId);
   const isOverviewMode = useCameraStore((s) => s.isOverviewMode);
@@ -175,7 +186,7 @@ export function PalacePage() {
   return (
     <>
       {/* 3D palace scene — always full width, panel floats on top */}
-      <PalaceCanvas onArtifactClick={handleArtifactClick} />
+      <PalaceCanvas onArtifactClick={handleArtifactClick} onMicClick={handleMicClick} />
 
       {/* Loading overlay */}
       {(loading || isSeeding) && (

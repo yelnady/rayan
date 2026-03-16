@@ -1,24 +1,26 @@
 import { useVoice } from '../../hooks/useVoice';
 
 export function VoiceButton({ className = '' }: { className?: string }) {
-    const { status, muted, connect, disconnect } = useVoice();
+    const { status, muted, connect, toggleMute } = useVoice();
 
     const handleClick = async () => {
         if (status === 'disconnected' || status === 'error') {
             await connect();
         } else if (status === 'connected' || status === 'responding') {
-            disconnect();
+            toggleMute();
         }
     };
 
     const label =
         status === 'disconnected' ? 'Chat with memory'
             : status === 'connecting' ? 'Connecting…'
-                : status === 'connected'
-                    ? 'End voice session'
-                    : status === 'responding'
-                        ? 'Stop and disconnect'
-                        : 'Voice error – retry';
+                : status === 'connected' && muted
+                    ? 'Tap to unmute'
+                    : status === 'connected'
+                        ? 'Tap to mute'
+                        : status === 'responding'
+                            ? 'Rayan is speaking…'
+                            : 'Voice error – retry';
 
     const getBgColorClass = () => {
         if (status === 'connected' && muted) return 'bg-[rgba(255,255,255,0.15)]';
