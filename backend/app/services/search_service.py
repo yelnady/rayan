@@ -150,6 +150,71 @@ async def semantic_search(
     return top
 
 
+async def get_memories_by_date_range(
+    user_id: str,
+    captured_after: Optional[datetime] = None,
+    captured_before: Optional[datetime] = None,
+    limit: int = 20,
+) -> list[SearchResult]:
+    """Return all artifacts captured within a date range, sorted newest-first.
+
+    Unlike semantic_search, this does a direct Firestore scan with no
+    embedding — useful when the user asks about a specific date/period
+    and there is no natural-language topic to rank against.
+    """
+    db = get_firestore_client()
+    rooms_ref = db.collection("users").document(user_id).collection("rooms")
+    rooms_snapshot = await rooms_ref.get()
+    all_rooms = [Room(**snap.to_dict()) for snap in rooms_snapshot if snap.exists]
+
+    results: list[SearchResult] = []
+
+    for room in all_rooms:
+        artifacts_ref = rooms_ref.document(room.id).collection("artifacts")
+        artifact_docs = await artifacts_ref.get()
+
+        for doc in artifact_docs:
+            if not doc.exists:
+                continue
+            try:
+                artifact = Artifact(**doc.to_dict())
+            except Exception:
+                logger.warning("Skipping malformed artifact doc %s", doc.id)
+                continue
+
+            if artifact.capturedAt is None:
+                continue
+            if captured_after and artifact.capturedAt < captured_after:
+                continue
+            if captured_before and artifact.capturedAt > captured_before:
+                continue
+
+            results.append(
+                SearchResult(
+                    artifact_id=artifact.id,
+                    room_id=room.id,
+                    room_name=room.name,
+                    summary=artifact.summary,
+                    similarity=1.0,  # not ranked by relevance
+                    highlight=None,
+                    full_content=artifact.fullContent,
+                    embedding=[],
+                    captured_at=artifact.capturedAt,
+                )
+            )
+
+    results.sort(key=lambda r: r.captured_at or datetime.min, reverse=True)
+    top = results[:limit]
+    logger.info(
+        "get_memories_by_date_range: userId=%s after=%s before=%s candidates=%d top=%d",
+        user_id,
+        captured_after.date() if captured_after else None,
+        captured_before.date() if captured_before else None,
+        len(results), len(top),
+    )
+    return top
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────────
 
 def _extract_highlight(query: str, text: str, window: int = 120) -> Optional[str]:
