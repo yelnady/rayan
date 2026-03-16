@@ -63,6 +63,7 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
     """T041 — Start a capture session and spin up a CaptureAgent."""
     session_id: str = msg.get("sessionId", "")
     source_type: str = msg.get("sourceType", "webcam")
+    capture_pace: str = msg.get("capturePace", "balanced")
 
     if not session_id:
         await manager.send(user_id, {
@@ -132,7 +133,7 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
         await handle_capture_end(user_id, {"sessionId": session_id}, websocket)
 
     display_name = manager.get_display_name(user_id)
-    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name)
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name, capture_pace=capture_pace)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)

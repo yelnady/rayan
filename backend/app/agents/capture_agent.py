@@ -27,8 +27,15 @@ from app.services.capture_service import add_artifact_to_session
 
 logger = logging.getLogger(__name__)
 
-MIN_EXTRACTION_INTERVAL: float = 15.0
 CONFIDENCE_THRESHOLD: float = 0.7
+
+# Seconds between automatic captures for each pace mode
+CAPTURE_PACE_INTERVALS: dict[str, float] = {
+    "selective": 60.0,
+    "balanced": 30.0,
+    "thorough": 12.0,
+}
+_DEFAULT_PACE = "balanced"
 _MAX_TITLE_WORDS: int = 8
 MERGE_SIMILARITY_THRESHOLD: float = 0.90
 
@@ -115,7 +122,7 @@ Your default instinct must be to UPDATE existing memories, not create new ones. 
 
 PRIORITY ORDER (always follow this):
 1. **edit_artifact** — PREFERRED. If an existing memory (listed above under each room) covers the same topic, call `edit_artifact` with an updated summary that absorbs the new information. The new summary should be a complete, improved rewrite — not just an append. Do this even if only partial overlap exists.
-2. **capture_concept** — only when no existing memory is relevant. The system also auto-detects near-duplicates and merges them. At least 40 seconds must have passed since the last capture, and confidence >= 0.7.
+2. **capture_concept** — only when no existing memory is relevant. The system also auto-detects near-duplicates and merges them. At least {min_interval} seconds must have passed since the last capture, and confidence >= 0.7.
 3. **create_artifact** — only when the user EXPLICITLY asks you to save something (e.g. 'add this', 'save that', 'remember this'). No time or confidence restrictions. Then confirm: 'Got it, {name} — [concept name] added to [room name].'
 
 EDITING RULES:
@@ -171,10 +178,12 @@ class CaptureAgent:
         on_user_text: Optional[TextCallback] = None,
         on_close: Optional[CloseCallback] = None,
         display_name: str = "",
+        capture_pace: str = _DEFAULT_PACE,
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
         self._display_name = display_name.split()[0] if display_name else "there"
+        self._min_extraction_interval: float = CAPTURE_PACE_INTERVALS.get(capture_pace, CAPTURE_PACE_INTERVALS[_DEFAULT_PACE])
         self._system_prompt: str = ""  # built in start() after room fetch
         self._on_extraction = on_extraction
         self._on_audio = on_audio
@@ -205,6 +214,7 @@ class CaptureAgent:
             name=self._display_name,
             room_directory=room_directory,
             current_date=datetime.now().strftime("%A, %B %-d, %Y"),
+            min_interval=int(self._min_extraction_interval),
         )
         self._task = asyncio.create_task(
             self._lifecycle(), name=f"capture-{self.session_id}"
@@ -1002,7 +1012,7 @@ class CaptureAgent:
 
     def _should_extract(self, confidence: float) -> bool:
         elapsed = time.monotonic() - self._last_extraction_at
-        return confidence >= CONFIDENCE_THRESHOLD and elapsed >= MIN_EXTRACTION_INTERVAL
+        return confidence >= CONFIDENCE_THRESHOLD and elapsed >= self._min_extraction_interval
 
 
 # ── Agent registry (session_id → CaptureAgent) ─────────────────────────────
