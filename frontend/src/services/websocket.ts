@@ -272,8 +272,8 @@ export class RayanWebSocket {
 
   // ── Client → Server helpers ─────────────────────────────────────────────
 
-  sendCaptureStart(sessionId: string, sourceType: "webcam" | "screen_share" | "upload" | "text_input" | "voice"): void {
-    this._send({ type: "capture_start", sessionId, sourceType });
+  sendCaptureStart(sessionId: string, sourceType: "webcam" | "screen_share" | "upload" | "text_input" | "voice", capturePace: "selective" | "balanced" | "thorough" = "balanced"): void {
+    this._send({ type: "capture_start", sessionId, sourceType, capturePace });
   }
 
   sendVideoFrame(sessionId: string, frameIndex: number, data: string, timestamp: number): void {

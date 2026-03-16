@@ -44,7 +44,7 @@ export function useCapture() {
       store.setStatus('capturing');
 
       // Notify backend
-      ws.sendCaptureStart(sessionId, source);
+      ws.sendCaptureStart(sessionId, source, store.capturePace);
 
       // Start frame capture for visual sources (webcam, screen share)
       let displayStream: MediaStream | null = null;
