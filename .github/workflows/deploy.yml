@@ -58,7 +58,7 @@ jobs:
             --region us-central1 \
             --project rayan-memory \
             --format "value(status.url)")
-          echo "✅ Backend deployed: $URL"
+          echo "Backend deployed: $URL"
           echo "   Health: $URL/health"
           echo "   Docs:   $URL/docs"
 
@@ -109,4 +109,4 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Print hosting URL
-        run: echo "✅ Frontend deployed: https://rayan-memory.web.app"
+        run: echo "Frontend deployed: https://rayan-memory.web.app"
