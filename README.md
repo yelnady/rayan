@@ -6,7 +6,7 @@
 
 [![Live App](https://img.shields.io/badge/Live%20App-rayan--memory.web.app-4285F4?style=for-the-badge&logo=firebase&logoColor=white)](https://rayan-memory.web.app)
 [![Gemini Live API](https://img.shields.io/badge/Gemini%20Live%20API-native--audio-8B5CF6?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
-[![Gemini Image](https://img.shields.io/badge/gemini--2.5--flash--image-Creative%20Synthesis-34A853?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
+[![Gemini Image](https://img.shields.io/badge/gemini--2.5--flash--image-Creative%20Synthesis-FFE135?style=for-the-badge&logo=google&logoColor=black)](https://ai.google.dev/)
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Deployed-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Firebase Hosting](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
 [![Vertex AI](https://img.shields.io/badge/Vertex%20AI-text--embedding--005-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/vertex-ai)
