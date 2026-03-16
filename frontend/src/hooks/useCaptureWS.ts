@@ -11,6 +11,9 @@ import type { CaptureAckMessage, CaptureAudioMessage, CaptureSessionStartedMessa
 export function useCaptureWS() {
   const ws = useWS();
   const playbackRef = useRef<AudioPlayback | null>(null);
+  // Buffered capture tool event — flushed after Rayan's first text arrives so
+  // the spoken message always appears before the "Captured: ..." badge.
+  const pendingCaptureEventRef = useRef<{ text: string; toolName: string } | null>(null);
   const {
     addToolEvent,
     appendRayanText,
@@ -44,16 +47,16 @@ export function useCaptureWS() {
       })
     );
 
-    // Capture acknowledgment (concept extracted)
+    // Capture acknowledgment (concept extracted).
+    // Buffer the tool badge — it will be flushed after Rayan's first spoken text
+    // so the message always appears before the "Captured: ..." badge.
     unsubscribers.push(
       ws.on('capture_ack', (msg: CaptureAckMessage) => {
         const { extraction, voiceResponse } = msg;
-        // Add tool event for the concept extraction
-        addToolEvent(
-          `Captured: ${extraction.concept} (${Math.round(extraction.confidence * 100)}%)`,
-          'capture_concept'
-        );
-        // Add voice response as text from Rayan
+        pendingCaptureEventRef.current = {
+          text: `Captured: ${extraction.concept} (${Math.round(extraction.confidence * 100)}%)`,
+          toolName: 'capture_concept',
+        };
         if (voiceResponse) {
           appendRayanText(voiceResponse);
         }
@@ -61,10 +64,15 @@ export function useCaptureWS() {
       })
     );
 
-    // Text transcription from Rayan — shown in ResponsePanel
+    // Text transcription from Rayan — flush any buffered capture badge first so
+    // Rayan's message always precedes the "Captured: ..." tool event.
     unsubscribers.push(
       ws.on('capture_text', (msg: CaptureTextMessage) => {
         appendRayanText(msg.text);
+        if (pendingCaptureEventRef.current) {
+          addToolEvent(pendingCaptureEventRef.current.text, pendingCaptureEventRef.current.toolName);
+          pendingCaptureEventRef.current = null;
+        }
       })
     );
 

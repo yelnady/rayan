@@ -36,7 +36,6 @@ export function useAmbientMusic(): void {
     const rooms          = usePalaceStore((s) => s.rooms);
     const voiceStatus    = useVoiceStore((s) => s.status);
     const captureStatus  = useCaptureStore((s) => s.status);
-    const captureSource  = useCaptureStore((s) => s.sourceType);
 
     useEffect(() => {
         if (isOverview || !currentRoomId) {
@@ -54,27 +53,23 @@ export function useAmbientMusic(): void {
         }
     }, [isOverview, currentRoomId, rooms]);
 
-    // Duck to 10% for the full duration of any active session (recall or voice capture).
-    // Screen/webcam capture is already muted entirely by the effect below — don't duck there.
+    // Duck to 10% during active recall/voice sessions.
     useEffect(() => {
-        const sessionActive =
-            (voiceStatus !== 'disconnected' && voiceStatus !== 'error') ||
-            (captureStatus === 'capturing' && captureSource === 'voice');
+        const sessionActive = voiceStatus !== 'disconnected' && voiceStatus !== 'error';
         if (sessionActive) {
             audioEngine.duck();
         } else {
             audioEngine.unduck();
         }
-    }, [voiceStatus, captureStatus, captureSource]);
+    }, [voiceStatus]);
 
-    // Mute during screen share / webcam capture so the music doesn't bleed
-    // into the tab audio stream that getDisplayMedia captures and sends to the backend.
+    // Mute entirely during any capture mode so background audio doesn't bleed
+    // into the mic or tab audio stream sent to the backend.
     useEffect(() => {
-        const isCapturing = captureStatus === 'capturing' && captureSource !== 'voice';
-        if (isCapturing) {
+        if (captureStatus === 'capturing') {
             audioEngine.mute();
         } else {
             audioEngine.unmute();
         }
-    }, [captureStatus, captureSource]);
+    }, [captureStatus]);
 }
