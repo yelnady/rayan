@@ -11,6 +11,8 @@ const TOOL_ICONS: Record<string, string> = {
     web_search: '🔍',
     synthesize_room: '🗺️',
     semantic_jump: '🔀',
+    search_memories: '🧠',
+    search_memories_by_date: '📅',
 };
 
 export function ToolActivityToast() {
