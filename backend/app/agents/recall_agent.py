@@ -492,13 +492,13 @@ class RecallAgent:
         elif fn_name == "highlight_artifact":
             artifact_id = fn_args.get("artifact_id", "")
             live = self._sessions.get(user_id)
-            # Sync memory automatically when highlighting
-            await self.update_context(user_id, live.current_room_id if live else None, artifact_id)
 
             await notify({
                 "label": "Highlighting artifact",
                 "artifactId": artifact_id,
             })
+            # Sync memory in background so Gemini resumes speaking immediately
+            asyncio.create_task(self.update_context(user_id, live.current_room_id if live else None, artifact_id))
             return f"Highlighted artifact {artifact_id}. I have also loaded its full content into my memory."
 
         elif fn_name == "create_artifact":
@@ -511,65 +511,68 @@ class RecallAgent:
             artifact_type_str = fn_args.get("artifact_type", "conversation")
 
             await notify({"label": f"Saving: {title or summary[:50]}…"})
-            try:
-                from app.agents.memory_architect import categorize_and_store
-                from app.services.room_service import add_lobby_door
-                from app.websocket.manager import manager as ws_manager
 
-                result = await categorize_and_store(
-                    user_id=user_id,
-                    session_id=None,
-                    concept_title=title,
-                    concept_summary=summary,
-                    concept_type=artifact_type_str,
-                    concept_keywords=keywords,
-                    concept_confidence=1.0,
-                    full_content=full_content,
-                )
-                artifact = result.artifact
-                room = result.room
+            # Run the heavy save in the background so Gemini resumes speaking immediately
+            async def _save_artifact(uid: str) -> None:
+                try:
+                    from app.agents.memory_architect import categorize_and_store
+                    from app.services.room_service import add_lobby_door
+                    from app.websocket.manager import manager as ws_manager
 
-                rooms_added: list[dict] = []
-                lobby_doors_added: list[dict] = []
-                if result.action == "suggested_new":
-                    rooms_added = [{
-                        "id": room.id,
-                        "name": room.name,
-                        "position": {"x": room.position.x, "y": room.position.y, "z": room.position.z},
-                        "style": room.style,
-                    }]
-                    lobby_doors_added = [await add_lobby_door(user_id, room.id)]
+                    result = await categorize_and_store(
+                        user_id=uid,
+                        session_id=None,
+                        concept_title=title,
+                        concept_summary=summary,
+                        concept_type=artifact_type_str,
+                        concept_keywords=keywords,
+                        concept_confidence=1.0,
+                        full_content=full_content,
+                    )
+                    artifact = result.artifact
+                    room = result.room
 
-                await ws_manager.send(user_id, {
-                    "type": "palace_update",
-                    "changes": {
-                        "roomsAdded": rooms_added,
-                        "artifactsAdded": [{
-                            "id": artifact.id,
-                            "roomId": artifact.roomId,
-                            "type": artifact.type.value,
-                            "position": {"x": artifact.position.x, "y": artifact.position.y, "z": artifact.position.z},
-                            "visual": artifact.visual.value,
-                            "title": artifact.title,
-                            "summary": artifact.summary,
-                        }],
-                        "connectionsAdded": [],
-                        "lobbyDoorsAdded": lobby_doors_added,
-                    },
-                })
-                # Track the resolved room and refresh Gemini's context
-                live = self._sessions.get(user_id)
-                if live:
-                    live.current_room_id = room.id
-                await self.update_context(user_id, room.id)
-                logger.info(
-                    "[RecallAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
-                    user_id, artifact.id, room.id, result.action,
-                )
-                return f"Artifact saved in room '{room.name}' (action={result.action}): id={artifact.id}"
-            except Exception:
-                logger.exception("create_artifact failed for userId=%s", user_id)
-                return "Failed to save artifact"
+                    rooms_added: list[dict] = []
+                    lobby_doors_added: list[dict] = []
+                    if result.action == "suggested_new":
+                        rooms_added = [{
+                            "id": room.id,
+                            "name": room.name,
+                            "position": {"x": room.position.x, "y": room.position.y, "z": room.position.z},
+                            "style": room.style,
+                        }]
+                        lobby_doors_added = [await add_lobby_door(uid, room.id)]
+
+                    await ws_manager.send(uid, {
+                        "type": "palace_update",
+                        "changes": {
+                            "roomsAdded": rooms_added,
+                            "artifactsAdded": [{
+                                "id": artifact.id,
+                                "roomId": artifact.roomId,
+                                "type": artifact.type.value,
+                                "position": {"x": artifact.position.x, "y": artifact.position.y, "z": artifact.position.z},
+                                "visual": artifact.visual.value,
+                                "title": artifact.title,
+                                "summary": artifact.summary,
+                            }],
+                            "connectionsAdded": [],
+                            "lobbyDoorsAdded": lobby_doors_added,
+                        },
+                    })
+                    live = self._sessions.get(uid)
+                    if live:
+                        live.current_room_id = room.id
+                    await self.update_context(uid, room.id)
+                    logger.info(
+                        "[RecallAgent] Artifact saved: userId=%s artifactId=%s roomId=%s action=%s",
+                        uid, artifact.id, room.id, result.action,
+                    )
+                except Exception:
+                    logger.exception("create_artifact background save failed for userId=%s", uid)
+
+            asyncio.create_task(_save_artifact(user_id))
+            return f"Artifact is being saved: '{title or summary[:50]}'. It will appear in the palace shortly."
 
         elif fn_name == "edit_artifact":
             artifact_id = fn_args.get("artifact_id", "").strip()
@@ -579,75 +582,67 @@ class RecallAgent:
                 return "Cannot edit artifact: artifact_id is required."
             if not new_summary and not new_full_content:
                 return "Cannot edit artifact: at least one of summary or full_content must be provided."
-            try:
-                from app.services.artifact_service import get_artifact_by_id as _get_artifact
-                _art = await _get_artifact(user_id, artifact_id)
-                _art_name = _art.title if _art and _art.title else artifact_id[:12]
-            except Exception:
-                _art_name = artifact_id[:12]
-            await notify({"label": f'Editing "{_art_name}"…'})
-            try:
-                from app.services.artifact_service import update_artifact
-                from app.websocket.manager import manager as ws_manager
-                updated = await update_artifact(
-                    user_id=user_id,
-                    artifact_id=artifact_id,
-                    summary=new_summary,
-                    full_content=new_full_content,
-                )
-                if updated is None:
-                    return f"Artifact {artifact_id} not found."
-                # Push palace_update so the frontend reflects the new summary
-                await ws_manager.send(user_id, {
-                    "type": "palace_update",
-                    "changes": {
-                        "roomsAdded": [],
-                        "artifactsAdded": [],
-                        "artifactsUpdated": [{
-                            "id": updated.id,
-                            "summary": updated.summary,
-                        }],
-                        "connectionsAdded": [],
-                    },
-                })
-                live = self._sessions.get(user_id)
-                await self.update_context(user_id, live.current_room_id if live else None)
-                logger.info("[RecallAgent] Artifact edited: userId=%s artifactId=%s", user_id, artifact_id)
-                return f"Artifact {artifact_id} updated successfully."
-            except Exception:
-                logger.exception("edit_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
-                return "Failed to edit artifact."
+            await notify({"label": f'Editing artifact…'})
+
+            async def _edit(uid: str) -> None:
+                try:
+                    from app.services.artifact_service import update_artifact
+                    from app.websocket.manager import manager as ws_manager
+                    updated = await update_artifact(
+                        user_id=uid,
+                        artifact_id=artifact_id,
+                        summary=new_summary,
+                        full_content=new_full_content,
+                    )
+                    if updated is None:
+                        return
+                    await ws_manager.send(uid, {
+                        "type": "palace_update",
+                        "changes": {
+                            "roomsAdded": [],
+                            "artifactsAdded": [],
+                            "artifactsUpdated": [{
+                                "id": updated.id,
+                                "summary": updated.summary,
+                            }],
+                            "connectionsAdded": [],
+                        },
+                    })
+                    live = self._sessions.get(uid)
+                    await self.update_context(uid, live.current_room_id if live else None)
+                    logger.info("[RecallAgent] Artifact edited: userId=%s artifactId=%s", uid, artifact_id)
+                except Exception:
+                    logger.exception("edit_artifact background failed for userId=%s artifactId=%s", uid, artifact_id)
+
+            asyncio.create_task(_edit(user_id))
+            return f"Artifact {artifact_id} is being updated."
 
         elif fn_name == "delete_artifact":
             artifact_id = fn_args.get("artifact_id", "")
-            try:
-                from app.services.artifact_service import get_artifact_by_id as _get_artifact
-                _art = await _get_artifact(user_id, artifact_id)
-                _art_name = _art.title if _art and _art.title else artifact_id[:12]
-            except Exception:
-                _art_name = artifact_id[:12]
-            await notify({"label": f'Deleting "{_art_name}"…'})
-            try:
-                from app.services.artifact_service import delete_artifact_by_id
-                from app.websocket.manager import manager as ws_manager
-                await delete_artifact_by_id(user_id, artifact_id)
-                await ws_manager.send(user_id, {
-                    "type": "palace_update",
-                    "changes": {
-                        "roomsAdded": [],
-                        "artifactsAdded": [],
-                        "artifactsRemoved": [artifact_id],
-                        "connectionsAdded": [],
-                    },
-                })
-                # Refresh context so Gemini no longer references the deleted artifact
-                live = self._sessions.get(user_id)
-                await self.update_context(user_id, live.current_room_id if live else None)
-                logger.info("[RecallAgent] Artifact deleted: userId=%s artifactId=%s", user_id, artifact_id)
-                return f"Artifact {artifact_id} deleted successfully."
-            except Exception:
-                logger.exception("delete_artifact failed for userId=%s artifactId=%s", user_id, artifact_id)
-                return "Failed to delete artifact."
+            await notify({"label": f'Deleting artifact…'})
+
+            async def _delete(uid: str) -> None:
+                try:
+                    from app.services.artifact_service import delete_artifact_by_id
+                    from app.websocket.manager import manager as ws_manager
+                    await delete_artifact_by_id(uid, artifact_id)
+                    await ws_manager.send(uid, {
+                        "type": "palace_update",
+                        "changes": {
+                            "roomsAdded": [],
+                            "artifactsAdded": [],
+                            "artifactsRemoved": [artifact_id],
+                            "connectionsAdded": [],
+                        },
+                    })
+                    live = self._sessions.get(uid)
+                    await self.update_context(uid, live.current_room_id if live else None)
+                    logger.info("[RecallAgent] Artifact deleted: userId=%s artifactId=%s", uid, artifact_id)
+                except Exception:
+                    logger.exception("delete_artifact background failed for userId=%s artifactId=%s", uid, artifact_id)
+
+            asyncio.create_task(_delete(user_id))
+            return f"Artifact {artifact_id} is being deleted."
 
         elif fn_name == "delete_room":
             live = self._sessions.get(user_id)
@@ -742,20 +737,22 @@ class RecallAgent:
                     )
                     if r.full_content:
                         lines.append(f"  Full: {r.full_content[:300]}")
-                # Inject into context so the model can cite it
-                live = self._sessions.get(user_id)
-                if live and live.session and not live._closed:
-                    context_msg = f"[MEMORY SEARCH RESULTS for '{query}']\n" + "\n".join(lines)
-                    try:
-                        await live.session.send_client_content(
-                            turns=[
-                                genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
-                                genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the search results.")]),
-                            ],
-                            turn_complete=False,
-                        )
-                    except Exception:
-                        logger.exception("search_memories context injection failed for userId=%s", user_id)
+                # Inject into context in the background so tool response returns fast
+                async def _inject_search_context(uid: str, q: str, ctx_lines: list[str]) -> None:
+                    live = self._sessions.get(uid)
+                    if live and live.session and not live._closed:
+                        context_msg = f"[MEMORY SEARCH RESULTS for '{q}']\n" + "\n".join(ctx_lines)
+                        try:
+                            await live.session.send_client_content(
+                                turns=[
+                                    genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
+                                    genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the search results.")]),
+                                ],
+                                turn_complete=False,
+                            )
+                        except Exception:
+                            logger.exception("search_memories context injection failed for userId=%s", uid)
+                asyncio.create_task(_inject_search_context(user_id, query, lines))
                 return "\n".join(lines)
             except Exception:
                 logger.exception("search_memories failed for userId=%s query=%r", user_id, query)
@@ -808,19 +805,21 @@ class RecallAgent:
                     )
                     if r.full_content:
                         lines.append(f"  Full: {r.full_content[:300]}")
-                live = self._sessions.get(user_id)
-                if live and live.session and not live._closed:
-                    context_msg = f"[DATE SEARCH RESULTS for {date_from_str} → {date_to_str}]\n" + "\n".join(lines)
-                    try:
-                        await live.session.send_client_content(
-                            turns=[
-                                genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
-                                genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the date search results.")]),
-                            ],
-                            turn_complete=False,
-                        )
-                    except Exception:
-                        logger.exception("search_memories_by_date context injection failed for userId=%s", user_id)
+                async def _inject_date_context(uid: str, df: str, dt: str, ctx_lines: list[str]) -> None:
+                    live = self._sessions.get(uid)
+                    if live and live.session and not live._closed:
+                        context_msg = f"[DATE SEARCH RESULTS for {df} → {dt}]\n" + "\n".join(ctx_lines)
+                        try:
+                            await live.session.send_client_content(
+                                turns=[
+                                    genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
+                                    genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the date search results.")]),
+                                ],
+                                turn_complete=False,
+                            )
+                        except Exception:
+                            logger.exception("search_memories_by_date context injection failed for userId=%s", uid)
+                asyncio.create_task(_inject_date_context(user_id, date_from_str, date_to_str, lines))
                 return "\n".join(lines)
             except Exception:
                 logger.exception("search_memories_by_date failed for userId=%s dates=%s→%s", user_id, date_from_str, date_to_str)

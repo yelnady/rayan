@@ -14,7 +14,7 @@ from app.models.common import Position3D, Rotation3D
 from app.core.firestore import get_firestore_client
 from app.services.room_service import get_all_rooms
 from app.services.artifact_service import get_room_artifacts
-from app.services.seed_service import seed_palace
+from app.services.seed_service import seed_palace, populate_extra_rooms
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +218,60 @@ def _grid_pos(n: int) -> dict:
     col = n % _COLS
     row = n // _COLS
     return {"x": _OFFSET_X + col * _SPACING, "y": 0.0, "z": _OFFSET_Z + row * _SPACING}
+
+
+@router.post("/palace/populate-extra", status_code=201)
+async def populate_extra_rooms_endpoint(user: dict = Depends(verify_token)):
+    """Add the 'Lunch Food' and 'My Daughter' rooms with rich seed artifacts.
+
+    Creates both rooms and all their artifacts in Firestore immediately (not
+    as a background task) so the caller gets the full result in the response.
+    Safe to call on an existing palace — rooms are always added.
+    """
+    user_id = user["user_id"]
+
+    palace_doc = await _palace_ref(user_id).get()
+    if not palace_doc.exists:
+        raise HTTPException(
+            status_code=404,
+            detail={"error": {"code": "RESOURCE_NOT_FOUND", "message": "Palace not found — create it first"}},
+        )
+
+    try:
+        result = await populate_extra_rooms(user_id)
+    except Exception:
+        logger.exception("populate_extra_rooms failed: userId=%s", user_id)
+        raise HTTPException(
+            status_code=500,
+            detail={"error": {"code": "INTERNAL_ERROR", "message": "Failed to populate rooms"}},
+        )
+
+    # Push palace_update so any open 3D scene sees the new rooms and artifacts
+    try:
+        from app.websocket.manager import manager as ws_manager
+        from app.websocket.responses import broadcast_palace_update
+        await broadcast_palace_update(
+            user_id,
+            rooms_added=result["rooms"],
+            artifacts_added=result["artifacts"],
+        )
+    except Exception:
+        logger.exception("WS push failed after populate_extra_rooms: userId=%s", user_id)
+
+    return {
+        "roomsCreated": result["summary"]["roomsCreated"],
+        "artifactsCreated": result["summary"]["artifactsCreated"],
+        "rooms": [
+            {
+                "id": r.id,
+                "name": r.name,
+                "style": r.style,
+                "position": r.position.model_dump(),
+                "artifactCount": r.artifactCount,
+            }
+            for r in result["rooms"]
+        ],
+    }
 
 
 @router.post("/palace/fix-positions")

@@ -45,8 +45,10 @@ _NON_ASCII_RE = re.compile(r"[^\x00-\x7F]+")
 
 
 def _english_only(text: str) -> str:
-    """Strip non-ASCII characters so only English letters and symbols reach the frontend."""
-    return _NON_ASCII_RE.sub("", text).strip()
+    """Replace non-ASCII characters with a space so word boundaries are preserved."""
+    cleaned = _NON_ASCII_RE.sub(" ", text)
+    # Collapse multiple spaces into one
+    return re.sub(r" {2,}", " ", cleaned).strip()
 
 
 # Message handlers registry: type → async callable(user_id, message, websocket)
