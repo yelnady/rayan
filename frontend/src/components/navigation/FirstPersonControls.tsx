@@ -44,16 +44,19 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const zoomFov = useRef(DEFAULT_FOV);
     // Intro: camera starts behind the south wall, elevated, facing north (into the back of the lobby)
     const introActive = useRef(true);
-    const introSettleFrames = useRef(0); // counts frames rendered before animation starts
-    const INTRO_SETTLE = 20;             // wait this many frames for shaders/assets to load
+    const introElapsed = useRef(0);
+    const INTRO_DURATION = 5.2;          // total animation time in seconds
+    const INTRO_SETTLE_FRAMES = 15;      // wait this many frames for shaders to compile
+    const introFrameCount = useRef(0);
+    const introSettled = useRef(false);
     const INTRO_START = new THREE.Vector3(6, 8, 35); // behind the south/back wall, elevated
     const INTRO_PITCH = -0.28; // slight downward angle — sees south + east + west walls
-    const INTRO_YAW   = 0;     // facing -Z (northward, into the back of the palace)
+    const INTRO_YAW = 0;     // facing -Z (northward, into the back of the palace)
     // Apply initial camera position/orientation for intro
     useEffect(() => {
         camera.position.copy(INTRO_START);
         pitch.current = INTRO_PITCH;
-        yaw.current   = INTRO_YAW;
+        yaw.current = INTRO_YAW;
         camera.quaternion.setFromEuler(new THREE.Euler(INTRO_PITCH, INTRO_YAW, 0, 'YXZ'));
         (camera as THREE.PerspectiveCamera).fov = DEFAULT_FOV;
         (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
@@ -260,22 +263,35 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
         // Skip movement in overview mode
         if (isOverviewMode) return;
 
-        // Intro fly-in: glide from behind south wall through the lobby to SPAWN
+        // Intro fly-in: time-based glide from behind south wall through the lobby to SPAWN
         if (introActive.current) {
-            // Hold still until enough frames have rendered (shaders compiled, assets loaded)
-            if (introSettleFrames.current < INTRO_SETTLE) {
-                introSettleFrames.current++;
-                return;
+            // Hold still while scene settles (shader compilation, texture uploads)
+            if (!introSettled.current) {
+                introFrameCount.current++;
+                if (introFrameCount.current < INTRO_SETTLE_FRAMES) return;
+                introSettled.current = true;
             }
-            const SPEED = 1.5;
-            const safeDelta = Math.min(delta, 0.033); // cap at ~30fps to prevent spike jumps
-            camera.position.lerp(SPAWN, safeDelta * SPEED);
-            pitch.current = THREE.MathUtils.lerp(pitch.current, 0, safeDelta * SPEED * 1.2);
-            // Rotate from facing north (yaw=0) to facing south (yaw=PI) along shortest path
-            const yawDiff = ((Math.PI - yaw.current + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
-            yaw.current += yawDiff * Math.min(safeDelta * SPEED * 0.7, 1);
+
+            introElapsed.current += delta;
+            const rawT = Math.min(introElapsed.current / INTRO_DURATION, 1);
+            // Ease-in-out quadratic — smooth without a dead tail
+            const t = rawT < 0.5
+                ? 2 * rawT * rawT
+                : 1 - Math.pow(-2 * rawT + 2, 2) / 2;
+
+            // Position: straight interpolation from start to spawn
+            camera.position.lerpVectors(INTRO_START, SPAWN, t);
+
+            // Rotation: interpolate pitch and yaw
+            pitch.current = INTRO_PITCH * (1 - t);
+            yaw.current = INTRO_YAW + (Math.PI - INTRO_YAW) * t;
             camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
-            if (camera.position.distanceTo(SPAWN) < 0.05) {
+
+            if (rawT >= 1) {
+                camera.position.copy(SPAWN);
+                pitch.current = 0;
+                yaw.current = Math.PI;
+                camera.quaternion.setFromEuler(new THREE.Euler(0, Math.PI, 0, 'YXZ'));
                 introActive.current = false;
             }
             return;
