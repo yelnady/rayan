@@ -49,21 +49,22 @@
 │  │  • navigate_to_room      │   │  • delete_room                 │  │
 │  │  • end_session           │   │  • synthesize_room             │  │
 │  │                          │   │  • web_search                  │  │
-│  │  Dedup: cosine sim on    │   │  • end_session                 │  │
-│  │  text-embedding-005      │   │                                │  │
+│  │  Dedup: cosine ≥0.90     │   │  • end_session                 │  │
+│  │  (gemini-embedding-2-    │   │                                │  │
+│  │   preview, per-session)  │   │                                │  │
 │  └────────┬─────────────────┘   └─────────┬──────────────────────┘  │
 │           │                               │                          │
 │  ┌────────▼───────────────────────────────▼──────────────────────┐   │
 │  │  Memory Architect  (gemini-2.5-flash)                         │   │
 │  │  • Categorizes concept into existing room or suggests new one  │   │
 │  │  • Assigns artifact type and visual                            │   │
-│  │  • Generates embedding via Vertex AI text-embedding-005        │   │
+│  │  • Generates embedding via Vertex AI gemini-embedding-2-preview        │   │
 │  │  • Writes artifact + embedding to Firestore                    │   │
 │  └────────────────────────────────┬───────────────────────────────┘  │
 │                                   │                                  │
 │  ┌────────────────────────────────▼───────────────────────────────┐  │
 │  │  Semantic Search  (recall grounding)                           │  │
-│  │  • Embeds user query via Vertex AI text-embedding-005          │  │
+│  │  • Embeds user query via Vertex AI gemini-embedding-2-preview          │  │
 │  │  • Cosine similarity scan across all stored embeddings         │  │
 │  │  • Top-8 results injected into RecallAgent system prompt       │  │
 │  │  • Re-runs on every room navigation and artifact highlight      │  │
@@ -76,7 +77,7 @@
 │  ┌──────────────────────┐   ┌────────────────────────────────────┐   │
 │  │  Cloud Firestore     │   │  Vertex AI                         │   │
 │  │                      │   │                                    │   │
-│  │  users/              │   │  text-embedding-005                │   │
+│  │  users/              │   │  gemini-embedding-2-preview                │   │
 │  │   {userId}/          │   │  768-dimensional embeddings        │   │
 │  │    rooms/            │   │  Used for:                         │   │
 │  │     {roomId}/        │   │  • Artifact storage (capture)      │   │
@@ -109,10 +110,19 @@ Mic + Screen
      │
      ▼
 CaptureAgent (Gemini Live)
+     │
+     ├── _user_has_spoken gate: all tools blocked until
+     │   user speaks at least once (prevents eager tool
+     │   calls during the opening greeting)
+     │
      │ autonomous concept detection
      │ OR user says "save this"
      ▼
 capture_concept / create_artifact tool call
+     │
+     ├── rate limit (selective=60s / balanced=30s / thorough=12s)
+     ├── confidence ≥ 0.7
+     ├── within-session dedup: cosine ≥ 0.90 → merge instead
      │
      ▼
 Memory Architect (gemini-2.5-flash)
@@ -120,14 +130,15 @@ Memory Architect (gemini-2.5-flash)
   • Assigns artifact type + visual
      │
      ▼
-text-embedding-005 (Vertex AI)
+gemini-embedding-2-preview (Vertex AI)
   • Generates 768-dim embedding
      │
      ├──► Firestore  (artifact + embedding stored)
      │
      └──► WebSocket → Browser
-              palace_update event
-              → artifact appears in 3D palace
+              capture_ack (buffered until Rayan speaks —
+                           badge appears after spoken message)
+              palace_update → artifact appears in 3D palace live
 ```
 
 ## Data Flow — Recall Mode
@@ -144,7 +155,7 @@ On session start / room nav / artifact highlight:
   update_context() → semantic_search()
      │
      ▼
-text-embedding-005 (Vertex AI)
+gemini-embedding-2-preview (Vertex AI)
   Embed current context / artifact summary
      │
      ▼
@@ -159,6 +170,20 @@ send_client_content → injected into live conversation
 Audio response → WebSocket → Browser
   + optional tool calls (navigate, highlight, synthesize)
 ```
+
+## Ambient Audio Behaviour
+
+| State | Audio |
+|---|---|
+| Overview / lobby | `/audio/rooms/Palace.mp3` |
+| Inside a room | `/audio/rooms/{Style}.mp3` |
+| Any capture active (`status === 'capturing'`, all source types) | **Muted** — prevents bleed into mic or tab stream |
+| Recall / voice session active | **Ducked to 10%** |
+| Idle | Normal volume |
+
+## Session-End Summary
+
+`concept_count` in `capture_complete` is derived from `artifact_ids` — only extractions where `categorization` is set (i.e. actually saved to Firestore). Failed extractions (e.g. embedding API error) are excluded so the count always matches what is visible in the palace.
 
 ## Infrastructure (Terraform)
 

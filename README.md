@@ -2,7 +2,7 @@
 
 # 🏛️ Rayan  -  AI Memory Palace
 
-**Your mind, rendered in 3D. Powered by voice.**
+**Your mind, rendered in 3D. Live voice. Live camera. Live screen.**
 
 [![Live App](https://img.shields.io/badge/Live%20App-rayan--memory.web.app-4285F4?style=for-the-badge&logo=firebase&logoColor=white)](https://rayan-memory.web.app)
 [![Gemini Live API](https://img.shields.io/badge/Gemini%20Live%20API-native--audio-8B5CF6?style=for-the-badge&logo=google&logoColor=white)](https://ai.google.dev/)
@@ -19,6 +19,16 @@
 ---
 
 *Turn everything you hear, see, and say into a living, walkable 3D world of memory.*
+
+---
+
+> We forget things. All the time. Not in some big philosophical way. In the most basic, embarrassing way.
+> What did you eat yesterday? What was that person's name at the conference? What did your manager say two Fridays back?
+>
+> **The problem isn't capture.** We have more capture tools than ever.
+> The problem is **retrieval**. Our memories are flat, unsearchable, disconnected from each other.
+>
+> Rayan fixes retrieval.
 
 </div>
 
@@ -75,6 +85,9 @@ Captured knowledge is **typed and visually rendered** as one of 16 distinct 3D o
 
 ### 🔍 Semantic Search Grounding (Zero Hallucination)
 Every Recall answer is grounded by **`gemini-embedding-2-preview`**  -  768-dimensional cosine similarity search over your stored memories. The system prompt enforces citation. Rayan cannot invent information that isn't in your palace.
+
+### 🌐 Google Search Grounding (Live Web Knowledge)
+Both the Capture and Recall agents have access to Gemini's built-in **`google_search`** tool — no external API key required. When a user asks about something not yet in their palace, the agent queries the live web mid-session and injects verified facts directly into its spoken response. This is native Gemini grounding, not a wrapper around a third-party search API.
 
 ### 💬 Affective Dialog
 Both agents use `enable_affective_dialog=True`. Rayan modulates its vocal tone, pacing, and empathy in real time based on how you sound  -  matching your energy when you're excited, staying quiet when you're focused.
@@ -416,8 +429,7 @@ rayan/
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID |
 | `MEDIA_BUCKET` | Cloud Storage bucket for screenshots and mind maps |
 | `GOOGLE_APPLICATION_CREDENTIALS` | Path to service account JSON (local dev only; Cloud Run uses attached SA) |
-| `GOOGLE_API_KEY` | Google Custom Search API key (web search tool) |
-| `GOOGLE_SEARCH_CX` | Custom Search Engine ID |
+| *(no key needed)* | Web search uses Gemini's built-in `google_search` grounding tool via Vertex AI — no Custom Search API required |
 
 ---
 
