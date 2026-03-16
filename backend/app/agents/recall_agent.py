@@ -109,6 +109,7 @@ ARTIFACT TYPES (use with create_artifact):
 
 TOOLS — use them proactively when relevant:
 - search_memories: ALWAYS call this first when the user asks about any topic not already in your MEMORIES section. Use their exact words as the query. Never say "I don't have that" without searching first.
+- search_memories_by_date: use this — instead of search_memories — when the user's question is primarily about WHEN something was captured (e.g. "what did I save today?", "what did I capture on March 5th?", "show me last week's memories"). Provide dates as YYYY-MM-DD; today is {current_date_iso}. For a single day set date_from and date_to to the same date. Optionally add a topic query to narrow results.
 - navigate_to_room: when your answer lives in a specific room, navigate there; use "lobby" to return home
 - navigate_to_map_view: toggle the bird's-eye overview map — use when user asks to see the map, overview, all rooms, or to exit back to first-person
 - navigate_horizontal: when the user wants to see more artifacts in the same room, move left or right
@@ -147,12 +148,15 @@ async def _build_room_directory(user_id: str) -> str:
 
 
 def _build_system_prompt(results: list[SearchResult], room_directory: str = "", display_name: str = "") -> str:
-    current_date = datetime.now().strftime("%A, %B %-d, %Y")
+    now = datetime.now()
+    current_date = now.strftime("%A, %B %-d, %Y")
+    current_date_iso = now.strftime("%Y-%m-%d")
     name = display_name.split()[0] if display_name else "there"
     if not results:
         return _BASE_SYSTEM_PROMPT.format(
             name=name,
             current_date=current_date,
+            current_date_iso=current_date_iso,
             room_directory=room_directory or "(unavailable)",
             memories="(none found)",
         )
@@ -169,6 +173,7 @@ def _build_system_prompt(results: list[SearchResult], room_directory: str = "", 
     return _BASE_SYSTEM_PROMPT.format(
         name=name,
         current_date=current_date,
+        current_date_iso=current_date_iso,
         room_directory=room_directory or "(unavailable)",
         memories="\n".join(lines),
     )
@@ -755,6 +760,71 @@ class RecallAgent:
             except Exception:
                 logger.exception("search_memories failed for userId=%s query=%r", user_id, query)
                 return "Memory search failed."
+
+        elif fn_name == "search_memories_by_date":
+            from datetime import timezone
+            from app.services.search_service import get_memories_by_date_range
+            date_from_str = fn_args.get("date_from", "").strip()
+            date_to_str = fn_args.get("date_to", "").strip()
+            topic_query = fn_args.get("query", "").strip()
+            if not date_from_str or not date_to_str:
+                return "Please provide both date_from and date_to."
+            try:
+                captured_after = datetime.strptime(date_from_str, "%Y-%m-%d").replace(
+                    hour=0, minute=0, second=0, tzinfo=timezone.utc
+                )
+                captured_before = datetime.strptime(date_to_str, "%Y-%m-%d").replace(
+                    hour=23, minute=59, second=59, tzinfo=timezone.utc
+                )
+            except ValueError:
+                return f"Invalid date format: use YYYY-MM-DD."
+            label = f"Searching memories from {date_from_str}" + (f" to {date_to_str}" if date_from_str != date_to_str else "")
+            await notify({"label": label})
+            try:
+                if topic_query:
+                    results = await semantic_search(
+                        user_id=user_id,
+                        query=topic_query,
+                        limit=10,
+                        captured_after=captured_after,
+                        captured_before=captured_before,
+                        min_similarity=0.1,
+                    )
+                else:
+                    results = await get_memories_by_date_range(
+                        user_id=user_id,
+                        captured_after=captured_after,
+                        captured_before=captured_before,
+                        limit=20,
+                    )
+                if not results:
+                    return f"No memories found between {date_from_str} and {date_to_str}."
+                lines = [f"Found {len(results)} memory/memories between {date_from_str} and {date_to_str}:\n"]
+                for r in results:
+                    captured = r.captured_at.strftime("%Y-%m-%d") if r.captured_at else "unknown date"
+                    lines.append(
+                        f"- [{r.artifact_id}] in '{r.room_name}' (captured: {captured})\n"
+                        f"  {r.summary}"
+                    )
+                    if r.full_content:
+                        lines.append(f"  Full: {r.full_content[:300]}")
+                live = self._sessions.get(user_id)
+                if live and live.session and not live._closed:
+                    context_msg = f"[DATE SEARCH RESULTS for {date_from_str} → {date_to_str}]\n" + "\n".join(lines)
+                    try:
+                        await live.session.send_client_content(
+                            turns=[
+                                genai_types.Content(role="user", parts=[genai_types.Part(text=context_msg)]),
+                                genai_types.Content(role="model", parts=[genai_types.Part(text="Understood, I have the date search results.")]),
+                            ],
+                            turn_complete=False,
+                        )
+                    except Exception:
+                        logger.exception("search_memories_by_date context injection failed for userId=%s", user_id)
+                return "\n".join(lines)
+            except Exception:
+                logger.exception("search_memories_by_date failed for userId=%s dates=%s→%s", user_id, date_from_str, date_to_str)
+                return "Date-based memory search failed."
 
         elif fn_name == "web_search":
             query = fn_args.get("query", "")

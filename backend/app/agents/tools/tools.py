@@ -534,6 +534,37 @@ RECALL_LIVE_TOOLS = [
         "behavior": "NON_BLOCKING",
     },
     {
+        "name": "search_memories_by_date",
+        "description": (
+            "Fetch all memories captured on a specific date or within a date range. "
+            "Use this — instead of search_memories — whenever the user's question is primarily "
+            "about WHEN something was captured: e.g. 'what did I save today?', "
+            "'show me everything from last Monday', 'what did I capture in January?', "
+            "'what memories do I have from March 5th?'. "
+            "Provide dates as YYYY-MM-DD. For a single day set both date_from and date_to to that date. "
+            "Optionally add a topic query to narrow results further."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "date_from": {
+                    "type": "string",
+                    "description": "Start of date range in YYYY-MM-DD format (inclusive).",
+                },
+                "date_to": {
+                    "type": "string",
+                    "description": "End of date range in YYYY-MM-DD format (inclusive).",
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Optional topic filter to narrow results within the date range.",
+                },
+            },
+            "required": ["date_from", "date_to"],
+        },
+        "behavior": "NON_BLOCKING",
+    },
+    {
         "name": "web_search",
         "description": "Search the web for facts, definitions, or context about anything mentioned.",
         "parameters": {
