@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Backend → Google Cloud Run ─────────────────────────────────────────────
+  # Backend - Google Cloud Run
   deploy-backend:
     name: Deploy Backend (Cloud Run)
     runs-on: ubuntu-latest
@@ -59,10 +59,10 @@ jobs:
             --project rayan-memory \
             --format "value(status.url)")
           echo "Backend deployed: $URL"
-          echo "   Health: $URL/health"
-          echo "   Docs:   $URL/docs"
+          echo "Health: $URL/health"
+          echo "Docs: $URL/docs"
 
-  # ── Frontend → Firebase Hosting ────────────────────────────────────────────
+  # Frontend - Firebase Hosting
   deploy-frontend:
     name: Deploy Frontend (Firebase Hosting)
     runs-on: ubuntu-latest
@@ -81,7 +81,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
+          cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
@@ -109,4 +109,4 @@ jobs:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 
       - name: Print hosting URL
-        run: echo "Frontend deployed: https://rayan-memory.web.app"
+        run: echo "Frontend deployed https://rayan-memory.web.app"
