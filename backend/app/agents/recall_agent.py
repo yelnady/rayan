@@ -66,6 +66,7 @@ ROOM DIRECTORY (use these exact IDs with navigate_to_room):
 {room_directory}
 
 RULES:
+- ALWAYS respond in English only. Never use any other language or script, regardless of what language the user speaks.
 - ONLY use information from the provided MEMORIES section below.
 - If you don't have relevant memories say "I don't have that in {name}'s palace yet."
 - NEVER hallucinate or invent information.
