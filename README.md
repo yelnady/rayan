@@ -260,40 +260,40 @@ Rayan isn't a notes app. It's a **persistent second brain** you can walk through
 └────────────────────────────────────────────────┼──────────┘  │
                                                  │
                          ┌───────────────────────┼─────────────┐
-                         │  Cloud Run  -  FastAPI  │             │
+                         │  Cloud Run  -  FastAPI│             │
                          │                       ▼             │
-                         │  ┌─────────────────────────────┐   │
-                         │  │ CaptureAgent                │   │
-                         │  │ gemini-live-2.5-flash-       │   │
-                         │  │ native-audio                 │   │
-                         │  │ enable_affective_dialog=True │   │
-                         │  └──────────────┬──────────────┘   │
+                         │  ┌─────────────────────────────┐    │
+                         │  │ CaptureAgent                │    │
+                         │  │ gemini-live-2.5-flash-      │    │
+                         │  │ native-audio                │    │
+                         │  │ enable_affective_dialog=True│    │
+                         │  └──────────────┬──────────────┘    │
                          │                 │                   │
-                         │  ┌──────────────▼──────────────┐   │
-                         │  │ RecallAgent                 │   │
-                         │  │ gemini-live-2.5-flash-       │   │
-                         │  │ native-audio                 │   │
-                         │  │ enable_affective_dialog=True │   │
-                         │  └──────────────┬──────────────┘   │
+                         │  ┌──────────────▼──────────────┐    │
+                         │  │ RecallAgent                 │    │
+                         │  │ gemini-live-2.5-flash-      │    │
+                         │  │ native-audio                │    │
+                         │  │ enable_affective_dialog=True│    │
+                         │  └──────────────┬──────────────┘    │
                          │                 │                   │
-                         │  ┌──────────────▼──────────────┐   │
+                         │  ┌──────────────▼────────────-──┐   │
                          │  │ Memory Architect             │   │
                          │  │ gemini-2.5-flash             │   │
                          │  │ categorize + cluster rooms   │   │
-                         │  └──────────────┬──────────────┘   │
+                         │  └──────────────┬─────────────-─┘   │
                          └─────────────────┼───────────────────┘
                                            │
               ┌────────────────────────────┼───────────────────┐
               │  Google Cloud              │                   │
-              │             ┌──────────────▼─────────────┐    │
+              │             ┌──────────────▼────────────-─┐    │
               │             │  Firestore                  │    │
               │             │  users/{id}/rooms/          │    │
               │             │  users/{id}/rooms/artifacts │    │
               │             │  (embeddings stored inline) │    │
               │             └──────────────┬──────────────┘    │
               │                            │                   │
-              │  ┌─────────────────────────▼─────────────┐    │
-              │  │  Vertex AI  text-embedding-005 │    │
+              │  ┌─────────────────────────▼──────────-───┐    │
+              │  │  Vertex AI  text-embedding-005         │    │
               │  │  Semantic search grounding             │    │
               │  │  768-dim cosine similarity             │    │
               │  └────────────────────────────────────────┘    │

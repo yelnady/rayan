@@ -748,7 +748,7 @@ export function LandingPage() {
           <div className="flex gap-5 text-sm text-gray-500">
             <a href="/how-it-works" className="hover:text-gray-900 transition-colors">How It Works</a>
             <a href="/palace" className="hover:text-gray-900 transition-colors">Sign In</a>
-            <a href="https://github.com/yelnady/Rayan-Memory-Palace" target="_blank" rel="noopener noreferrer" className="hover:text-gray-900 transition-colors">GitHub</a>
+            <a href="https://github.com/yelnady/rayan" target="_blank" rel="noopener noreferrer" className="hover:text-gray-900 transition-colors">GitHub</a>
           </div>
         </div>
       </footer>
