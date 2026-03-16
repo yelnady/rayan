@@ -207,6 +207,8 @@ class CaptureAgent:
         # Appended after every successful capture_concept / create_artifact / screenshot.
         # Returned in every capture_concept tool response so the model always has fresh IDs for edit_artifact.
         self._session_memory_list: list[tuple[str, str, str]] = []
+        # Guard: block all capture tools until the user has said something first.
+        self._user_has_spoken: bool = False
 
     async def start(self) -> None:
         room_directory = await self._build_room_directory()
@@ -359,11 +361,12 @@ class CaptureAgent:
                     if getattr(server_content, "interrupted", False):
                         continue
 
-                    if self._on_user_text:
-                        input_trans = getattr(server_content, "input_transcription", None)
-                        if input_trans:
-                            user_text = getattr(input_trans, "text", None)
-                            if user_text:
+                    input_trans = getattr(server_content, "input_transcription", None)
+                    if input_trans:
+                        user_text = getattr(input_trans, "text", None)
+                        if user_text:
+                            self._user_has_spoken = True
+                            if self._on_user_text:
                                 try:
                                     await self._on_user_text(user_text)
                                 except Exception:
@@ -394,6 +397,10 @@ class CaptureAgent:
             logger.exception("CaptureAgent receive loop error: sessionId=%s", self.session_id)
 
     async def _execute_tool(self, name: str, args: dict) -> str:
+        if not self._user_has_spoken and name != "close_session":
+            logger.debug("Tool '%s' blocked — user has not spoken yet: sessionId=%s", name, self.session_id)
+            return "waiting — please greet the user and ask your context question first"
+
         if name == "capture_concept":
             confidence = float(args.get("confidence", 0.0))
             if not self._should_extract(confidence):

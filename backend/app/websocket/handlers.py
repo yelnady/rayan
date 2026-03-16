@@ -234,9 +234,10 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
                 }
             rooms_seen[cat.room.id]["artifactCount"] += 1
 
-    # Prefer in-memory count (always accurate) over Firestore, which can lag
-    # or be 0 if add_artifact_to_session failed or was cancelled mid-write.
-    concept_count = len(extractions) or (session.conceptCount if session else 0)
+    # Count only extractions that were actually saved (categorization set).
+    # Extractions with categorization=None were failures (e.g. categorize_and_store
+    # exception) and should not inflate the count or generate a misleading narrative.
+    concept_count = len(artifact_ids) or (session.conceptCount if session else 0)
 
     # Generate a Gemini narrative summary (best-effort, non-blocking)
     narrative: str | None = None

@@ -5,14 +5,16 @@ from app.core.gemini import EMBEDDING_MODEL, get_genai_client
 
 
 async def get_embedding(text: str) -> list[float]:
-    """Return a 768-dimensional semantic embedding via gemini-embedding-2-preview."""
+    """Return a 3072-dimensional embedding via gemini-embedding-2-preview, truncated to 768 via MRL."""
     client = get_genai_client()
     response = await client.aio.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text,
         config=types.EmbedContentConfig(output_dimensionality=768),
     )
-    return list(response.embeddings[0].values)
+    # gemini-embedding-2-preview returns a single `embedding` object (not a list)
+    emb = getattr(response, "embedding", None) or response.embeddings[0]
+    return list(emb.values)
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
