@@ -34,9 +34,24 @@ jobs:
 
       - name: Build image via Cloud Build
         run: |
-          gcloud builds submit ./backend \
+          BUILD_ID=$(gcloud builds submit ./backend \
             --tag gcr.io/rayan-memory/rayan-backend \
-            --project rayan-memory
+            --project rayan-memory \
+            --async \
+            --format="value(id)")
+          echo "Build started: $BUILD_ID"
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" \
+              --project rayan-memory \
+              --format="value(status)")
+            echo "Status: $STATUS"
+            case "$STATUS" in
+              SUCCESS) echo "Build succeeded"; break ;;
+              FAILURE|CANCELLED|TIMEOUT|INTERNAL_ERROR)
+                echo "Build failed: $STATUS"; exit 1 ;;
+            esac
+            sleep 15
+          done
 
       - name: Deploy to Cloud Run
         run: |
