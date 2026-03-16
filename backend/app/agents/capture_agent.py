@@ -38,6 +38,7 @@ CAPTURE_PACE_INTERVALS: dict[str, float] = {
 _DEFAULT_PACE = "balanced"
 _MAX_TITLE_WORDS: int = 8
 MERGE_SIMILARITY_THRESHOLD: float = 0.90
+_MAX_ROOMS_PER_SESSION: int = 2
 
 
 def _normalize_title_summary(title: str, summary: str) -> tuple[str, str]:
@@ -136,6 +137,7 @@ CREATING ROOMS:
 - Only call `create_room` when the user directly and explicitly asks for a specific named room (e.g. "create a room called X"). Do NOT call it because you think the topic deserves its own room.
 - If you call `create_room` and an existing room already covers the topic, the system will redirect automatically — no new room will be created.
 - NEVER call both `create_room` and `capture_concept` for the same concept unless the user named the room.
+- You may create at most 2 rooms per session. After that, all content must go into existing rooms.
 
 CAPTURING SCREENSHOTS:
 - Call `take_screenshot` proactively whenever you see something visually significant on screen: a compelling diagram, a dense slide, a chart, a code snippet, a formula, a mind map, or any visual that captures an important concept better than words alone.
@@ -204,6 +206,8 @@ class CaptureAgent:
         # Set to True when capture_concept auto-creates a room inside categorize_and_store.
         # Cleared after the next create_room check so only ONE consecutive duplicate is skipped.
         self._skip_next_create_room: bool = False
+        # Hard cap: at most 2 new rooms may be created per session.
+        self._create_room_count: int = 0
         # Running list of memories captured this session: (artifact_id, title, room_name)
         # Appended after every successful capture_concept / create_artifact / screenshot.
         # Returned in every capture_concept tool response so the model always has fresh IDs for edit_artifact.
@@ -519,6 +523,12 @@ class CaptureAgent:
                     self.session_id, room_name,
                 )
                 return "Room was already auto-created by the preceding capture_concept call. No new room needed."
+            if self._create_room_count >= _MAX_ROOMS_PER_SESSION:
+                logger.info(
+                    "[CaptureAgent] create_room blocked — session room limit (%d) reached: sessionId=%s",
+                    _MAX_ROOMS_PER_SESSION, self.session_id,
+                )
+                return f"Room creation limit ({_MAX_ROOMS_PER_SESSION}) reached for this session. Use an existing room instead."
             # Similarity guard: if an existing room is semantically close, redirect there
             # instead of creating a new one. Threshold is lower than categorize_and_store's
             # HIGH_SIMILARITY (0.75) so we catch near-misses the model misses.
@@ -569,6 +579,7 @@ class CaptureAgent:
                     },
                 })
                 self._last_created_room_id = new_room.id
+                self._create_room_count += 1
                 await self._send_capture_event(f"Room created: {room_name}", "create_room")
 
                 # Inform Gemini about the new room so it's aware for the rest of the session
@@ -604,19 +615,6 @@ class CaptureAgent:
                 room_name = room_id
             await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_room", "label": f"Navigating to {room_name}", "payload": {"navigation": {"targetRoomId": room_id, "highlightArtifacts": [], "enterRoom": True, "selectedArtifactId": None}}})
             return f"Navigated to room {room_name}"
-
-        elif name == "navigate_to_map_view":
-            from app.websocket.manager import manager as ws_manager
-            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_to_map_view", "label": "Toggling map overview", "payload": {"toggleMapView": True}})
-            return "Map view toggled."
-
-        elif name == "navigate_horizontal":
-            from app.websocket.manager import manager as ws_manager
-            direction = args.get("direction", "right").lower()
-            if direction not in ["left", "right"]:
-                direction = "right"
-            await ws_manager.send(self.user_id, {"type": "live_tool_call", "tool": "navigate_horizontal", "label": f"Moving {direction}", "payload": {"navigation": {"moveHorizontal": direction}}})
-            return f"Moved {direction}."
 
         elif name == "highlight_artifact":
             from app.websocket.manager import manager as ws_manager

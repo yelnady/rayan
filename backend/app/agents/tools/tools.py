@@ -226,7 +226,7 @@ CAPTURE_LIVE_TOOLS = [
         "name": "capture_concept",
         "description": (
             "Extract and save a key concept to the memory palace. "
-            "Invoke autonomously when confidence >= 0.7 and at least 15 seconds have passed since the last capture. "
+            "Invoke autonomously when confidence >= 0.7 and enough time has passed since the last capture (interval depends on session pace). "
             "Do NOT call for minor details or topics already captured."
         ),
         "parameters": {
@@ -236,7 +236,8 @@ CAPTURE_LIVE_TOOLS = [
                 "summary": {"type": "string", "description": "Detailed, objective summary of the concept (50-150 words). Write in third person — describe what the concept IS, never use 'you mentioned', 'you spoke about', or any attribution to the user or speaker."},
                 "artifact_type": {"type": "string", "description": _ARTIFACT_TYPE_DESC},
                 "keywords": {"type": "array", "items": {"type": "string"}, "description": "2-4 topic keywords for categorisation."},
-                "confidence": {"type": "number", "description": "Confidence score 0.0-1.0."},
+                "confidence": {"type": "number", "description": "Confidence score 0.0-1.0."},                "full_content": {"type": "string", "description": "Full detailed content (optional but recommended)."},
+
             },
             "required": ["title", "summary", "artifact_type", "keywords", "confidence"],
         },
@@ -265,7 +266,8 @@ CAPTURE_LIVE_TOOLS = [
         "name": "create_room",
         "description": (
             "Create a new room in the memory palace. "
-            "Invoke only when the user explicitly asks, or when the topic is clearly distinct from all existing rooms."
+            "Invoke only when the user explicitly asks, or when the topic is clearly distinct from ALL existing rooms."
+            "Do not create multiple rooms crazily. Do not create a room for every topic."
         ),
         "parameters": {
             "type": "object",
@@ -304,24 +306,6 @@ CAPTURE_LIVE_TOOLS = [
                 "room_id": {"type": "string", "description": "The exact room ID from the ROOM DIRECTORY, or 'lobby' to return home."},
             },
             "required": ["room_id"],
-        },
-        "behavior": "NON_BLOCKING",
-    },
-    {
-        "name": "navigate_to_map_view",
-        "description": "Toggle the bird's-eye map overview of the entire memory palace. Use when the user asks to see the map, overview, all rooms, or to exit back to first-person.",
-        "parameters": {"type": "object", "properties": {}},
-        "behavior": "NON_BLOCKING",
-    },
-    {
-        "name": "navigate_horizontal",
-        "description": "Move left or right within the current room to see more artifacts.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "direction": {"type": "string", "description": "Must be 'left' or 'right'."},
-            },
-            "required": ["direction"],
         },
         "behavior": "NON_BLOCKING",
     },
@@ -407,15 +391,6 @@ RECALL_LIVE_TOOLS = [
             },
             "required": ["room_id"],
         },
-        "behavior": "NON_BLOCKING",
-    },
-    {
-        "name": "navigate_to_map_view",
-        "description": (
-            "Toggle the bird's-eye map overview of the entire memory palace. "
-            "Invoke when the user asks to see the map, overview, or all rooms at once, or to exit map view."
-        ),
-        "parameters": {"type": "object", "properties": {}},
         "behavior": "NON_BLOCKING",
     },
     {
