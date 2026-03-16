@@ -44,6 +44,8 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
     const zoomFov = useRef(DEFAULT_FOV);
     // Intro: camera starts behind the south wall, elevated, facing north (into the back of the lobby)
     const introActive = useRef(true);
+    const introSettleFrames = useRef(0); // counts frames rendered before animation starts
+    const INTRO_SETTLE = 20;             // wait this many frames for shaders/assets to load
     const INTRO_START = new THREE.Vector3(6, 8, 35); // behind the south/back wall, elevated
     const INTRO_PITCH = -0.28; // slight downward angle — sees south + east + west walls
     const INTRO_YAW   = 0;     // facing -Z (northward, into the back of the palace)
@@ -260,12 +262,18 @@ export function FirstPersonControls({ onPositionChange }: FirstPersonControlsPro
 
         // Intro fly-in: glide from behind south wall through the lobby to SPAWN
         if (introActive.current) {
-            const SPEED = 1.0;
-            camera.position.lerp(SPAWN, delta * SPEED);
-            pitch.current = THREE.MathUtils.lerp(pitch.current, 0, delta * SPEED * 1.2);
+            // Hold still until enough frames have rendered (shaders compiled, assets loaded)
+            if (introSettleFrames.current < INTRO_SETTLE) {
+                introSettleFrames.current++;
+                return;
+            }
+            const SPEED = 1.5;
+            const safeDelta = Math.min(delta, 0.033); // cap at ~30fps to prevent spike jumps
+            camera.position.lerp(SPAWN, safeDelta * SPEED);
+            pitch.current = THREE.MathUtils.lerp(pitch.current, 0, safeDelta * SPEED * 1.2);
             // Rotate from facing north (yaw=0) to facing south (yaw=PI) along shortest path
             const yawDiff = ((Math.PI - yaw.current + 3 * Math.PI) % (2 * Math.PI)) - Math.PI;
-            yaw.current += yawDiff * Math.min(delta * SPEED * 0.7, 1);
+            yaw.current += yawDiff * Math.min(safeDelta * SPEED * 0.7, 1);
             camera.quaternion.setFromEuler(new THREE.Euler(pitch.current, yaw.current, 0, 'YXZ'));
             if (camera.position.distanceTo(SPAWN) < 0.05) {
                 introActive.current = false;
