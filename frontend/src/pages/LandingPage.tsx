@@ -83,7 +83,7 @@ const GOOGLE_STACK = [
   { label: 'Gemini Live API',       sub: 'gemini-live-2.5-flash-native-audio', desc: 'Real-time voice agents with affective dialogue' },
   { label: 'Gemini 2.5 Flash',      sub: 'gemini-2.5-flash',                   desc: 'Categorization, narration, room clustering' },
   { label: 'Gemini Image',          sub: 'gemini-2.5-flash-image',             desc: 'Creative mind map synthesis for room walls' },
-  { label: 'Vertex AI Embeddings',  sub: 'text-embedding-005',                 desc: '768-dim semantic search and grounding' },
+  { label: 'Vertex AI Embeddings',  sub: 'gemini-embedding-2-preview',          desc: '768-dim semantic search and grounding' },
   { label: 'Cloud Firestore',       sub: '',                                   desc: 'Rooms, artifacts, sessions, users' },
   { label: 'Cloud Storage',         sub: '',                                   desc: 'Screenshots, mind maps, media' },
   { label: 'Cloud Run',             sub: 'Session affinity',                   desc: 'Containerized FastAPI backend' },
@@ -504,7 +504,7 @@ export function LandingPage() {
       {/* ── ZERO HALLUCINATION ──────────────────────────────────────────── */}
       <CalloutCard icon={Shield} iconBg="bg-emerald-500/20 border-emerald-400/30" iconColor="text-emerald-300" title="Zero Hallucination by Design">
         <p className="text-sm sm:text-base text-slate-400 leading-relaxed mb-3">
-          Every Recall answer is grounded by Vertex AI <code className="text-emerald-400 text-xs sm:text-sm">text-embedding-005</code>. Your query gets embedded into a 768-dimensional vector, cosine-compared against every stored artifact, and the top 8 most relevant memories are injected into the live system prompt. Rayan cannot invent information that isn't in your palace.
+          Every Recall answer is grounded by Vertex AI <code className="text-emerald-400 text-xs sm:text-sm">gemini-embedding-2-preview</code>. Your query gets embedded into a 768-dimensional vector, cosine-compared against every stored artifact, and the top 8 most relevant memories are injected into the live system prompt. Rayan cannot invent information that isn't in your palace.
         </p>
         <p className="text-sm sm:text-base text-slate-400 leading-relaxed">
           On every room navigation and artifact highlight, the search re-runs and fresh memories are injected mid-conversation. No reconnection. Always current.

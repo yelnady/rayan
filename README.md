@@ -9,7 +9,7 @@
 [![Gemini Image](https://img.shields.io/badge/gemini--2.5--flash--image-Creative%20Synthesis-FFE135?style=for-the-badge&logo=google&logoColor=black)](https://ai.google.dev/)
 [![Cloud Run](https://img.shields.io/badge/Cloud%20Run-Deployed-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/run)
 [![Firebase Hosting](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com/)
-[![Vertex AI](https://img.shields.io/badge/Vertex%20AI-text--embedding--005-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/vertex-ai)
+[![Vertex AI](https://img.shields.io/badge/Vertex%20AI-gemini--embedding--2--preview-34A853?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/vertex-ai)
 [![Terraform](https://img.shields.io/badge/Terraform-IaC-7B42BC?style=for-the-badge&logo=terraform&logoColor=white)](https://www.terraform.io/)
 [![Three.js](https://img.shields.io/badge/Three.js-3D%20Engine-000000?style=for-the-badge&logo=threedotjs&logoColor=white)](https://threejs.org/)
 [![React](https://img.shields.io/badge/React%2018-Frontend-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -74,7 +74,7 @@ Captured knowledge is **typed and visually rendered** as one of 16 distinct 3D o
 | ...and 9 more | Unique 3D models per type |
 
 ### 🔍 Semantic Search Grounding (Zero Hallucination)
-Every Recall answer is grounded by **Vertex AI `text-embedding-005`**  -  768-dimensional cosine similarity search over your stored memories. The system prompt enforces citation. Rayan cannot invent information that isn't in your palace.
+Every Recall answer is grounded by **`gemini-embedding-2-preview`**  -  768-dimensional cosine similarity search over your stored memories. The system prompt enforces citation. Rayan cannot invent information that isn't in your palace.
 
 ### 💬 Affective Dialog
 Both agents use `enable_affective_dialog=True`. Rayan modulates its vocal tone, pacing, and empathy in real time based on how you sound  -  matching your energy when you're excited, staying quiet when you're focused.
@@ -280,7 +280,7 @@ Rayan isn't a notes app. It's a **persistent second brain** you can walk through
               │             └──────────────┬──────────────┘    │
               │                            │                   │
               │  ┌─────────────────────────▼─────────────┐    │
-              │  │  Vertex AI  text-embedding-005         │    │
+              │  │  Vertex AI  gemini-embedding-2-preview │    │
               │  │  Semantic search grounding             │    │
               │  │  768-dim cosine similarity             │    │
               │  └────────────────────────────────────────┘    │
@@ -301,13 +301,13 @@ graph TD
         CA["CaptureAgent\ngemini-live-2.5-flash-native-audio\nenable_affective_dialog=true"]
         RA["RecallAgent\ngemini-live-2.5-flash-native-audio\nenable_affective_dialog=true"]
         MA["Memory Architect\ngemini-2.5-flash\ncategorize + cluster rooms"]
-        SS["Semantic Search\nVertex AI text-embedding-005\n768-dim cosine grounding"]
+        SS["Semantic Search\ngemini-embedding-2-preview\n768-dim cosine grounding"]
     end
 
     subgraph GCP["Google Cloud"]
         FS["Firestore\nrooms / artifacts / embeddings"]
         GCS["Cloud Storage\nscreenshots / mind maps"]
-        VAI["Vertex AI\ntext-embedding-005"]
+        VAI["Vertex AI\ngemini-embedding-2-preview"]
     end
 
     Browser <-->|"WebSocket\naudio chunks, video frames\npalace_update events"| WS
@@ -329,7 +329,7 @@ graph TD
 
 Every Recall session is semantically grounded before Rayan speaks a single word:
 
-1. On session start, `_retrieve_context()` embeds your current artifact summary via **Vertex AI `text-embedding-005`**
+1. On session start, `_retrieve_context()` embeds your current artifact summary via **`gemini-embedding-2-preview`**
 2. It runs cosine similarity search across every stored artifact embedding in Firestore
 3. The **top-8 most semantically relevant memories** are injected into the live system prompt under `MEMORIES:`
 4. The system prompt enforces: *"ONLY use information from the provided MEMORIES section. NEVER hallucinate or invent information. Cite which artifact/room the information comes from."*
@@ -364,7 +364,7 @@ Gemini naturally adjusts its vocal tone, pacing, and empathy based on your emoti
 | AI  -  Live Agents | Gemini Live API (`gemini-live-2.5-flash-native-audio`) |
 | AI  -  Categorization | `gemini-2.5-flash` |
 | AI  -  Creative Synthesis | `gemini-2.5-flash-image` — generates styled mind map images to visually summarize room memories |
-| AI  -  Semantic Grounding | Vertex AI `text-embedding-005` (768-dim cosine similarity) |
+| AI  -  Semantic Grounding | Vertex AI `gemini-embedding-2-preview` (768-dim cosine similarity) |
 | SDK | Google GenAI SDK (`google-genai`), Google ADK (`google-adk`) |
 | Database | Cloud Firestore |
 | Storage | Cloud Storage (screenshots + mind maps) |
@@ -386,7 +386,7 @@ rayan/
 │   │   │   └── tools/tools.py        # Tool declarations for both agents
 │   │   ├── services/
 │   │   │   ├── search_service.py     # Semantic search (Vertex AI embeddings)
-│   │   │   ├── embedding_service.py  # text-embedding-005 via Vertex AI
+│   │   │   ├── embedding_service.py  # gemini-embedding-2-preview via Vertex AI
 │   │   │   ├── synthesis_service.py  # AI mind map generation
 │   │   │   ├── room_service.py       # Room CRUD
 │   │   │   └── artifact_service.py   # Artifact CRUD
