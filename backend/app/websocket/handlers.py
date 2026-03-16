@@ -44,11 +44,9 @@ logger = logging.getLogger(__name__)
 _NON_ASCII_RE = re.compile(r"[^\x00-\x7F]+")
 
 
-def _english_only(text: str) -> str:
-    """Replace non-ASCII characters with a space so word boundaries are preserved."""
-    cleaned = _NON_ASCII_RE.sub(" ", text)
-    # Collapse multiple spaces into one
-    return re.sub(r" {2,}", " ", cleaned).strip()
+def _clean_text(text: str) -> str:
+    """Strip non-ASCII characters so only English letters and symbols reach the frontend."""
+    return _NON_ASCII_RE.sub("", text).strip()
 
 
 # Message handlers registry: type → async callable(user_id, message, websocket)
@@ -130,13 +128,13 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
     async def on_text(text: str) -> None:
         await manager.send(user_id, {
             "type": "capture_text",
-            "text": _english_only(text),
+            "text": _clean_text(text),
         })
 
     async def on_user_text(text: str) -> None:
         await manager.send(user_id, {
             "type": "capture_user_text",
-            "text": _english_only(text),
+            "text": _clean_text(text),
         })
 
     async def on_close() -> None:
@@ -368,10 +366,10 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
         await manager.send(user_id, {"type": "live_audio", "audioChunk": audio_b64})
 
     async def on_text(text: str) -> None:
-        await manager.send(user_id, {"type": "live_text", "text": _english_only(text)})
+        await manager.send(user_id, {"type": "live_text", "text": _clean_text(text)})
 
     async def on_user_text(text: str) -> None:
-        await manager.send(user_id, {"type": "live_user_text", "text": _english_only(text)})
+        await manager.send(user_id, {"type": "live_user_text", "text": _clean_text(text)})
 
     async def on_interrupted() -> None:
         await manager.send(user_id, {"type": "live_interrupted"})

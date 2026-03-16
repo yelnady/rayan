@@ -78,6 +78,20 @@ interface VoiceState {
   reset: () => void;
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Returns true when a space should be inserted between two concatenated text chunks. */
+function needsSpace(prev: string, next: string): boolean {
+  if (!prev || !next) return false;
+  const lastChar = prev[prev.length - 1];
+  const firstChar = next[0];
+  // Already has whitespace on either side
+  if (/\s/.test(lastChar) || /\s/.test(firstChar)) return false;
+  // Don't add space before punctuation
+  if (/[.,!?;:'")\]\-]/.test(firstChar)) return false;
+  return true;
+}
+
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 const defaultState = {
@@ -102,13 +116,18 @@ export const useVoiceStore = create<VoiceState>((set) => ({
   setMuted: (muted) => set({ muted }),
 
   appendTranscript: (text) =>
-    set((state) => ({ transcript: state.transcript ? `${state.transcript}${text}` : text })),
+    set((state) => {
+      if (!state.transcript) return { transcript: text };
+      const sep = needsSpace(state.transcript, text) ? ' ' : '';
+      return { transcript: state.transcript + sep + text };
+    }),
   appendRayanText: (text) =>
     set((state) => {
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === 'rayan') {
-        msgs[msgs.length - 1] = { ...last, text: last.text + text };
+        const sep = needsSpace(last.text, text) ? ' ' : '';
+        msgs[msgs.length - 1] = { ...last, text: last.text + sep + text };
       } else {
         msgs.push({ id: `rayan-${Date.now()}`, role: 'rayan', text });
       }
@@ -119,7 +138,8 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === 'user') {
-        msgs[msgs.length - 1] = { ...last, text: last.text + text };
+        const sep = needsSpace(last.text, text) ? ' ' : '';
+        msgs[msgs.length - 1] = { ...last, text: last.text + sep + text };
       } else {
         msgs.push({ id: `user-${Date.now()}`, role: 'user', text });
       }

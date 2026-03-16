@@ -79,7 +79,7 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
   tree: '/models/Tree.glb',
   opinion: '/models/Opinion.glb',
   headphones: '/models/Headphones.glb',
-  cash_stack: '/models/Cash Stack.glb',
+  cash_stack: '/models/Opinion.glb',
   exam: '/models/Exams.glb',
   dialogue: '/models/Conversation.glb',
   speaker: '/models/Speaker.glb',
@@ -96,6 +96,7 @@ const GLB_PATHS: Partial<Record<ArtifactVisual, string>> = {
  */
 const GLB_ROTATIONS: Partial<Record<ArtifactVisual, [number, number, number]>> = {
   lesson: [0, -Math.PI / 2, 0],
+  coffee: [0, -Math.PI / 2, 0],
 };
 
 /** Models that need their material colors darkened (multiplier 0–1). */
@@ -112,22 +113,22 @@ const GLB_SCALES: Partial<Record<ArtifactVisual, number>> = {
   framed_image: 0.5,
   lesson: 0.014,
   brain: 0.030,
-  question: 0.052,
-  coffee: 0.019,
+  question: 5,
+  coffee: 0.41,
   milestone: 0.1,
   heart: 0.0015,
   dream: 0.001,
   tree: 0.001,
   opinion: 0.003,
   headphones: 0.050,
-  cash_stack: 0.9,
+  cash_stack: 0.003,
   exam: 0.3,
   dialogue: 0.2,
   speaker: 0.6,
   warning: 0.3,
   stop: 2,
   game: 0.18,
-  hamburger: 0.3,
+  hamburger: 0.07,
 };
 
 /** Y offset (local space) from artifact origin to the date plaque. Override per visual as needed. */

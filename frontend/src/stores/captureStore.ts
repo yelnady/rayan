@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import type { CaptureAckMessage, CaptureCompleteMessage, RoomSuggestionMessage } from '../services/websocket';
 
+function needsSpace(prev: string, next: string): boolean {
+  if (!prev || !next) return false;
+  const lastChar = prev[prev.length - 1];
+  const firstChar = next[0];
+  if (/\s/.test(lastChar) || /\s/.test(firstChar)) return false;
+  if (/[.,!?;:'")\]\-]/.test(firstChar)) return false;
+  return true;
+}
+
 export type CaptureStatus = 'idle' | 'capturing' | 'processing' | 'complete' | 'error';
 export type CapturePace = 'selective' | 'balanced' | 'thorough';
 
@@ -96,7 +105,8 @@ export const useCaptureStore = create<CaptureState>((set) => ({
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === 'rayan') {
-        msgs[msgs.length - 1] = { ...last, text: last.text + text };
+        const sep = needsSpace(last.text, text) ? ' ' : '';
+        msgs[msgs.length - 1] = { ...last, text: last.text + sep + text };
       } else {
         msgs.push({ id: `rayan-${Date.now()}`, role: 'rayan', text });
       }
@@ -107,7 +117,8 @@ export const useCaptureStore = create<CaptureState>((set) => ({
       const msgs = [...state.messages];
       const last = msgs[msgs.length - 1];
       if (last && last.role === 'user') {
-        msgs[msgs.length - 1] = { ...last, text: last.text + text };
+        const sep = needsSpace(last.text, text) ? ' ' : '';
+        msgs[msgs.length - 1] = { ...last, text: last.text + sep + text };
       } else {
         msgs.push({ id: `user-${Date.now()}`, role: 'user', text });
       }
