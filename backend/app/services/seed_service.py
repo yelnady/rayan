@@ -337,7 +337,12 @@ async def seed_palace(user_id: str) -> dict:
     created_rooms: list[Room] = []
     created_artifacts: list[Artifact] = []
 
-    for room_def in _SEED_ROOMS:
+    # ── Pass 1: create all rooms and write lobby doors before any artifacts ──────
+    # Lobby doors must exist in Firestore before artifact placement so that
+    # _get_room_exit_wall returns the correct wall and door-gap skipping works.
+    WALL_POSITIONS = ["north", "east", "south", "west"]
+    lobby_doors = []
+    for i, room_def in enumerate(_SEED_ROOMS):
         room = await create_room(
             user_id=user_id,
             name=room_def["name"],
@@ -348,6 +353,26 @@ async def seed_palace(user_id: str) -> dict:
         created_rooms.append(room)
         rooms_created += 1
 
+        wall = WALL_POSITIONS[i % len(WALL_POSITIONS)]
+        door_index = i // len(WALL_POSITIONS)
+        lobby_doors.append({
+            "roomId": room.id,
+            "wallPosition": wall,
+            "doorIndex": door_index,
+        })
+
+    from app.core.firestore import get_firestore_client
+    layout_ref = (
+        get_firestore_client()
+        .collection("users")
+        .document(user_id)
+        .collection("layout")
+        .document("main")
+    )
+    await layout_ref.set({"lobbyDoors": lobby_doors}, merge=True)
+
+    # ── Pass 2: create artifacts now that lobby doors are in Firestore ───────────
+    for room, room_def in zip(created_rooms, _SEED_ROOMS):
         for art_def in room_def["artifacts"]:
             # Stagger dates: oldest first, most recent last
             captured_at = now - timedelta(days=14) + (time_step * artifact_index)
@@ -368,30 +393,6 @@ async def seed_palace(user_id: str) -> dict:
             artifact_index += 1
 
         await recompute_room_summary(user_id, room.id)
-
-    # ── Wire lobby doors so the front-end can render portals ────────────────────
-    # Cycle through wall positions for the first 4 rooms; remaining rooms get
-    # north wall with increasing door indices.
-    WALL_POSITIONS = ["north", "east", "south", "west"]
-    lobby_doors = []
-    for i, room_id in enumerate(created_room_ids):
-        wall = WALL_POSITIONS[i % len(WALL_POSITIONS)]
-        door_index = i // len(WALL_POSITIONS)
-        lobby_doors.append({
-            "roomId": room_id,
-            "wallPosition": wall,
-            "doorIndex": door_index,
-        })
-
-    from app.core.firestore import get_firestore_client
-    layout_ref = (
-        get_firestore_client()
-        .collection("users")
-        .document(user_id)
-        .collection("layout")
-        .document("main")
-    )
-    await layout_ref.set({"lobbyDoors": lobby_doors}, merge=True)
 
     logger.info(
         "Palace seeded: userId=%s rooms=%d artifacts=%d lobbyDoors=%d",
