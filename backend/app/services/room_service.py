@@ -53,12 +53,13 @@ async def create_room(
     keywords: list[str],
     position: Position3D | None = None,
     style: str | None = None,
+    api_key: str | None = None,
 ) -> Room:
     room_id = f"room_{uuid.uuid4().hex[:12]}"
     now = datetime.now(UTC)
 
     topic_text = name + " " + " ".join(keywords)
-    embedding = await get_embedding(topic_text)
+    embedding = await get_embedding(topic_text, api_key=api_key)
 
     if position is None:
         existing = await get_all_rooms(user_id)

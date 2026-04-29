@@ -182,9 +182,11 @@ class CaptureAgent:
         on_close: Optional[CloseCallback] = None,
         display_name: str = "",
         capture_pace: str = _DEFAULT_PACE,
+        gemini_api_key: str | None = None,
     ) -> None:
         self.user_id = user_id
         self.session_id = session_id
+        self._gemini_api_key = gemini_api_key
         self._display_name = display_name.split()[0] if display_name else "there"
         self._min_extraction_interval: float = CAPTURE_PACE_INTERVALS.get(capture_pace, CAPTURE_PACE_INTERVALS[_DEFAULT_PACE])
         self._system_prompt: str = ""  # built in start() after room fetch
@@ -292,7 +294,7 @@ class CaptureAgent:
     # ── Private ────────────────────────────────────────────────────────────────
 
     async def _lifecycle(self) -> None:
-        client = get_genai_client()
+        client = get_genai_client(self._gemini_api_key)
         config = genai_types.LiveConnectConfig(
             response_modalities=["AUDIO"],
             enable_affective_dialog=True,
@@ -456,6 +458,7 @@ class CaptureAgent:
                     concept_keywords=keywords,
                     concept_confidence=1.0,
                     full_content=full_content,
+                    gemini_api_key=self._gemini_api_key,
                 )
                 artifact = result.artifact
                 room = result.room
@@ -536,7 +539,7 @@ class CaptureAgent:
                 from app.services.embedding_service import get_embedding
                 from app.services.room_service import find_best_room_match
                 candidate_text = room_name + " " + " ".join(keywords)
-                candidate_embedding = await get_embedding(candidate_text)
+                candidate_embedding = await get_embedding(candidate_text, api_key=self._gemini_api_key)
                 best_room, similarity = await find_best_room_match(
                     self.user_id, candidate_embedding, keywords=keywords
                 )
@@ -558,7 +561,7 @@ class CaptureAgent:
             try:
                 from app.services.room_service import add_lobby_door, create_room as svc_create_room
                 from app.websocket.manager import manager as ws_manager
-                new_room = await svc_create_room(self.user_id, room_name, keywords)
+                new_room = await svc_create_room(self.user_id, room_name, keywords, api_key=self._gemini_api_key)
                 new_door = await add_lobby_door(self.user_id, new_room.id)
                 await ws_manager.send(self.user_id, {
                     "type": "palace_update",
@@ -665,7 +668,7 @@ class CaptureAgent:
 
         elif name == "web_search":
             query = args.get("query", "")
-            result = await execute_web_search(query)
+            result = await execute_web_search(query, api_key=self._gemini_api_key)
             await self._send_capture_event(f"Web search: {query[:40]}", "web_search")
             return result
 
@@ -751,6 +754,7 @@ class CaptureAgent:
                 concept_confidence=1.0,
                 captured_at=datetime.now(UTC),
                 force_room_id=force_room_id,
+                gemini_api_key=self._gemini_api_key,
             )
 
             # Patch sourceMediaUrl directly in Firestore
@@ -926,7 +930,7 @@ class CaptureAgent:
             try:
                 from app.services.embedding_service import get_embedding
                 embed_text = event.concept_title + ". " + event.concept_summary
-                new_embedding = await get_embedding(embed_text)
+                new_embedding = await get_embedding(embed_text, api_key=self._gemini_api_key)
                 match = self._find_similar_session_artifact(new_embedding)
                 if match:
                     artifact_id, room_id, existing_title = match
@@ -972,6 +976,7 @@ class CaptureAgent:
                 captured_at=event.captured_at,
                 force_room_id=force_room_id,
                 full_content=event.full_content,
+                gemini_api_key=self._gemini_api_key,
             )
             event.categorization = result
             await add_artifact_to_session(self.user_id, self.session_id, result.artifact.id)

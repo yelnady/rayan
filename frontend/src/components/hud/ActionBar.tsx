@@ -18,12 +18,13 @@ import { useCameraStore } from '../../stores/cameraStore';
 import { useTransitionStore } from '../../stores/transitionStore';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { audioEngine } from '../../services/audioEngine';
+import { SettingsModal } from './SettingsModal';
 
 // ─── Reset View button ────────────────────────────────────────────────────────
 
 // ─── More button (Mobile Only) ────────────────────────────────────────────────
 
-function MoreSection() {
+function MoreSection({ onOpenSettings }: { onOpenSettings: () => void }) {
     const [showMenu, setShowMenu] = useState(false);
     const [muted, setMuted] = useState(() => audioEngine.isMuted);
     const btnRef = useRef<HTMLButtonElement>(null);
@@ -102,6 +103,15 @@ function MoreSection() {
                             <MusicIcon muted={muted} size={14} />
                         </div>
                         <span className="font-body text-[13px] font-medium">{muted ? 'Music off' : 'Music on'}</span>
+                    </button>
+                    <button
+                        onClick={() => { setShowMenu(false); onOpenSettings(); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl border-none bg-transparent text-text-primary hover:bg-[rgba(0,0,0,0.05)] cursor-pointer"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0">
+                            <SettingsIcon size={14} />
+                        </div>
+                        <span className="font-body text-[13px] font-medium">Settings</span>
                     </button>
                 </div>,
                 document.body
@@ -184,6 +194,26 @@ function OverviewSection() {
             </div>
             <span className="hidden sm:block font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
                 {isOverviewMode ? 'Exit Map' : 'Map'}
+            </span>
+        </button>
+    );
+}
+
+// ─── Settings button ──────────────────────────────────────────────────────────
+
+function SettingsSection({ onOpen }: { onOpen: () => void }) {
+    return (
+        <button
+            onClick={onOpen}
+            aria-label="Open settings"
+            title="Settings"
+            className="hidden sm:flex flex-col items-center gap-1 py-1.5 px-1.5 sm:px-3.5 bg-transparent border-none rounded-full cursor-pointer text-text-primary transition-background duration-150 hover:bg-surface-hover group"
+        >
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[rgba(0,0,0,0.04)] flex items-center justify-center shrink-0 transition-all duration-150 group-hover:bg-[rgba(0,0,0,0.08)] group-active:scale-95">
+                <SettingsIcon size={16} />
+            </div>
+            <span className="hidden sm:block font-body text-[10px] text-text-muted tracking-[0.03em] leading-none">
+                Settings
             </span>
         </button>
     );
@@ -608,6 +638,8 @@ function MusicSection() {
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function ActionBar() {
+    const [settingsOpen, setSettingsOpen] = useState(false);
+
     return (
         <>
             {/* Keyframes injected once */}
@@ -642,7 +674,7 @@ export function ActionBar() {
                 className="fixed bottom-safe left-1/2 -translate-x-1/2 z-hud flex items-center bg-glass backdrop-blur-xl border border-border rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.08),inset_0_1px_0_rgba(255,255,255,0.5)] px-1 sm:px-2.5 py-1 sm:py-2.5 gap-0 animate-[bar-appear_0.4s_cubic-bezier(0.32,0,0.67,0)_both] max-w-[98vw] sm:max-w-none"
             >
                 <MovementSection />
-                <MoreSection />
+                <MoreSection onOpenSettings={() => setSettingsOpen(true)} />
                 <ResetViewSection />
 
                 {/* Divider - hidden when MoreSection is shown */}
@@ -653,6 +685,7 @@ export function ActionBar() {
 
                 <OverviewSection />
                 <MusicSection />
+                <SettingsSection onOpen={() => setSettingsOpen(true)} />
 
                 {/* Divider */}
                 <div
@@ -670,6 +703,8 @@ export function ActionBar() {
 
                 <VoiceSection />
             </div>
+
+            <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </>
     );
 }
@@ -761,6 +796,14 @@ function MusicIcon({ muted, size = 18 }: { muted: boolean; size?: number }) {
             {muted && (
                 <line x1="3" y1="3" x2="21" y2="21" stroke="rgba(239,68,68,0.85)" strokeWidth="2.5" strokeLinecap="round" />
             )}
+        </svg>
+    );
+}
+
+function SettingsIcon({ size = 18 }: { size?: number }) {
+    return (
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="rgba(0,0,0,0.6)">
+            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
         </svg>
     );
 }

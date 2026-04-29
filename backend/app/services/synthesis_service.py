@@ -37,6 +37,7 @@ async def synthesize_room(
     user_id: str,
     room_id: str,
     replace_artifact_id: str | None = None,
+    api_key: str | None = None,
 ) -> Artifact:
     """Generate a mind map image for all artifacts in a room.
 
@@ -61,7 +62,7 @@ async def synthesize_room(
         raise ValueError("Room has no artifacts to synthesize.")
 
     prompt = _build_prompt(room_name, source_artifacts, room_style)
-    image_bytes = await _generate_image(prompt)
+    image_bytes = await _generate_image(prompt, api_key=api_key)
 
     blob_path = f"syntheses/{room_id}/{uuid.uuid4().hex}.png"
     image_url = await _upload_image(image_bytes, blob_path)
@@ -281,8 +282,8 @@ def _build_full_content(room_name: str, artifacts: list[Artifact]) -> str:
     return "\n".join(lines)
 
 
-async def _generate_image(prompt: str) -> bytes:
-    client = get_genai_client()
+async def _generate_image(prompt: str, api_key: str | None = None) -> bytes:
+    client = get_genai_client(api_key)
     delays = [5, 15, 30]  # seconds between retries on 429
     for attempt, delay in enumerate(delays + [None]):
         try:

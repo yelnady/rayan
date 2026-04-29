@@ -201,7 +201,8 @@ async def get_related_memories(
     if not artifact.summary:
         return RelatedMemoriesResponse(related=[])
 
-    results = await semantic_search(user_id, artifact.summary, limit=limit + 1)
+    from app.services.user_settings_service import get_user_gemini_key
+    results = await semantic_search(user_id, artifact.summary, limit=limit + 1, api_key=await get_user_gemini_key(user_id))
 
     related = [
         RelatedMemory(

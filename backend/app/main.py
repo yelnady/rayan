@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.core.firebase import init_firebase
 from app.routers import health, sessions, palace, rooms, search, artifacts, enrichment
+from app.routers import settings as settings_router
 from app.websocket.auth import authenticate_websocket
 from app.websocket.handlers import route_message
 from app.websocket.manager import manager
@@ -43,6 +44,7 @@ app.include_router(rooms.router)
 app.include_router(search.router)
 app.include_router(artifacts.router)
 app.include_router(enrichment.router)
+app.include_router(settings_router.router)
 
 
 

@@ -142,7 +142,9 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
         await handle_capture_end(user_id, {"sessionId": session_id}, websocket)
 
     display_name = manager.get_display_name(user_id)
-    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name, capture_pace=capture_pace)
+    from app.services.user_settings_service import get_user_gemini_key
+    gemini_api_key = await get_user_gemini_key(user_id)
+    agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name, capture_pace=capture_pace, gemini_api_key=gemini_api_key)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
     logger.info("capture_start: userId=%s sessionId=%s", user_id, session_id)
@@ -252,12 +254,14 @@ async def handle_capture_end(user_id: str, msg: dict, websocket: WebSocket) -> N
     narrative: str | None = None
     if concept_count > 0:
         try:
+            _narrative_key = agent._gemini_api_key if agent else None
             narrative = await asyncio.wait_for(
                 _generate_session_narrative(
                     concept_count=concept_count,
                     rooms=list(rooms_seen.values()),
                     artifacts=rich_artifacts,
                     duration_seconds=session.durationSeconds if session else None,
+                    api_key=_narrative_key,
                 ),
                 timeout=12.0,
             )
@@ -326,7 +330,9 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
         return
 
     try:
-        result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id, display_name=manager.get_display_name(user_id))
+        from app.services.user_settings_service import get_user_gemini_key
+        gemini_api_key = await get_user_gemini_key(user_id)
+        result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id, display_name=manager.get_display_name(user_id), gemini_api_key=gemini_api_key)
     except Exception:
         logger.exception("narrator_agent failed: userId=%s artifactId=%s", user_id, artifact_id)
         await manager.send(user_id, {
@@ -386,6 +392,8 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
         })
 
     try:
+        from app.services.user_settings_service import get_user_gemini_key
+        gemini_api_key = await get_user_gemini_key(user_id)
         await recall_agent.start_session(
             user_id=user_id,
             context=context,
@@ -396,6 +404,7 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
             on_turn_complete=on_turn_complete,
             on_user_text=on_user_text,
             on_tool_activity=on_tool_activity,
+            gemini_api_key=gemini_api_key,
         )
         await manager.send(user_id, {"type": "live_session_started"})
     except Exception:
@@ -439,6 +448,7 @@ async def _generate_session_narrative(
     rooms: list[dict],
     artifacts: list[dict],
     duration_seconds: float | None,
+    api_key: str | None = None,
 ) -> str:
     """Generate a 2-sentence Gemini narrative for the capture session summary."""
     from app.core.gemini import STANDARD_MODEL, get_genai_client
@@ -461,7 +471,7 @@ async def _generate_session_narrative(
         f"No bullet points, just 2 flowing sentences."
     )
 
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     response = await client.aio.models.generate_content(model=STANDARD_MODEL, contents=prompt)
     return (response.text or "").strip()
 

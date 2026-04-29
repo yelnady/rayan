@@ -58,6 +58,7 @@ async def categorize_and_store(
     captured_at: Optional[datetime] = None,
     full_content: Optional[str] = None,
     force_room_id: Optional[str] = None,
+    gemini_api_key: str | None = None,
 ) -> CategorizationResult:
     """Embed concept → match room → create artifact → return result."""
     # Map raw string type to enum (default to lecture)
@@ -71,7 +72,7 @@ async def categorize_and_store(
         from app.services.room_service import get_room
         forced_room = await get_room(user_id, force_room_id)
         if forced_room:
-            artifact = await _store(user_id, session_id, forced_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
+            artifact = await _store(user_id, session_id, forced_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content, api_key=gemini_api_key)
             await increment_artifact_count(user_id, forced_room.id)
             logger.info("categorize: force_room userId=%s roomId=%s title=%r", user_id, force_room_id, concept_title)
             return CategorizationResult(
@@ -82,7 +83,7 @@ async def categorize_and_store(
             )
 
     embed_text = concept_title + ". " + concept_summary
-    embedding = await get_embedding(embed_text)
+    embedding = await get_embedding(embed_text, api_key=gemini_api_key)
 
     best_room, similarity = await find_best_room_match(user_id, embedding, keywords=concept_keywords)
 
@@ -92,7 +93,7 @@ async def categorize_and_store(
     )
 
     if best_room and similarity >= HIGH_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content, api_key=gemini_api_key)
         await increment_artifact_count(user_id, best_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -102,7 +103,7 @@ async def categorize_and_store(
         )
 
     elif best_room and similarity >= LOW_SIMILARITY:
-        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
+        artifact = await _store(user_id, session_id, best_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content, api_key=gemini_api_key)
         return CategorizationResult(
             artifact=artifact,
             room=best_room,
@@ -125,8 +126,8 @@ async def categorize_and_store(
 
     else:
         room_name = _infer_room_name(concept_title, concept_keywords)
-        new_room = await create_room(user_id, room_name, concept_keywords)
-        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content)
+        new_room = await create_room(user_id, room_name, concept_keywords, api_key=gemini_api_key)
+        artifact = await _store(user_id, session_id, new_room.id, artifact_type, concept_title, concept_summary, concept_keywords, captured_at, full_content, api_key=gemini_api_key)
         await increment_artifact_count(user_id, new_room.id)
         return CategorizationResult(
             artifact=artifact,
@@ -156,6 +157,7 @@ async def _store(
     keywords: list[str] | None = None,
     captured_at: Optional[datetime] = None,
     full_content: Optional[str] = None,
+    api_key: str | None = None,
 ) -> Artifact:
     return await create_artifact(
         user_id=user_id,
@@ -167,4 +169,5 @@ async def _store(
         capture_session_id=session_id,
         captured_at=captured_at,
         full_content=full_content,
+        api_key=api_key,
     )

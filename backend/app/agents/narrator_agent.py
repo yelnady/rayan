@@ -68,6 +68,7 @@ async def narrate_artifact(
     artifact_id: str,
     room_id: str,
     display_name: str = "",
+    gemini_api_key: str | None = None,
 ) -> NarrationResult:
     """Generate a full narration (voice + diagrams) for the given artifact."""
     # 1. Load artifact
@@ -83,7 +84,7 @@ async def narrate_artifact(
     related: list[SearchResult] = []
     if artifact.embedding:
         try:
-            related = await _find_related(user_id, artifact)
+            related = await _find_related(user_id, artifact, api_key=gemini_api_key)
         except Exception:
             logger.exception("Related artifact search failed: artifactId=%s", artifact_id)
 
@@ -116,10 +117,10 @@ async def narrate_artifact(
         related_text=related_text,
     )
 
-    narration_text, diagrams = await _compose_narration(prompt, artifact_id)
+    narration_text, diagrams = await _compose_narration(prompt, artifact_id, api_key=gemini_api_key)
 
     # 4. Synthesise voice audio via Gemini Live
-    voice_audio = await _synthesise_voice(narration_text)
+    voice_audio = await _synthesise_voice(narration_text, api_key=gemini_api_key)
 
     result = NarrationResult(
         voice_audio=voice_audio,
@@ -139,21 +140,23 @@ async def narrate_artifact(
 
 # ── Private helpers ────────────────────────────────────────────────────────────
 
-async def _find_related(user_id: str, artifact) -> list[SearchResult]:
+async def _find_related(user_id: str, artifact, api_key: str | None = None) -> list[SearchResult]:
     """Use the artifact's own summary as a search query to find related artifacts."""
     return await semantic_search(
         user_id=user_id,
         query=artifact.summary,
         limit=5,
+        api_key=api_key,
     )
 
 
 async def _compose_narration(
     prompt: str,
     artifact_id: str,
+    api_key: str | None = None,
 ) -> tuple[str, list[DiagramResult]]:
     """Generate narration text (and detect a diagram trigger) via standard Gemini."""
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     full_text = ""
     try:
         async for chunk in await client.aio.models.generate_content_stream(
@@ -183,6 +186,7 @@ async def _compose_narration(
                         description=description,
                         caption=title,
                         artifact_id=artifact_id,
+                        api_key=api_key,
                     )
                     diagrams.append(diagram)
                 except Exception:
@@ -193,12 +197,12 @@ async def _compose_narration(
     return full_text.strip(), diagrams
 
 
-async def _synthesise_voice(narration_text: str) -> Optional[bytes]:
+async def _synthesise_voice(narration_text: str, api_key: str | None = None) -> Optional[bytes]:
     """Convert narration text to audio bytes via Gemini Live."""
     if not narration_text:
         return None
 
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     config = genai_types.LiveConnectConfig(
         response_modalities=["AUDIO"],
         enable_affective_dialog=True,

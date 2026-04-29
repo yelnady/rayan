@@ -42,12 +42,13 @@ async def create_artifact(
     is_seed_data: bool = False,
     captured_at: Optional[datetime] = None,
     wall: Optional[str] = None,
+    api_key: str | None = None,
 ) -> Artifact:
     artifact_id = f"artifact_{uuid.uuid4().hex[:12]}"
     now = datetime.now(UTC)
 
     embed_text = summary + (" " + full_content[:500] if full_content else "")
-    embedding = await get_embedding(embed_text)
+    embedding = await get_embedding(embed_text, api_key=api_key)
 
     if position is None or wall is None:
         occupied = await _get_occupied_slots(user_id, room_id)
@@ -109,6 +110,7 @@ async def update_artifact(
     summary: Optional[str] = None,
     full_content: Optional[str] = None,
     title: Optional[str] = None,
+    api_key: str | None = None,
 ) -> Artifact | None:
     """Update an artifact's title, summary, and/or full_content, regenerating its embedding."""
     artifact = await get_artifact_by_id(user_id, artifact_id)
@@ -130,7 +132,7 @@ async def update_artifact(
 
     if updates:
         embed_text = artifact.summary + (" " + artifact.fullContent[:500] if artifact.fullContent else "")
-        updates["embedding"] = await get_embedding(embed_text)
+        updates["embedding"] = await get_embedding(embed_text, api_key=api_key)
         await _artifacts_ref(user_id, room_id).document(artifact_id).update(updates)
         logger.info("Artifact updated: userId=%s artifactId=%s fields=%s", user_id, artifact_id, list(updates.keys()))
 

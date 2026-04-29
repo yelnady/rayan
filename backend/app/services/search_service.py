@@ -62,6 +62,7 @@ async def semantic_search(
     captured_after: Optional[datetime] = None,
     captured_before: Optional[datetime] = None,
     min_similarity: float = MIN_SIMILARITY,
+    api_key: str | None = None,
 ) -> list[SearchResult]:
     """Hybrid semantic + keyword search across user's memories.
 
@@ -75,7 +76,7 @@ async def semantic_search(
         return []
 
     try:
-        query_embedding = await get_embedding(query)
+        query_embedding = await get_embedding(query, api_key=api_key)
     except Exception:
         logger.exception("Failed to embed query for userId=%s", user_id)
         return []

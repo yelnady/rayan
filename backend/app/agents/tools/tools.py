@@ -569,14 +569,14 @@ RECALL_LIVE_TOOLS = _strip_vertex_unsupported(RECALL_LIVE_TOOLS)
 
 # ── Execution helpers ──────────────────────────────────────────────────────────
 
-async def execute_web_search(query: str) -> str:
+async def execute_web_search(query: str, api_key: str | None = None) -> str:
     """Execute a web search using Gemini's google_search grounding and return results."""
     import json
     import logging
     from app.core.gemini import get_genai_client
 
     logger = logging.getLogger(__name__)
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     prompt = f"Search for information about: {query}\n\nProvide a concise summary (2-4 sentences) of the most relevant findings."
     try:
         response = await client.aio.models.generate_content(

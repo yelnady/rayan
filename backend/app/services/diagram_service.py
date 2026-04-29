@@ -36,20 +36,11 @@ async def generate_diagram(
     caption: str,
     artifact_id: str,
     position: Optional[dict] = None,
+    api_key: str | None = None,
 ) -> DiagramResult:
-    """Generate a diagram image and upload it to Cloud Storage.
-
-    Args:
-        description: What to visualise (e.g. "Scaled dot-product attention formula").
-        caption: Short human-readable title for the diagram.
-        artifact_id: Owner artifact; used as storage path prefix.
-        position: Optional 3D {x, y, z} for placement in the palace.
-
-    Returns:
-        DiagramResult with the public Cloud Storage URL.
-    """
+    """Generate a diagram image and upload it to Cloud Storage."""
     prompt = _build_prompt(description, caption)
-    image_bytes = await _generate_image(prompt)
+    image_bytes = await _generate_image(prompt, api_key=api_key)
 
     diagram_id = uuid.uuid4().hex
     blob_path = f"diagrams/{artifact_id}/{diagram_id}.png"
@@ -79,9 +70,9 @@ def _build_prompt(description: str, caption: str) -> str:
     )
 
 
-async def _generate_image(prompt: str) -> bytes:
+async def _generate_image(prompt: str, api_key: str | None = None) -> bytes:
     """Call Gemini image generation and return PNG bytes."""
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     response = await client.aio.models.generate_content(
         model=IMAGE_MODEL,
         contents=[prompt],

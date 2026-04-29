@@ -51,6 +51,7 @@ class LiveSession:
     close_event: asyncio.Event  # signal to shut down
     ready_event: asyncio.Event  # signaled when session is connected
     current_room_id: Optional[str] = field(default=None)
+    gemini_api_key: Optional[str] = field(default=None)
     _closed: bool = field(default=False, init=False)
 
 
@@ -196,6 +197,7 @@ class RecallAgent:
         on_user_text: Optional[OnUserText] = None,
         on_tool_activity: Optional[OnToolActivity] = None,
         display_name: str = "",
+        gemini_api_key: str | None = None,
     ) -> None:
         """Open a persistent Gemini Live connection for the user."""
         # Close any existing session first
@@ -209,7 +211,7 @@ class RecallAgent:
             user_id, room_id, artifact_id,
         )
         results, room_directory = await asyncio.gather(
-            _retrieve_context(user_id, room_id, artifact_id),
+            _retrieve_context(user_id, room_id, artifact_id, api_key=gemini_api_key),
             _build_room_directory(user_id),
         )
         if results:
@@ -268,6 +270,7 @@ class RecallAgent:
             close_event=close_event,
             ready_event=ready_event,
             current_room_id=room_id,
+            gemini_api_key=gemini_api_key,
         )
         self._sessions[user_id] = live
 
@@ -275,7 +278,7 @@ class RecallAgent:
         task = asyncio.create_task(
             self._session_lifecycle(
                 live, config, on_audio, on_text, on_interrupted, on_turn_complete,
-                on_user_text, on_tool_activity,
+                on_user_text, on_tool_activity, gemini_api_key=gemini_api_key,
             ),
             name=f"recall-session-{user_id}",
         )
@@ -513,7 +516,9 @@ class RecallAgent:
             await notify({"label": f"Saving: {title or summary[:50]}…"})
 
             # Run the heavy save in the background so Gemini resumes speaking immediately
-            async def _save_artifact(uid: str) -> None:
+            _save_api_key = self._sessions.get(user_id)
+            _save_api_key = _save_api_key.gemini_api_key if _save_api_key else None
+            async def _save_artifact(uid: str, _key: str | None = _save_api_key) -> None:
                 try:
                     from app.agents.memory_architect import categorize_and_store
                     from app.services.room_service import add_lobby_door
@@ -528,6 +533,7 @@ class RecallAgent:
                         concept_keywords=keywords,
                         concept_confidence=1.0,
                         full_content=full_content,
+                        gemini_api_key=_key,
                     )
                     artifact = result.artifact
                     room = result.room
@@ -584,7 +590,9 @@ class RecallAgent:
                 return "Cannot edit artifact: at least one of summary or full_content must be provided."
             await notify({"label": f'Editing artifact…'})
 
-            async def _edit(uid: str) -> None:
+            _edit_api_key = self._sessions.get(user_id)
+            _edit_api_key = _edit_api_key.gemini_api_key if _edit_api_key else None
+            async def _edit(uid: str, _key: str | None = _edit_api_key) -> None:
                 try:
                     from app.services.artifact_service import update_artifact
                     from app.websocket.manager import manager as ws_manager
@@ -593,6 +601,7 @@ class RecallAgent:
                         artifact_id=artifact_id,
                         summary=new_summary,
                         full_content=new_full_content,
+                        api_key=_key,
                     )
                     if updated is None:
                         return
@@ -682,11 +691,12 @@ class RecallAgent:
             await notify({"label": "Generating mind map synthesis…"})
 
             # Run synthesis in the background so the conversation is not blocked.
-            async def _run_synthesis(uid: str, rid: str) -> None:
+            _api_key = live.gemini_api_key if live else None
+            async def _run_synthesis(uid: str, rid: str, _key: str | None = _api_key) -> None:
                 try:
                     from app.services.synthesis_service import synthesize_room as svc_synthesize
                     from app.websocket.manager import manager as ws_manager
-                    artifact = await svc_synthesize(user_id=uid, room_id=rid)
+                    artifact = await svc_synthesize(user_id=uid, room_id=rid, api_key=_key)
                     await ws_manager.send(uid, {
                         "type": "palace_update",
                         "changes": {
@@ -725,7 +735,8 @@ class RecallAgent:
                 return "No query provided."
             await notify({"label": f"Searching memories: {query[:50]}"})
             try:
-                results = await semantic_search(user_id=user_id, query=query, limit=6)
+                _s = self._sessions.get(user_id)
+                results = await semantic_search(user_id=user_id, query=query, limit=6, api_key=_s.gemini_api_key if _s else None)
                 if not results:
                     return "No memories found matching that query."
                 lines = [f"Found {len(results)} relevant memory/memories:\n"]
@@ -779,6 +790,7 @@ class RecallAgent:
             await notify({"label": label})
             try:
                 if topic_query:
+                    _s2 = self._sessions.get(user_id)
                     results = await semantic_search(
                         user_id=user_id,
                         query=topic_query,
@@ -786,6 +798,7 @@ class RecallAgent:
                         captured_after=captured_after,
                         captured_before=captured_before,
                         min_similarity=0.1,
+                        api_key=_s2.gemini_api_key if _s2 else None,
                     )
                 else:
                     results = await get_memories_by_date_range(
@@ -828,7 +841,8 @@ class RecallAgent:
         elif fn_name == "web_search":
             query = fn_args.get("query", "")
             await notify({"label": f"Searching: {query[:50]}"})
-            result = await execute_web_search(query)
+            live = self._sessions.get(user_id)
+            result = await execute_web_search(query, api_key=live.gemini_api_key if live else None)
             return result
 
         elif fn_name == "end_session":
@@ -863,9 +877,10 @@ class RecallAgent:
         on_turn_complete: OnTurnComplete,
         on_user_text: Optional[OnUserText] = None,
         on_tool_activity: Optional[OnToolActivity] = None,
+        gemini_api_key: str | None = None,
     ) -> None:
         """Run inside the `async with connect()` block to keep the WS alive."""
-        client = get_genai_client()
+        client = get_genai_client(gemini_api_key)
         try:
             async with client.aio.live.connect(model=LIVE_MODEL, config=config) as session:
                 live.session = session
@@ -1000,6 +1015,7 @@ async def _retrieve_context(
     user_id: str,
     room_id: Optional[str],
     artifact_id: Optional[str],
+    api_key: str | None = None,
 ) -> list[SearchResult]:
     """Retrieve memory context via semantic search.
 
@@ -1046,6 +1062,7 @@ async def _retrieve_context(
             query=search_query,
             limit=8,
             room_id=room_id,
+            api_key=api_key,
         )
     except Exception:
         logger.exception("semantic_search failed for userId=%s", user_id)

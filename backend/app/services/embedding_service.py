@@ -4,9 +4,9 @@ from google.genai import types
 from app.core.gemini import EMBEDDING_MODEL, get_genai_client
 
 
-async def get_embedding(text: str) -> list[float]:
+async def get_embedding(text: str, api_key: str | None = None) -> list[float]:
     """Return a 768-dimensional embedding via text-embedding-005."""
-    client = get_genai_client()
+    client = get_genai_client(api_key)
     response = await client.aio.models.embed_content(
         model=EMBEDDING_MODEL,
         contents=text,
