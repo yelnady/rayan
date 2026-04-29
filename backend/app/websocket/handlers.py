@@ -61,6 +61,21 @@ def _handler(msg_type: str):
     return decorator
 
 
+async def _require_gemini_key(user_id: str) -> str | None:
+    """Return the user's Gemini API key, or None if not set."""
+    from app.services.user_settings_service import get_user_gemini_key
+    return await get_user_gemini_key(user_id)
+
+
+async def _send_no_key_error(user_id: str) -> None:
+    await manager.send(user_id, {
+        "type": "error",
+        "code": "NO_GEMINI_KEY",
+        "message": "Add your Gemini API key in Settings before using this feature.",
+        "retryable": False,
+    })
+
+
 @_handler("ping")
 async def handle_ping(user_id: str, msg: dict, websocket: WebSocket) -> None:
     import time
@@ -141,9 +156,12 @@ async def handle_capture_start(user_id: str, msg: dict, websocket: WebSocket) ->
         logger.info("CaptureAgent requested closure via tool: userId=%s sessionId=%s", user_id, session_id)
         await handle_capture_end(user_id, {"sessionId": session_id}, websocket)
 
+    gemini_api_key = await _require_gemini_key(user_id)
+    if not gemini_api_key:
+        await _send_no_key_error(user_id)
+        return
+
     display_name = manager.get_display_name(user_id)
-    from app.services.user_settings_service import get_user_gemini_key
-    gemini_api_key = await get_user_gemini_key(user_id)
     agent = CaptureAgent(user_id, session_id, on_extraction, on_audio, on_text, on_user_text, on_close, display_name=display_name, capture_pace=capture_pace, gemini_api_key=gemini_api_key)
     await agent.start()
     capture_agent_module.register_agent(session_id, agent)
@@ -330,8 +348,10 @@ async def handle_artifact_click(user_id: str, msg: dict, websocket: WebSocket) -
         return
 
     try:
-        from app.services.user_settings_service import get_user_gemini_key
-        gemini_api_key = await get_user_gemini_key(user_id)
+        gemini_api_key = await _require_gemini_key(user_id)
+        if not gemini_api_key:
+            await _send_no_key_error(user_id)
+            return
         result = await narrator_agent_module.narrate_artifact(user_id, artifact_id, room_id, display_name=manager.get_display_name(user_id), gemini_api_key=gemini_api_key)
     except Exception:
         logger.exception("narrator_agent failed: userId=%s artifactId=%s", user_id, artifact_id)
@@ -391,9 +411,12 @@ async def handle_live_session_start(user_id: str, msg: dict, websocket: WebSocke
             "payload": {k: v for k, v in payload.items() if k != "label"},
         })
 
+    gemini_api_key = await _require_gemini_key(user_id)
+    if not gemini_api_key:
+        await _send_no_key_error(user_id)
+        return
+
     try:
-        from app.services.user_settings_service import get_user_gemini_key
-        gemini_api_key = await get_user_gemini_key(user_id)
         await recall_agent.start_session(
             user_id=user_id,
             context=context,

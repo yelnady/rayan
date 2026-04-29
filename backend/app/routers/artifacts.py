@@ -202,7 +202,13 @@ async def get_related_memories(
         return RelatedMemoriesResponse(related=[])
 
     from app.services.user_settings_service import get_user_gemini_key
-    results = await semantic_search(user_id, artifact.summary, limit=limit + 1, api_key=await get_user_gemini_key(user_id))
+    api_key = await get_user_gemini_key(user_id)
+    if not api_key:
+        raise HTTPException(
+            status_code=402,
+            detail={"code": "NO_GEMINI_KEY", "message": "Add your Gemini API key in Settings to use this feature."},
+        )
+    results = await semantic_search(user_id, artifact.summary, limit=limit + 1, api_key=api_key)
 
     related = [
         RelatedMemory(

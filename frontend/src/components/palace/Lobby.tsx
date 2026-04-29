@@ -1,10 +1,9 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { Text, useGLTF, useTexture } from '@react-three/drei';
 import * as THREE from 'three';
 import { useCameraStore } from '../../stores/cameraStore';
 import { usePalaceStore } from '../../stores/palaceStore';
 import { useTransitionStore } from '../../stores/transitionStore';
-import { useVoiceStore } from '../../stores/voiceStore';
 import { Door } from './Door';
 import type { LobbyDoor, Room } from '../../types/palace';
 

@@ -134,11 +134,17 @@ async def synthesize_room_endpoint(
     try:
         from app.services.synthesis_service import synthesize_room
         from app.services.user_settings_service import get_user_gemini_key
+        api_key = await get_user_gemini_key(user_id)
+        if not api_key:
+            raise HTTPException(
+                status_code=402,
+                detail={"error": {"code": "NO_GEMINI_KEY", "message": "Add your Gemini API key in Settings to use this feature."}},
+            )
         artifact = await synthesize_room(
             user_id=user_id,
             room_id=room_id,
             replace_artifact_id=replace_artifact_id,
-            api_key=await get_user_gemini_key(user_id),
+            api_key=api_key,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail={"error": {"code": "BAD_REQUEST", "message": str(e)}})

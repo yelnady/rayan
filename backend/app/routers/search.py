@@ -53,12 +53,18 @@ async def search_memories(
 
     try:
         from app.services.user_settings_service import get_user_gemini_key
+        api_key = await get_user_gemini_key(user_id)
+        if not api_key:
+            raise HTTPException(
+                status_code=402,
+                detail={"code": "NO_GEMINI_KEY", "message": "Add your Gemini API key in Settings before searching."},
+            )
         results = await semantic_search(
             user_id=user_id,
             query=body.query,
             limit=body.limit,
             room_id=body.roomId,
-            api_key=await get_user_gemini_key(user_id),
+            api_key=api_key,
         )
     except Exception:
         logger.exception("semantic_search failed: userId=%s query=%r", user_id, body.query[:60])
